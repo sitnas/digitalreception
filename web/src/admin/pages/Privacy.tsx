@@ -42,13 +42,15 @@ function PolicyEditor({ policy, editable, onSaved }: { policy: Policy; editable:
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const num = (k: keyof Policy) => (e: React.ChangeEvent<HTMLInputElement>) => setP({ ...p, [k]: Number(e.target.value) });
   const bool = (k: keyof Policy) => (e: React.ChangeEvent<HTMLInputElement>) => setP({ ...p, [k]: e.target.checked });
+  // Asking for the document always includes its photo.
+  const docPhotoOn = p.documentDataEnabled || p.documentPhotoEnabled;
   const save = async (e: React.FormEvent) => {
     e.preventDefault(); setMsg(null);
     try {
       // Send only the editable rules: the API rejects unknown fields (id, tenantId, updatedAt...).
       const body = {
         visitRetentionDays: p.visitRetentionDays, locales: p.locales, defaultLocale: p.defaultLocale,
-        documentDataEnabled: p.documentDataEnabled, documentPhotoEnabled: p.documentPhotoEnabled, documentPhotoRetentionDays: p.documentPhotoRetentionDays,
+        documentDataEnabled: p.documentDataEnabled, documentPhotoEnabled: docPhotoOn, documentPhotoRetentionDays: p.documentPhotoRetentionDays,
         assetPhotosRequired: p.assetPhotosRequired, assetPhotoRetentionDays: p.assetPhotoRetentionDays,
       };
       await api.patch(`/admin/policies/${policy.countryCode}`, body); setMsg({ ok: true, text: t.privacy.saved }); onSaved();
@@ -67,8 +69,9 @@ function PolicyEditor({ policy, editable, onSaved }: { policy: Policy; editable:
             <select id="dl" className="input" value={p.defaultLocale} onChange={(e) => setP({ ...p, defaultLocale: e.target.value })}>{p.locales.map((l) => <option key={l} value={l}>{l.toUpperCase()}</option>)}</select></div>
         </div>
         <label className="toggle"><input type="checkbox" checked={p.documentDataEnabled} onChange={bool('documentDataEnabled')} />{t.privacy.docData}</label>
-        <label className="toggle"><input type="checkbox" checked={p.documentPhotoEnabled} onChange={bool('documentPhotoEnabled')} />{t.privacy.docPhoto}</label>
-        {p.documentPhotoEnabled && (
+        <label className="toggle"><input type="checkbox" checked={docPhotoOn} disabled={p.documentDataEnabled} onChange={bool('documentPhotoEnabled')} />{t.privacy.docPhoto}</label>
+        {p.documentDataEnabled && <span className="hint" style={{ marginTop: -8 }}>{t.privacy.docPhotoIncluded}</span>}
+        {docPhotoOn && (
           <>
             <p className="alert" style={{ margin: 0 }}>{t.privacy.docPhotoWarn}</p>
             <div className="field" style={{ maxWidth: 320 }}><label htmlFor="dr">{t.privacy.docPhotoRet}</label><input id="dr" type="number" min={1} max={365} step={1} required className="input" value={p.documentPhotoRetentionDays} onChange={num('documentPhotoRetentionDays')} /></div>

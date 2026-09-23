@@ -19,7 +19,8 @@ interface Props { cfg: KioskConfig; locale: Locale; t: Strings; onDone: (r: Chec
 export function CheckIn({ cfg, locale, t, onDone, onCancel, onReloadConfig }: Props) {
   const { policy } = cfg;
   const hasDirectory = cfg.hosts.length > 0;
-  const steps = useMemo<StepKey[]>(() => ['details', 'notice', ...((policy.documentPhotoEnabled || policy.assetPhotosRequired) ? ['photos' as const] : []), 'sign'], [policy]);
+  // The document photo is taken together with the document data; the photos step is only for the laptop serial.
+  const steps = useMemo<StepKey[]>(() => ['details', 'notice', ...(policy.assetPhotosRequired ? ['photos' as const] : []), 'sign'], [policy]);
   const labels = steps.map((s) => t.steps[['details', 'notice', 'photos', 'sign'].indexOf(s)]);
   const [step, setStep] = useState(0);
   const [f, setF] = useState({ firstName: '', lastName: '', company: '', email: '', host: '', hostId: '', purpose: '', travelDistance: '', documentType: '', documentNumber: '' });
@@ -51,16 +52,17 @@ export function CheckIn({ cfg, locale, t, onDone, onCancel, onReloadConfig }: Pr
     }
     return e;
   }, [f, t, policy.documentDataEnabled, hasDirectory]);
+  const docPhotoMissing = policy.documentPhotoEnabled && !docPhoto;
 
   const key = steps[step];
   const canNext =
-    key === 'details' ? Object.keys(errors).length === 0 :
+    key === 'details' ? Object.keys(errors).length === 0 && !docPhotoMissing :
     key === 'notice' ? noticeRead :
-    key === 'photos' ? (!policy.documentPhotoEnabled || !!docPhoto) && (!policy.assetPhotosRequired || !!assetPhoto) :
+    key === 'photos' ? !policy.assetPhotosRequired || !!assetPhoto :
     !!signature;
 
   const next = async () => {
-    if (key === 'details' && Object.keys(errors).length) { setTouched(true); return; }
+    if (key === 'details' && (Object.keys(errors).length || docPhotoMissing)) { setTouched(true); return; }
     if (step < steps.length - 1) { setError(null); setStep(step + 1); window.scrollTo(0, 0); return; }
     setBusy(true); setError(null);
     try {
@@ -141,6 +143,12 @@ export function CheckIn({ cfg, locale, t, onDone, onCancel, onReloadConfig }: Pr
               <div className="field"><label htmlFor="dn">{t.documentNumber}</label><input id="dn" className="input" value={f.documentNumber} onChange={set('documentNumber')} maxLength={40} aria-invalid={inv('documentNumber')} autoCapitalize="characters" />{err('documentNumber')}</div>
             </>
           )}
+          {policy.documentPhotoEnabled && (
+            <div className="field">
+              <PhotoCapture title={t.photoDocTitle} hint={t.photoDocHint} value={docPhoto} onChange={setDocPhoto} t={t} />
+              {touched && docPhotoMissing && <span className="error" role="alert">{t.required}</span>}
+            </div>
+          )}
           <div className="field"><label htmlFor="em">{t.email}</label><input id="em" className="input" type="email" inputMode="email" value={f.email} onChange={set('email')} maxLength={190} aria-invalid={inv('email')} autoCapitalize="none" /><span className="hint">{t.emailHint}</span>{err('email')}</div>
           <button type="submit" hidden />
         </form>
@@ -166,7 +174,6 @@ export function CheckIn({ cfg, locale, t, onDone, onCancel, onReloadConfig }: Pr
 
       {key === 'photos' && (
         <div className="stack">
-          {policy.documentPhotoEnabled && <PhotoCapture title={t.photoDocTitle} hint={t.photoDocHint} value={docPhoto} onChange={setDocPhoto} t={t} />}
           {policy.assetPhotosRequired && <PhotoCapture title={t.photoAssetTitle} hint={t.photoAssetHint} value={assetPhoto} onChange={setAssetPhoto} t={t} />}
         </div>
       )}

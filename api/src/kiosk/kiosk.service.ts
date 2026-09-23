@@ -14,6 +14,9 @@ import { CheckInDto, CheckOutDto } from './kiosk.dto';
 const MAX_KIOSK_HOSTS = 2000;
 
 /** Fills runtime placeholders so the text always matches the configured policy. */
+/** The document request always includes its photo; the photo can also be requested on its own. */
+export const documentPhotoRequired = (p: CountryPolicy) => p.documentDataEnabled || p.documentPhotoEnabled;
+
 export function renderNotice(body: string, policy: CountryPolicy): string {
   return body.split('{{visitRetentionDays}}').join(String(policy.visitRetentionDays));
 }
@@ -88,7 +91,7 @@ export class KioskService {
       site: { name: site.name, countryCode: site.countryCode, timezone: site.timezone },
       policy: {
         locales: policy.locales.filter((l) => notices[l]), defaultLocale: policy.defaultLocale,
-        documentDataEnabled: policy.documentDataEnabled, documentPhotoEnabled: policy.documentPhotoEnabled, assetPhotosRequired: policy.assetPhotosRequired,
+        documentDataEnabled: policy.documentDataEnabled, documentPhotoEnabled: documentPhotoRequired(policy), assetPhotosRequired: policy.assetPhotosRequired,
       },
       notices,
       hosts: (await this.siteHosts(device)).map((h) => ({ id: h.id, firstName: h.firstName, lastName: h.lastName, department: h.department, jobTitle: h.jobTitle })),
@@ -105,7 +108,7 @@ export class KioskService {
 
     // Server-side data minimisation: fields not allowed by the country policy are discarded, never stored.
     if (policy.documentDataEnabled && (!dto.documentType || !dto.documentNumber)) throw new BadRequestException('DOCUMENT_REQUIRED');
-    if (policy.documentPhotoEnabled && !dto.documentPhoto) throw new BadRequestException('DOCUMENT_PHOTO_REQUIRED');
+    if (documentPhotoRequired(policy) && !dto.documentPhoto) throw new BadRequestException('DOCUMENT_PHOTO_REQUIRED');
     if (policy.assetPhotosRequired && !dto.assetPhoto) throw new BadRequestException('ASSET_PHOTO_REQUIRED');
     if (dto.sendNoticeEmail && !dto.email) throw new BadRequestException('EMAIL_REQUIRED');
 
@@ -124,7 +127,7 @@ export class KioskService {
     }
 
     const signature = this.files.parseImage(dto.signature, 'signature');
-    const docPhoto = policy.documentPhotoEnabled && dto.documentPhoto ? this.files.parseImage(dto.documentPhoto, 'documentPhoto') : null;
+    const docPhoto = documentPhotoRequired(policy) && dto.documentPhoto ? this.files.parseImage(dto.documentPhoto, 'documentPhoto') : null;
     const assetPhoto = policy.assetPhotosRequired && dto.assetPhoto ? this.files.parseImage(dto.assetPhoto, 'assetPhoto') : null;
 
     const tc = await this.keys.forTenant(device.tenantId);

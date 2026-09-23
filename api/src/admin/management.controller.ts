@@ -279,7 +279,10 @@ export class ManagementController {
   async updatePolicy(@CurrentUser() user: AuthUser, @Param('countryCode') cc: string, @Body() dto: UpdatePolicyDto, @Req() req: AppRequest) {
     const policy = await this.policies.findOne({ where: { tenantId: user.tenantId, countryCode: cc } });
     if (!policy) throw new NotFoundException();
-    const next = { ...policy, ...dto };
+    // Fields not sent arrive as undefined on the DTO instance: they must not overwrite stored values.
+    const changes = Object.fromEntries(Object.entries(dto).filter(([, v]) => v !== undefined)) as UpdatePolicyDto;
+    const next = { ...policy, ...changes };
+    if (next.documentDataEnabled) next.documentPhotoEnabled = true; // the document request always includes its photo
     if (!next.locales.includes(next.defaultLocale)) throw new BadRequestException('DEFAULT_LOCALE_NOT_ENABLED');
     await this.policies.save(next);
     await this.audit.fromRequest(req, { action: 'POLICY_UPDATED', entityType: 'country', entityId: cc, details: { before: { ...policy, updatedAt: undefined, id: undefined, tenantId: undefined }, after: dto } });

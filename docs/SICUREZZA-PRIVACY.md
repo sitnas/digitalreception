@@ -15,7 +15,7 @@ Documento di riferimento per CISO, DPO e responsabili infrastruttura. Descrive c
 | Orari di ingresso e uscita | sì | come la visita | no |
 | Firma | sì | come la visita | sì (file) |
 | Tipo e numero documento | solo dove attivato per il paese | come la visita | sì |
-| Foto del documento | solo dove attivata; **spenta ovunque di default** | 7 giorni | sì (file) |
+| Foto del documento | sempre insieme a tipo e numero del documento, oppure da sola dove attivata; **spenta ovunque di default** | 7 giorni | sì (file) |
 | Foto del seriale del portatile | solo dove attivata (predefinito: Perù, Colombia) | 30 giorni | sì (file) |
 
 Conservazione predefinita delle visite: Italia 90 giorni, Spagna 30, Perù e Colombia 90, altri paesi 30. Alla scadenza la visita viene **anonimizzata**: restano sede, orari e motivo per le statistiche, spariscono tutti i riferimenti alla persona. Tutti i valori sono modificabili per paese dall'amministratore del cliente e vanno validati dal DPO.
