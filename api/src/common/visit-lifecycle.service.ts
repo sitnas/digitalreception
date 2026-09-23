@@ -17,7 +17,7 @@ export class VisitLifecycleService {
     for (const f of files) await this.files.purge(f);
     const patch: Partial<Visit> = {
       firstNameEnc: null, lastNameEnc: null, lastNameIndex: null, companyEnc: null, emailEnc: null, emailIndex: null,
-      hostEnc: null, documentNumberEnc: null, documentType: null, anonymizedAt: new Date(),
+      hostEnc: null, hostId: null, documentNumberEnc: null, documentType: null, anonymizedAt: new Date(),
     };
     if (opts.erased) patch.status = VisitStatus.ERASED;
     await this.ds.getRepository(Visit).update({ id: visitId, tenantId }, patch);

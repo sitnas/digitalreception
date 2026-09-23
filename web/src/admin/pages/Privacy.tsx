@@ -45,7 +45,12 @@ function PolicyEditor({ policy, editable, onSaved }: { policy: Policy; editable:
   const save = async (e: React.FormEvent) => {
     e.preventDefault(); setMsg(null);
     try {
-      const { countryCode: _c, name: _n, ...body } = p; // eslint-disable-line @typescript-eslint/no-unused-vars
+      // Send only the editable rules: the API rejects unknown fields (id, tenantId, updatedAt...).
+      const body = {
+        visitRetentionDays: p.visitRetentionDays, locales: p.locales, defaultLocale: p.defaultLocale,
+        documentDataEnabled: p.documentDataEnabled, documentPhotoEnabled: p.documentPhotoEnabled, documentPhotoRetentionDays: p.documentPhotoRetentionDays,
+        assetPhotosRequired: p.assetPhotosRequired, assetPhotoRetentionDays: p.assetPhotoRetentionDays,
+      };
       await api.patch(`/admin/policies/${policy.countryCode}`, body); setMsg({ ok: true, text: t.privacy.saved }); onSaved();
     } catch (err) { setMsg({ ok: false, text: errorText(t, err) }); }
   };
@@ -53,7 +58,7 @@ function PolicyEditor({ policy, editable, onSaved }: { policy: Policy; editable:
     <form className="a-card" onSubmit={save}>
       <fieldset disabled={!editable} style={{ border: 0, padding: 0, margin: 0 }} className="stack">
         <div className="a-grid">
-          <div className="field"><label htmlFor="vr">{t.privacy.retention}</label><input id="vr" type="number" min={1} max={3650} className="input" value={p.visitRetentionDays} onChange={num('visitRetentionDays')} /></div>
+          <div className="field"><label htmlFor="vr">{t.privacy.retention}</label><input id="vr" type="number" min={1} max={3650} step={1} required className="input" value={p.visitRetentionDays} onChange={num('visitRetentionDays')} /></div>
           <div className="field"><span className="label">{t.privacy.locales}</span>
             <div className="inline">{LOCALES.map((l) => (
               <label key={l} className="toggle"><input type="checkbox" checked={p.locales.includes(l)} onChange={(e) => setP({ ...p, locales: e.target.checked ? [...p.locales, l] : p.locales.filter((x) => x !== l) })} />{l.toUpperCase()}</label>
@@ -66,11 +71,11 @@ function PolicyEditor({ policy, editable, onSaved }: { policy: Policy; editable:
         {p.documentPhotoEnabled && (
           <>
             <p className="alert" style={{ margin: 0 }}>{t.privacy.docPhotoWarn}</p>
-            <div className="field" style={{ maxWidth: 320 }}><label htmlFor="dr">{t.privacy.docPhotoRet}</label><input id="dr" type="number" min={1} max={365} className="input" value={p.documentPhotoRetentionDays} onChange={num('documentPhotoRetentionDays')} /></div>
+            <div className="field" style={{ maxWidth: 320 }}><label htmlFor="dr">{t.privacy.docPhotoRet}</label><input id="dr" type="number" min={1} max={365} step={1} required className="input" value={p.documentPhotoRetentionDays} onChange={num('documentPhotoRetentionDays')} /></div>
           </>
         )}
         <label className="toggle"><input type="checkbox" checked={p.assetPhotosRequired} onChange={bool('assetPhotosRequired')} />{t.privacy.asset}</label>
-        {p.assetPhotosRequired && <div className="field" style={{ maxWidth: 320 }}><label htmlFor="ar">{t.privacy.assetRet}</label><input id="ar" type="number" min={1} max={3650} className="input" value={p.assetPhotoRetentionDays} onChange={num('assetPhotoRetentionDays')} /></div>}
+        {p.assetPhotosRequired && <div className="field" style={{ maxWidth: 320 }}><label htmlFor="ar">{t.privacy.assetRet}</label><input id="ar" type="number" min={1} max={3650} step={1} required className="input" value={p.assetPhotoRetentionDays} onChange={num('assetPhotoRetentionDays')} /></div>}
         {msg && <p className={msg.ok ? 'alert alert-info' : 'alert'} role="status">{msg.text}</p>}
         {editable && <div><button className="btn btn-primary">{t.privacy.save}</button></div>}
       </fieldset>

@@ -11,6 +11,7 @@ import { addDays } from '../common/time.util';
 import { VisitLifecycleService } from '../common/visit-lifecycle.service';
 import { Role, Site, StoredFile, Visit, VisitStatus } from '../entities';
 import { EraseVisitDto, VisitQueryDto } from './admin.dto';
+import { csvCell } from './csv';
 
 const RECEPTIONIST_WINDOW_DAYS = 7;
 const PAGE_SIZE = 50;
@@ -55,7 +56,7 @@ export class VisitsService {
   private row(tc: TenantCrypto, v: Visit) {
     return {
       id: v.id, code: v.code, status: v.status, siteId: v.siteId, siteName: v.site?.name ?? null, siteTimezone: v.site?.timezone ?? null,
-      checkInAt: v.checkInAt, checkOutAt: v.checkOutAt, purpose: v.purpose,
+      checkInAt: v.checkInAt, checkOutAt: v.checkOutAt, purpose: v.purpose, travelDistance: v.travelDistance,
       firstName: tc.decrypt(v.firstNameEnc, 'visit.firstName'), lastName: tc.decrypt(v.lastNameEnc, 'visit.lastName'),
       company: tc.decrypt(v.companyEnc, 'visit.company'), host: tc.decrypt(v.hostEnc, 'visit.host'), anonymized: !!v.anonymizedAt,
     };
@@ -101,7 +102,7 @@ export class VisitsService {
       documentType: v.documentType,
       documentNumber: docNumber ? (canSeeSensitive ? docNumber : `•••${docNumber.slice(-3)}`) : null,
       checkOutBy: v.checkOutBy, locale: v.locale, privacyNoticeVersion: v.privacyNoticeVersion, privacyAcceptedAt: v.privacyAcceptedAt,
-      noticeEmailStatus: v.noticeEmailStatus, anonymizedAt: v.anonymizedAt,
+      noticeEmailStatus: v.noticeEmailStatus, badgeEmailStatus: v.badgeEmailStatus, anonymizedAt: v.anonymizedAt,
       files: (v.files ?? []).map((f) => ({ id: f.id, kind: f.kind, available: !f.purgedAt, purgeAfter: f.purgeAfter, viewable: canSeeSensitive && !f.purgedAt })),
     };
   }
@@ -136,13 +137,8 @@ export class VisitsService {
     const tc = await this.keys.forTenant(user.tenantId);
     const items = await this.scoped(user, tc, q).orderBy('v.checkInAt', 'ASC').take(10_001).getMany();
     if (items.length > 10_000) throw new BadRequestException('EXPORT_TOO_LARGE');
-    const cell = (x: unknown) => {
-      let s = x === null || x === undefined ? '' : x instanceof Date ? x.toISOString() : String(x);
-      if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`; // spreadsheet formula injection guard
-      return `"${s.replace(/"/g, '""')}"`;
-    };
-    const header = ['code', 'site', 'status', 'check_in_utc', 'check_out_utc', 'first_name', 'last_name', 'company', 'host', 'purpose'];
-    const lines = items.map((v) => this.row(tc, v)).map((r) => [r.code, r.siteName, r.status, r.checkInAt, r.checkOutAt, r.firstName, r.lastName, r.company, r.host, r.purpose].map(cell).join(','));
+    const header = ['code', 'site', 'status', 'check_in_utc', 'check_out_utc', 'first_name', 'last_name', 'company', 'host', 'purpose', 'travel_distance'];
+    const lines = items.map((v) => this.row(tc, v)).map((r) => [r.code, r.siteName, r.status, r.checkInAt, r.checkOutAt, r.firstName, r.lastName, r.company, r.host, r.purpose, r.travelDistance].map(csvCell).join(','));
     await this.audit.fromRequest(req, { action: 'VISIT_EXPORT', siteId: q.siteId ?? null, details: { filters: this.safeFilters(q), rows: items.length } });
     return '\uFEFF' + [header.join(','), ...lines].join('\r\n');
   }

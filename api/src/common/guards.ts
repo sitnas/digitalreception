@@ -91,13 +91,16 @@ export class DeviceGuard implements CanActivate {
   }
 }
 
-/** Throws unless the user may act on the given site. SUPER_ADMIN sees every site. */
+/** Roles that see every site of the tenant regardless of site assignments. */
+const ALL_SITES_ROLES: Role[] = [Role.SUPER_ADMIN, Role.AUDITOR];
+
+/** Throws unless the user may act on the given site. SUPER_ADMIN and AUDITOR see every site. */
 export function assertSiteAccess(user: AuthUser, siteId: string): void {
-  if (user.role === Role.SUPER_ADMIN) return;
+  if (ALL_SITES_ROLES.includes(user.role)) return;
   if (!user.siteIds.includes(siteId)) throw new ForbiddenException('No access to this site');
 }
 
 /** Sites the user can see: undefined means "all". */
 export function visibleSiteIds(user: AuthUser): string[] | undefined {
-  return user.role === Role.SUPER_ADMIN ? undefined : user.siteIds;
+  return ALL_SITES_ROLES.includes(user.role) ? undefined : user.siteIds;
 }

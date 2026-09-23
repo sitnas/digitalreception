@@ -8,8 +8,9 @@ Documento di riferimento per CISO, DPO e responsabili infrastruttura. Descrive c
 |---|---|---|---|
 | Nome, cognome | sì | come la visita | sì |
 | Azienda | no | come la visita | sì |
-| Email | no, serve solo per ricevere l'informativa | come la visita | sì |
-| Persona di riferimento | sì | come la visita | sì |
+| Email | no, serve per ricevere il badge di uscita e, su richiesta, l'informativa | come la visita | sì |
+| Persona di riferimento | sì; scelta dall'elenco delle persone da visitare se la sede ne ha uno | come la visita | sì (nome); il collegamento all'elenco si rimuove con l'anonimizzazione |
+| Distanza percorsa per arrivare | sì (tre fasce: meno di 10 km, 10-100 km, oltre 100 km) | resta anche dopo l'anonimizzazione, per le statistiche | no, non identifica |
 | Motivo della visita | sì (lista chiusa) | come la visita | no, non identifica |
 | Orari di ingresso e uscita | sì | come la visita | no |
 | Firma | sì | come la visita | sì (file) |
@@ -41,17 +42,22 @@ Riferimenti normativi dei modelli di informativa: GDPR e D.Lgs. 196/2003 (Italia
 
 **Tablet.** Associazione con codice monouso di 8 caratteri valido 15 minuti; nel database c'è solo l'hash SHA-256 del codice e del token. Ogni tablet è legato a una sola sede e si può disattivare in qualsiasi momento. Dopo 90 secondi di inattività il modulo si svuota; le schermate di conferma tornano all'inizio da sole. All'uscita il tablet mostra solo "Nome I." e solo dopo che il visitatore ha digitato codice o iniziali.
 
-**Ruoli (minimo privilegio e separazione dei compiti).**
+**Persone da visitare.** L'elenco è gestito dall'amministratore (tutte le sedi) e dai responsabili di sede (solo le proprie). Al tablet arrivano solo nome, cognome, reparto e ruolo delle persone collegate alla sua sede: email e telefono restano nella console.
+
+**Ruoli (minimo privilegio e separazione dei compiti).** L'Auditor ha accesso in sola lettura a tutte le sedi: vede i visitatori con documenti e immagini, esporta storico e registro accessi, ma non può registrare uscite, cancellare dati né modificare configurazioni. Ogni sua consultazione finisce nel registro accessi.
 
 | | Amministratore | Resp. di sede | Receptionist | Auditor |
 |---|---|---|---|---|
-| Presenti e ingressi di oggi | tutte le sedi | sue sedi | sue sedi | no |
-| Storico | completo | completo, sue sedi | ultimi 7 giorni | no |
-| Immagini (firma, foto) | sì | sì | no | no |
-| Numero documento | sì | sì | ultime 3 cifre | no |
-| Export CSV | sì | sì | no | no |
+| Presenti e ingressi di oggi | tutte le sedi | sue sedi | sue sedi | tutte le sedi, sola lettura |
+| Storico | completo | completo, sue sedi | ultimi 7 giorni | completo, tutte le sedi |
+| Immagini (firma, foto) | sì | sì | no | sì |
+| Numero documento | sì | sì | ultime 3 cifre | sì |
+| Export CSV storico visite | sì | sì | no | sì |
+| Export CSV registro accessi | sì | no | no | sì |
+| Registrare un'uscita | sì | sì | sì | no |
 | Cancellazione su richiesta | sì | sì | no | no |
 | Tablet | sì | sue sedi | no | no |
+| Persone da visitare | sì | sue sedi | no | no |
 | Sedi, utenti, organizzazione | sì | no | no | no |
 | Regole privacy e informative | modifica | lettura | no | lettura |
 | Registro accessi | sì | no | no | sì |
@@ -70,6 +76,7 @@ Riferimenti normativi dei modelli di informativa: GDPR e D.Lgs. 196/2003 (Italia
 4. Decidere se la foto del documento serve davvero in qualche paese: il numero del documento è di solito sufficiente.
 5. Nel modello SaaS: il fornitore è responsabile del trattamento (art. 28) per ogni cliente; serve un accordo di trattamento dati.
 6. Valutare se è necessaria una DPIA (verosimilmente no per un registro visitatori senza biometria, ma la decisione va documentata).
+7. Pubblicare una nuova versione delle informative già in uso che citi la distanza percorsa e l'invio del badge di uscita via email (i modelli per i nuovi paesi sono già aggiornati).
 
 ## Requisiti applicativi verso l'infrastruttura
 
@@ -80,5 +87,5 @@ Espressi come necessità dell'applicazione; le scelte tecniche su come soddisfar
 3. **Uno spazio di archiviazione privato e persistente** per le immagini cifrate (volume o storage compatibile S3), non esposto pubblicamente.
 4. **Un luogo sicuro per i segreti** (`MASTER_KEYS`, `JWT_SECRET`, password DB), separato dai backup del database: chi ha solo il backup non deve poter leggere i dati.
 5. **Backup** di database e immagini secondo la politica aziendale; le copie restano cifrate.
-6. **Un relay SMTP** con STARTTLS, se si vuole l'invio dell'informativa via email.
+6. **Un relay SMTP** con STARTTLS, se si vuole l'invio via email del badge di uscita e dell'informativa.
 7. **Rete:** i tablet devono raggiungere l'indirizzo della console via HTTPS; nessun'altra porta è necessaria.

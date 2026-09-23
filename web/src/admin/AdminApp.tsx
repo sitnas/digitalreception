@@ -5,6 +5,7 @@ import { ADMIN_STRINGS, AdminLocale, I18nContext, useI18n } from './i18n';
 import { AuditPage } from './pages/Audit';
 import { DevicesPage } from './pages/Devices';
 import { HistoryPage } from './pages/History';
+import { HostsPage } from './pages/Hosts';
 import { OrganisationPage } from './pages/Organisation';
 import { PrivacyPage } from './pages/Privacy';
 import { SitesPage } from './pages/Sites';
@@ -23,10 +24,11 @@ function initialLocale(): AdminLocale {
 }
 
 const NAV: { to: string; key: keyof typeof ADMIN_STRINGS.it.nav; roles: Role[] }[] = [
-  { to: 'today', key: 'today', roles: ['SUPER_ADMIN', 'SITE_MANAGER', 'RECEPTIONIST'] },
-  { to: 'history', key: 'history', roles: ['SUPER_ADMIN', 'SITE_MANAGER', 'RECEPTIONIST'] },
-  { to: 'devices', key: 'devices', roles: ['SUPER_ADMIN', 'SITE_MANAGER'] },
+  { to: 'today', key: 'today', roles: ['SUPER_ADMIN', 'SITE_MANAGER', 'RECEPTIONIST', 'AUDITOR'] },
+  { to: 'history', key: 'history', roles: ['SUPER_ADMIN', 'SITE_MANAGER', 'RECEPTIONIST', 'AUDITOR'] },
   { to: 'sites', key: 'sites', roles: ['SUPER_ADMIN'] },
+  { to: 'devices', key: 'devices', roles: ['SUPER_ADMIN', 'SITE_MANAGER'] },
+  { to: 'hosts', key: 'hosts', roles: ['SUPER_ADMIN', 'SITE_MANAGER'] },
   { to: 'users', key: 'users', roles: ['SUPER_ADMIN'] },
   { to: 'privacy', key: 'privacy', roles: ['SUPER_ADMIN', 'SITE_MANAGER', 'AUDITOR'] },
   { to: 'audit', key: 'audit', roles: ['SUPER_ADMIN', 'AUDITOR'] },
@@ -169,8 +171,9 @@ function Shell({ branding, me, onLogout }: { branding: Branding; me: Me; onLogou
           <Route index element={<Navigate to={home} replace />} />
           {items.some((i) => i.to === 'today') && <Route path="today" element={<TodayPage />} />}
           {items.some((i) => i.to === 'history') && <Route path="history" element={<HistoryPage />} />}
-          {items.some((i) => i.to === 'devices') && <Route path="devices" element={<DevicesPage />} />}
           {items.some((i) => i.to === 'sites') && <Route path="sites" element={<SitesPage />} />}
+          {items.some((i) => i.to === 'devices') && <Route path="devices" element={<DevicesPage />} />}
+          {items.some((i) => i.to === 'hosts') && <Route path="hosts" element={<HostsPage />} />}
           {items.some((i) => i.to === 'users') && <Route path="users" element={<UsersPage />} />}
           {items.some((i) => i.to === 'privacy') && <Route path="privacy" element={<PrivacyPage />} />}
           {items.some((i) => i.to === 'audit') && <Route path="audit" element={<AuditPage />} />}

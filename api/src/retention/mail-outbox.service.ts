@@ -7,7 +7,7 @@ import { withDbLock } from '../common/db-lock';
 import { MailService } from '../common/mail.service';
 import { TenantKeysService } from '../common/tenant-keys.service';
 import { renderNotice } from '../kiosk/kiosk.service';
-import { CountryPolicy, NoticeEmailStatus, PrivacyNotice, Site, Tenant, Visit } from '../entities';
+import { CountryPolicy, NoticeEmailStatus, PrivacyNotice, Site, Tenant, Visit, VisitStatus } from '../entities';
 
 const MAX_ATTEMPTS = 3;
 
@@ -38,6 +38,15 @@ export class MailOutboxService {
   }
 
   private async execute() {
+    await this.sendNotices();
+    await this.sendBadges();
+  }
+
+  private next(ok: boolean, attempts: number): NoticeEmailStatus {
+    return ok ? NoticeEmailStatus.SENT : attempts >= MAX_ATTEMPTS ? NoticeEmailStatus.FAILED : NoticeEmailStatus.PENDING;
+  }
+
+  private async sendNotices() {
     const pending = await this.visits.find({ where: { noticeEmailStatus: NoticeEmailStatus.PENDING }, order: { checkInAt: 'ASC' }, take: 100 });
     for (const v of pending) {
       const tc = await this.keys.forTenant(v.tenantId);
@@ -55,8 +64,35 @@ export class MailOutboxService {
       const attempts = v.noticeEmailAttempts + 1;
       await this.visits.update({ id: v.id }, {
         noticeEmailAttempts: attempts,
-        noticeEmailStatus: ok ? NoticeEmailStatus.SENT : attempts >= MAX_ATTEMPTS ? NoticeEmailStatus.FAILED : NoticeEmailStatus.PENDING,
+        noticeEmailStatus: this.next(ok, attempts),
       });
+    }
+  }
+
+  /** Exit badge: sent only while the visit is still open, a badge for a closed visit is useless. */
+  private async sendBadges() {
+    const pending = await this.visits.find({ where: { badgeEmailStatus: NoticeEmailStatus.PENDING }, order: { checkInAt: 'ASC' }, take: 100 });
+    for (const v of pending) {
+      if (v.status !== VisitStatus.OPEN) {
+        await this.visits.update({ id: v.id }, { badgeEmailStatus: NoticeEmailStatus.SKIPPED });
+        continue;
+      }
+      const tc = await this.keys.forTenant(v.tenantId);
+      const email = tc.decrypt(v.emailEnc, 'visit.email');
+      const firstName = tc.decrypt(v.firstNameEnc, 'visit.firstName');
+      const lastName = tc.decrypt(v.lastNameEnc, 'visit.lastName');
+      const site = await this.ds.getRepository(Site).findOne({ where: { id: v.siteId, tenantId: v.tenantId } });
+      const tenant = await this.ds.getRepository(Tenant).findOne({ where: { id: v.tenantId }, select: { id: true, name: true } });
+      if (!email || !firstName || !lastName || !site || !tenant) {
+        await this.visits.update({ id: v.id }, { badgeEmailStatus: NoticeEmailStatus.FAILED });
+        continue;
+      }
+      const ok = await this.mail.sendBadge(email, tenant.name, {
+        locale: v.locale, timezone: site.timezone, siteName: site.name, code: v.code, checkInAt: v.checkInAt,
+        visitorLabel: `${firstName} ${lastName}`, hostName: tc.decrypt(v.hostEnc, 'visit.host') ?? '—',
+      });
+      const attempts = v.badgeEmailAttempts + 1;
+      await this.visits.update({ id: v.id }, { badgeEmailAttempts: attempts, badgeEmailStatus: this.next(ok, attempts) });
     }
   }
 }

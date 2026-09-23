@@ -2,25 +2,27 @@ import { useMemo, useState } from 'react';
 import { ApiError, api } from '../lib/api';
 import { PhotoCapture, SignaturePad, Steps } from './parts';
 import type { Locale, Strings } from './strings';
-import type { KioskConfig } from './types';
+import type { KioskConfig, KioskHost } from './types';
 
 const PURPOSES = ['MEETING', 'INTERVIEW', 'SUPPLIER', 'MAINTENANCE', 'DELIVERY', 'OTHER'] as const;
 const DOC_TYPES = ['ID_CARD', 'PASSPORT', 'DRIVING_LICENSE', 'OTHER'] as const;
+const DISTANCES = ['UNDER_10_KM', 'FROM_10_TO_100_KM', 'OVER_100_KM'] as const;
 const NAME = /^[\p{L}\p{M}' .-]+$/u;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 type StepKey = 'details' | 'notice' | 'photos' | 'sign';
 
-export interface CheckInResult { code: string; label: string; emailQueued: boolean }
+export interface CheckInResult { code: string; label: string; emailQueued: boolean; badgeEmailQueued: boolean }
 
 interface Props { cfg: KioskConfig; locale: Locale; t: Strings; onDone: (r: CheckInResult) => void; onCancel: () => void; onReloadConfig: () => Promise<void> }
 
 export function CheckIn({ cfg, locale, t, onDone, onCancel, onReloadConfig }: Props) {
   const { policy } = cfg;
+  const hasDirectory = cfg.hosts.length > 0;
   const steps = useMemo<StepKey[]>(() => ['details', 'notice', ...((policy.documentPhotoEnabled || policy.assetPhotosRequired) ? ['photos' as const] : []), 'sign'], [policy]);
   const labels = steps.map((s) => t.steps[['details', 'notice', 'photos', 'sign'].indexOf(s)]);
   const [step, setStep] = useState(0);
-  const [f, setF] = useState({ firstName: '', lastName: '', company: '', email: '', host: '', purpose: '', documentType: '', documentNumber: '' });
+  const [f, setF] = useState({ firstName: '', lastName: '', company: '', email: '', host: '', hostId: '', purpose: '', travelDistance: '', documentType: '', documentNumber: '' });
   const [touched, setTouched] = useState(false);
   const [noticeRead, setNoticeRead] = useState(false);
   const [scrolledToEnd, setScrolledToEnd] = useState(false);
@@ -40,14 +42,15 @@ export function CheckIn({ cfg, locale, t, onDone, onCancel, onReloadConfig }: Pr
       if (!f[k].trim()) e[k] = t.required; else if (!NAME.test(f[k].trim())) e[k] = t.invalidName;
     }
     if (f.email.trim() && !EMAIL.test(f.email.trim())) e.email = t.invalidEmail;
-    if (!f.host.trim()) e.host = t.required;
+    if (hasDirectory ? !f.hostId : !f.host.trim()) e.host = t.required;
     if (!f.purpose) e.purpose = t.required;
+    if (!f.travelDistance) e.travelDistance = t.required;
     if (policy.documentDataEnabled) {
       if (!f.documentType) e.documentType = t.required;
       if (f.documentNumber.trim().length < 3) e.documentNumber = t.required;
     }
     return e;
-  }, [f, t, policy.documentDataEnabled]);
+  }, [f, t, policy.documentDataEnabled, hasDirectory]);
 
   const key = steps[step];
   const canNext =
@@ -61,22 +64,29 @@ export function CheckIn({ cfg, locale, t, onDone, onCancel, onReloadConfig }: Pr
     if (step < steps.length - 1) { setError(null); setStep(step + 1); window.scrollTo(0, 0); return; }
     setBusy(true); setError(null);
     try {
-      const res = await api.kiosk.post<{ code: string; emailQueued: boolean }>('/visits', {
+      const res = await api.kiosk.post<{ code: string; emailQueued: boolean; badgeEmailQueued: boolean }>('/visits', {
         locale, firstName: f.firstName, lastName: f.lastName, company: f.company || undefined, email: f.email.trim() || undefined,
-        sendNoticeEmail: sendEmail && !!f.email.trim(), host: f.host, purpose: f.purpose,
+        sendNoticeEmail: sendEmail && !!f.email.trim(),
+        ...(hasDirectory ? { hostId: f.hostId } : { host: f.host }),
+        purpose: f.purpose, travelDistance: f.travelDistance,
         documentType: policy.documentDataEnabled ? f.documentType : undefined,
         documentNumber: policy.documentDataEnabled ? f.documentNumber : undefined,
         privacyNoticeId: notice.id, privacyAccepted: true, signature,
         documentPhoto: policy.documentPhotoEnabled ? docPhoto : undefined,
         assetPhoto: policy.assetPhotosRequired ? assetPhoto : undefined,
       });
-      onDone({ code: res.code, label: `${f.firstName.trim()} ${f.lastName.trim().charAt(0)}.`, emailQueued: res.emailQueued });
+      onDone({ code: res.code, label: `${f.firstName.trim()} ${f.lastName.trim().charAt(0)}.`, emailQueued: res.emailQueued, badgeEmailQueued: res.badgeEmailQueued });
     } catch (e) {
       if (e instanceof ApiError && e.code === 'NOTICE_OUTDATED') {
         await onReloadConfig();
         setNoticeRead(false); setScrolledToEnd(false); setSignature(null);
         setStep(steps.indexOf('notice'));
         setError(t.errors.NOTICE_OUTDATED);
+      } else if (e instanceof ApiError && (e.code === 'HOST_NOT_FOUND' || e.code === 'HOST_REQUIRED')) {
+        // The directory changed while the visitor was typing: reload it and ask to pick again.
+        await onReloadConfig();
+        setF((cur) => ({ ...cur, hostId: '' })); setSignature(null); setStep(0);
+        setError(t.errors.generic);
       } else setError(e instanceof ApiError ? t.errors.generic : t.errors.offline);
     } finally { setBusy(false); }
   };
@@ -97,14 +107,27 @@ export function CheckIn({ cfg, locale, t, onDone, onCancel, onReloadConfig }: Pr
           </div>
           <div className="k-row">
             <div className="field"><label htmlFor="co">{t.company}</label><input id="co" className="input" value={f.company} onChange={set('company')} maxLength={120} /><span className="hint">{t.companyHint}</span></div>
-            <div className="field"><label htmlFor="ho">{t.host}</label><input id="ho" className="input" value={f.host} onChange={set('host')} maxLength={120} aria-invalid={inv('host')} /><span className="hint">{t.hostHint}</span>{err('host')}</div>
+            {!hasDirectory && <div className="field"><label htmlFor="ho">{t.host}</label><input id="ho" className="input" value={f.host} onChange={set('host')} maxLength={120} aria-invalid={inv('host')} /><span className="hint">{t.hostHint}</span>{err('host')}</div>}
           </div>
+          {hasDirectory && (
+            <div className="field">
+              <HostPicker hosts={cfg.hosts} value={f.hostId} onChange={(hostId) => setF({ ...f, hostId })} t={t} />
+              {err('host')}
+            </div>
+          )}
           <div className="field">
             <span className="label" id="purpose-l">{t.purpose}</span>
             <div className="k-chips" role="group" aria-labelledby="purpose-l">
               {PURPOSES.map((p) => <button type="button" key={p} className="k-chip" aria-pressed={f.purpose === p} onClick={() => setF({ ...f, purpose: p })}>{t.purposes[p]}</button>)}
             </div>
             {err('purpose')}
+          </div>
+          <div className="field">
+            <span className="label" id="dist-l">{t.distance}</span>
+            <div className="k-chips" role="group" aria-labelledby="dist-l">
+              {DISTANCES.map((d) => <button type="button" key={d} className="k-chip" aria-pressed={f.travelDistance === d} onClick={() => setF({ ...f, travelDistance: d })}>{t.distances[d]}</button>)}
+            </div>
+            {err('travelDistance')}
           </div>
           {policy.documentDataEnabled && (
             <>
@@ -162,5 +185,36 @@ export function CheckIn({ cfg, locale, t, onDone, onCancel, onReloadConfig }: Pr
         </button>
       </div>
     </div>
+  );
+}
+
+/** The visitor sees who can be visited at this site and taps one: name, department and role only. */
+function HostPicker({ hosts, value, onChange, t }: { hosts: KioskHost[]; value: string; onChange: (id: string) => void; t: Strings }) {
+  const [q, setQ] = useState('');
+  const norm = (x: string) => x.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const term = norm(q.trim());
+  const shown = term ? hosts.filter((h) => [h.firstName, h.lastName, `${h.firstName} ${h.lastName}`, `${h.lastName} ${h.firstName}`, h.department ?? '', h.jobTitle ?? ''].some((x) => norm(x).includes(term))) : hosts;
+  const selected = hosts.find((h) => h.id === value);
+  return (
+    <>
+      <span className="label" id="host-l">{t.host}</span>
+      {hosts.length > 6 && <input className="input" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t.hostSearch} aria-label={t.hostSearch} maxLength={60} />}
+      <span className="hint">{t.hostPickHint}</span>
+      <div className="k-hosts" role="radiogroup" aria-labelledby="host-l">
+        {selected && !shown.includes(selected) && <HostCard host={selected} selected onPick={onChange} />}
+        {shown.map((h) => <HostCard key={h.id} host={h} selected={h.id === value} onPick={onChange} />)}
+        {shown.length === 0 && !selected && <p className="muted" style={{ margin: 0 }}>{t.hostNone}</p>}
+      </div>
+    </>
+  );
+}
+
+function HostCard({ host, selected, onPick }: { host: KioskHost; selected: boolean; onPick: (id: string) => void }) {
+  const profile = [host.department, host.jobTitle].filter(Boolean).join(' · ');
+  return (
+    <button type="button" role="radio" aria-checked={selected} className="k-host" onClick={() => onPick(host.id)}>
+      <strong>{host.firstName} {host.lastName}</strong>
+      {profile && <span>{profile}</span>}
+    </button>
   );
 }

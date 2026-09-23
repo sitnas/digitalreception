@@ -124,6 +124,7 @@ export function KioskApp() {
               </div>
             </div>
             <p style={{ maxWidth: 560, margin: 0 }}>{t.doneHint}</p>
+            {screen.result.badgeEmailQueued && <p className="muted" style={{ margin: 0 }}>{t.doneBadgeEmail}</p>}
             {screen.result.emailQueued && <p className="muted" style={{ margin: 0 }}>{t.doneEmail}</p>}
             <button type="button" className="btn btn-primary" onClick={goHome}>{t.finish}</button>
           </div>
