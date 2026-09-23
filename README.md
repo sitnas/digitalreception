@@ -1,1 +1,78 @@
-# digitalreception
+# Reception — registro visitatori multi-azienda
+
+Registro digitale degli ingressi per le reception aziendali: il visitatore si registra da solo su un tablet, l'azienda consulta presenze e storico da una console web. Progettato per essere venduto a più aziende (multi-tenant) e per chi ha requisiti privacy stringenti: ogni dato personale è cifrato con chiavi diverse per ogni cliente, cancellato automaticamente alla scadenza e ogni consultazione è tracciata.
+
+## Cosa fa
+
+Sul **tablet** della reception il visitatore sceglie la lingua, inserisce i propri dati, legge e accetta l'informativa privacy, firma, e riceve un codice di uscita mostrato su un badge. Dove la policy del paese lo richiede scatta anche la foto del numero di serie del portatile, in ingresso e in uscita. All'uscita digita il codice o le prime lettere del cognome: il tablet non mostra mai l'elenco dei presenti.
+
+Nella **console** l'azienda vede chi è in sede adesso (elenco stampabile per l'evacuazione), consulta lo storico, esporta, cancella i dati su richiesta dell'interessato, gestisce tablet, sedi, utenti, regole privacy per paese, informative versionate e il registro degli accessi.
+
+## Architettura in breve
+
+| Componente | Tecnologia | Note |
+|---|---|---|
+| API | NestJS 10, TypeScript, TypeORM | stateless, scalabile orizzontalmente |
+| Database | MySQL 8.4 o MariaDB 10.11+ | una migrazione, testata su MariaDB |
+| Frontend | React 18 + Vite, un'unica app | `/kiosk` per il tablet, `/admin` per la console |
+| Immagini | volume locale oppure storage S3-compatibile (es. MinIO) | sempre cifrate prima di essere scritte |
+| Email | relay SMTP aziendale | coda persistente su database |
+
+Tutto open source, nessun servizio esterno obbligatorio e nessuna chiamata a terze parti dal browser (i font sono inclusi nell'app).
+
+Documentazione di dettaglio:
+
+- [docs/ARCHITETTURA.md](docs/ARCHITETTURA.md) — scelte tecniche, multi-tenancy, scalabilità
+- [docs/SICUREZZA-PRIVACY.md](docs/SICUREZZA-PRIVACY.md) — controlli di sicurezza e privacy, per CISO e DPO
+- [docs/OPERAZIONI.md](docs/OPERAZIONI.md) — installazione, nuovi clienti, backup, rotazione chiavi
+
+## Avvio rapido (un server)
+
+```bash
+cp .env.example .env
+docker compose run --rm --no-deps api npm run keys   # copia MASTER_KEYS e JWT_SECRET nel .env
+# completa il .env (password DB, SMTP, TENANCY_MODE...)
+docker compose up -d --build
+docker compose run --rm api npm run tenant -- create \
+  --slug azienda --name "Azienda S.p.A." --countries IT,ES --admin-email it@azienda.com
+```
+
+L'ultimo comando stampa **una sola volta** la password temporanea del primo amministratore, da cambiare al primo accesso. Poi:
+
+1. Console: `https://<host>/admin` → crea le sedi e gli utenti.
+2. Tablet: apri `https://<host>/kiosk`, aggiungilo alla schermata Home (si apre a schermo intero), inserisci il codice generato in **Tablet → Associa un tablet**.
+
+HTTPS è obbligatorio: senza, la fotocamera del tablet e i cookie di sessione non funzionano.
+
+## Sviluppo locale
+
+```bash
+# API
+cd api && npm ci && npm run build
+cp ../.env.example .env.dev   # imposta NODE_ENV=development, COOKIE_SECURE=false, DB locale
+set -a && . ./.env.dev && set +a
+npm run tenant -- create --slug demo --name "Demo" --countries IT --admin-email admin@demo.test
+npm start
+
+# Web (proxy /api -> localhost:3000)
+cd web && npm ci && npm run dev
+```
+
+In sviluppo `localhost` usa il tenant indicato in `DEFAULT_TENANT_SLUG`.
+
+## Struttura
+
+```
+api/
+  src/common/        cifratura, risoluzione tenant, guard, audit, storage, lock distribuiti
+  src/entities/      modello dati (ogni tabella ha tenantId)
+  src/kiosk/         API del tablet
+  src/admin/         API della console
+  src/retention/     job di conservazione e coda email
+  src/cli/           gestione clienti (creazione, sospensione, cancellazione, rotazione chiavi)
+  src/database/      migrazioni, preset per paese, modelli di informativa
+web/
+  src/kiosk/         app del tablet (it, es, en)
+  src/admin/         console (it, es)
+docs/                documentazione per IT, sicurezza e privacy
+```

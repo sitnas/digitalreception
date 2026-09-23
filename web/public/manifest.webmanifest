@@ -1,0 +1,11 @@
+{
+  "name": "Reception - registro visitatori",
+  "short_name": "Reception",
+  "start_url": "/kiosk",
+  "scope": "/",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#EEF2F1",
+  "theme_color": "#0B5D5B",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}

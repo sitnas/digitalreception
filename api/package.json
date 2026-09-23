@@ -1,0 +1,46 @@
+{
+  "name": "@reception/api",
+  "version": "0.1.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "description": "Registro visitatori - API (NestJS + TypeORM + MySQL/MariaDB)",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/main.js",
+    "start:dev": "tsc -p tsconfig.build.json --watch",
+    "migration:generate": "typeorm migration:generate -d dist/database/data-source.js",
+    "migration:run": "typeorm migration:run -d dist/database/data-source.js",
+    "keys": "node -e \"const c=require('crypto');console.log('MASTER_KEYS=k1:'+c.randomBytes(32).toString('base64'));console.log('JWT_SECRET='+c.randomBytes(48).toString('base64'))\"",
+    "tenant": "node dist/cli/tenants.js",
+    "jobs:run": "node dist/database/run-retention.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1138.0",
+    "@nestjs/common": "^10.4.22",
+    "@nestjs/core": "^10.4.22",
+    "@nestjs/jwt": "^10.2.0",
+    "@nestjs/platform-express": "^10.4.22",
+    "@nestjs/schedule": "^4.1.2",
+    "@nestjs/throttler": "^6.7.0",
+    "@nestjs/typeorm": "^10.0.2",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.15.1",
+    "cookie-parser": "^1.4.7",
+    "helmet": "^8.3.0",
+    "mysql2": "^3.24.4",
+    "nodemailer": "^10.0.10",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2",
+    "typeorm": "^0.3.31"
+  },
+  "devDependencies": {
+    "@types/cookie-parser": "^1.4.10",
+    "@types/express": "^4.17.25",
+    "@types/node": "^22.20.4",
+    "@types/nodemailer": "^8.0.2",
+    "typescript": "^5.9.3"
+  }
+}

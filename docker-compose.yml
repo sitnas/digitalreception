@@ -1,0 +1,57 @@
+# Single-node installation (one company, or a small SaaS). All components are open source.
+#   cp .env.example .env    # fill in the values, generate keys with the command in the file
+#   docker compose up -d --build
+#   docker compose run --rm api npm run tenant -- create --slug <slug> --name "<Company>" --countries IT --admin-email <email>
+#
+# For S3-compatible storage instead of the local volume:  docker compose --profile s3 up -d
+services:
+  db:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      MYSQL_RANDOM_ROOT_PASSWORD: "yes"   # nobody needs root: the app user has only its own schema
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci", "--default-time-zone=+00:00"]
+    volumes: [db-data:/var/lib/mysql]
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1"]
+      interval: 10s
+      retries: 10
+
+  api:
+    build: ./api
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DB_HOST: db
+      FILES_DIR: /data/files
+    depends_on:
+      db: { condition: service_healthy }
+    volumes: [files:/data/files]
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+
+  web:
+    build: ./web
+    restart: unless-stopped
+    depends_on: [api]
+    ports: ["${HTTP_PORT:-8080}:8080"]
+    security_opt: ["no-new-privileges:true"]
+
+  minio:
+    profiles: ["s3"]
+    image: minio/minio:latest
+    command: server /data
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY_ID}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_ACCESS_KEY}
+    volumes: [minio-data:/data]
+
+volumes:
+  db-data:
+  files:
+  minio-data:
