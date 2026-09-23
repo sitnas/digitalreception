@@ -54,6 +54,18 @@ button { cursor: pointer; }
 .kiosk { min-height: 100dvh; display: grid; grid-template-rows: auto 1fr auto; font-size: 20px; line-height: 1.45;
   padding: max(20px, env(safe-area-inset-top)) clamp(20px, 5vw, 56px) max(20px, env(safe-area-inset-bottom)); user-select: none; -webkit-user-select: none; }
 .kiosk input, .kiosk textarea { user-select: text; -webkit-user-select: text; }
+/* Tablet palette: yellow, black and white. Yellow is always paired with black text (contrast 14:1). */
+.kiosk {
+  --k-yellow: #FFD100; --k-yellow-hover: #F0C400; --k-black: #111111; --k-white: #FFFFFF;
+  --ground: var(--k-white); --surface: var(--k-white); --ink: var(--k-black); --ink-2: #4D4D4D; --line: #D4D4D4;
+  --teal: var(--k-black); --teal-hover: #000000; --teal-soft: #FFF3B8; --badge: var(--k-yellow);
+  --focus: 0 0 0 3px var(--k-white), 0 0 0 6px var(--k-black);
+  background: var(--ground); color: var(--ink);
+}
+.kiosk .btn-primary { background: var(--k-yellow); color: var(--k-black); border-color: var(--k-black); }
+.kiosk .btn-primary:hover:not(:disabled) { background: var(--k-yellow-hover); }
+.kiosk .input:focus-visible { border-color: var(--k-black); }
+.kiosk .alert-info { background: var(--teal-soft); color: var(--k-black); }
 .kiosk .input { min-height: 64px; font-size: 22px; padding: .5em .8em; }
 .kiosk .btn { min-height: 64px; font-size: 21px; padding: .7em 1.6em; border-radius: 14px; }
 .k-top { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-bottom: 16px; }
@@ -73,8 +85,10 @@ button { cursor: pointer; }
 .k-choice { text-align: left; border-radius: 22px; padding: 32px 30px 30px; min-height: 220px; display: grid; align-content: end; gap: 6px; border: 2px solid var(--line); background: var(--surface); }
 .k-choice strong { font-size: 34px; line-height: 1.1; }
 .k-choice span { font-size: 19px; color: var(--ink-2); }
-.k-choice.in { background: var(--teal); border-color: var(--teal); color: #fff; }
-.k-choice.in span { color: #CFE3E1; }
+.k-choice { background: var(--k-black); border-color: var(--k-black); color: var(--k-white); }
+.k-choice span { color: #D9D9D9; }
+.k-choice.in { background: var(--k-yellow); border-color: var(--k-yellow); color: var(--k-black); }
+.k-choice.in span { color: #333333; }
 .k-choice .glyph { font-size: 40px; line-height: 1; margin-bottom: auto; }
 @media (max-width: 700px) { .k-choices { grid-template-columns: 1fr; } .k-choice { min-height: 150px; } }
 
@@ -82,20 +96,20 @@ button { cursor: pointer; }
 .k-steps li { display: flex; align-items: center; gap: 8px; font-size: 16px; color: var(--ink-2); padding: 6px 12px 6px 6px; border-radius: 999px; background: transparent; }
 .k-steps li .n { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; border: 2px solid var(--line); font-weight: 700; font-size: 14px; background: var(--surface); }
 .k-steps li[aria-current='step'] { color: var(--ink); font-weight: 700; background: var(--surface); }
-.k-steps li[aria-current='step'] .n { background: var(--teal); border-color: var(--teal); color: #fff; }
-.k-steps li.done .n { background: var(--teal-soft); border-color: var(--teal-soft); color: var(--teal); }
+.k-steps li[aria-current='step'] .n { background: var(--k-yellow); border-color: var(--k-black); color: var(--k-black); }
+.k-steps li.done .n { background: var(--k-black); border-color: var(--k-black); color: var(--k-yellow); }
 
 .k-form { display: grid; gap: 22px; }
 .k-row { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
 @media (max-width: 700px) { .k-row { grid-template-columns: 1fr; } }
 .k-chips { display: flex; flex-wrap: wrap; gap: 10px; }
 .k-chip { border: 2px solid var(--line); background: var(--surface); border-radius: 999px; padding: 12px 20px; min-height: 56px; font-size: 19px; }
-.k-chip[aria-pressed='true'] { background: var(--ink); color: #fff; border-color: var(--ink); font-weight: 700; }
+.k-chip[aria-pressed='true'] { background: var(--k-yellow); color: var(--k-black); border-color: var(--k-black); font-weight: 700; }
 .k-hosts { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; max-height: 360px; overflow-y: auto; padding: 2px; }
 .k-host { display: grid; gap: 2px; text-align: left; border: 2px solid var(--line); background: var(--surface); border-radius: 14px; padding: 12px 16px; min-height: 64px; font-size: 18px; color: inherit; }
 .k-host span { font-size: 15px; color: var(--ink-2); }
-.k-host[aria-checked='true'] { background: var(--ink); color: #fff; border-color: var(--ink); }
-.k-host[aria-checked='true'] span { color: #fff; opacity: .85; }
+.k-host[aria-checked='true'] { background: var(--k-yellow); color: var(--k-black); border-color: var(--k-black); }
+.k-host[aria-checked='true'] span { color: #333333; }
 
 .k-actions { display: flex; justify-content: space-between; gap: 16px; margin-top: 32px; }
 .k-actions .btn-primary { margin-left: auto; min-width: 240px; }
@@ -104,7 +118,7 @@ button { cursor: pointer; }
 .k-notice h3 { margin: 0 0 12px; font-size: 24px; }
 .k-notice p { margin: 0 0 12px; max-width: 70ch; }
 .k-check { display: flex; gap: 14px; align-items: center; font-size: 20px; min-height: 56px; }
-.k-check input { width: 32px; height: 32px; accent-color: var(--teal); flex: none; }
+.k-check input { width: 32px; height: 32px; accent-color: var(--k-black); flex: none; }
 .k-check[aria-disabled='true'] { color: var(--ink-2); }
 
 .k-photo { display: grid; gap: 14px; background: var(--surface); border: 2px solid var(--line); border-radius: 16px; padding: 22px; }
@@ -118,10 +132,10 @@ button { cursor: pointer; }
 /* The visitor badge: the one bold element of the kiosk. */
 .k-done { display: grid; justify-items: center; text-align: center; gap: 22px; padding-top: 1vh; }
 .badge-wrap { display: grid; justify-items: center; }
-.lanyard { width: 34px; height: 64px; background: var(--teal); border-radius: 0 0 6px 6px; }
-.badge { width: min(360px, 82vw); background: var(--badge); border-radius: 26px; padding: 30px 28px 34px; position: relative; margin-top: -14px;
+.lanyard { width: 34px; height: 64px; background: var(--k-black); border-radius: 0 0 6px 6px; }
+.badge { width: min(360px, 82vw); background: var(--badge); color: var(--k-black); border: 3px solid var(--k-black); border-radius: 26px; padding: 30px 28px 34px; position: relative; margin-top: -14px;
   box-shadow: 0 30px 50px -28px rgba(20, 35, 43, .55); animation: badge-drop .7s cubic-bezier(.2, .9, .3, 1.2) both; transform-origin: 50% -60px; }
-.badge .slot { width: 76px; height: 16px; border-radius: 8px; background: var(--ground); margin: 0 auto 26px; }
+.badge .slot { width: 76px; height: 16px; border-radius: 8px; background: var(--k-white); border: 2px solid var(--k-black); margin: 0 auto 26px; }
 .badge .who { font-size: 30px; font-weight: 700; line-height: 1.15; }
 .badge .kind { font-size: 17px; color: rgba(20, 35, 43, .75); margin-top: 4px; }
 .badge .code { font-size: 76px; font-weight: 700; letter-spacing: .14em; margin: 22px 0 6px; padding-left: .14em; line-height: 1; }
@@ -132,7 +146,7 @@ button { cursor: pointer; }
 
 .k-results { display: grid; gap: 12px; margin-top: 20px; }
 .k-result { display: flex; justify-content: space-between; align-items: center; width: 100%; text-align: left; border: 2px solid var(--line); background: var(--surface); border-radius: 16px; padding: 20px 24px; min-height: 80px; font-size: 24px; }
-.k-result[aria-pressed='true'] { border-color: var(--teal); box-shadow: inset 0 0 0 2px var(--teal); }
+.k-result[aria-pressed='true'] { background: var(--k-yellow); border-color: var(--k-black); box-shadow: inset 0 0 0 2px var(--k-black); }
 .k-result small { font-size: 17px; color: var(--ink-2); }
 .k-pair { max-width: 520px; }
 

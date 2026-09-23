@@ -31,7 +31,7 @@ export function SignaturePad({ onChange, clearLabel }: { onChange: (dataUrl: str
       canvas.height = Math.round(r.height * dpr);
       const ctx = canvas.getContext('2d')!;
       ctx.scale(dpr, dpr);
-      ctx.lineWidth = 2.6; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#14232B';
+      ctx.lineWidth = 2.6; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#111111';
       dirty.current = false; setEmpty(true); onChange(null);
     };
     resize();
