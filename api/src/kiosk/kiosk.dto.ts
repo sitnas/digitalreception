@@ -1,6 +1,6 @@
 import { Transform } from 'class-transformer';
 import { Equals, IsBoolean, IsEmail, IsEnum, IsIn, IsOptional, IsString, IsUUID, Length, Matches, MaxLength } from 'class-validator';
-import { DocumentType, VisitPurpose } from '../entities';
+import { DocumentType, TravelDistance, VisitPurpose } from '../entities';
 
 export const SUPPORTED_LOCALES = ['it', 'es', 'en'] as const;
 const trim = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim().replace(/\s+/g, ' ') : value);
@@ -17,7 +17,10 @@ export class CheckInDto {
   @IsOptional() @Transform(trim) @IsString() @MaxLength(120) company?: string;
   @IsOptional() @Transform(({ value }) => (typeof value === 'string' ? value.trim().toLowerCase() || undefined : value)) @IsEmail() @MaxLength(190) email?: string;
   @IsBoolean() sendNoticeEmail: boolean;
-  @Transform(trim) @IsString() @Length(1, 120) host: string;
+  /** Host picked from the directory. When the site has a directory, it is required and `host` is ignored. */
+  @IsOptional() @IsUUID() hostId?: string;
+  @IsOptional() @Transform(trim) @IsString() @Length(1, 120) host?: string;
+  @IsEnum(TravelDistance) travelDistance: TravelDistance;
   @IsEnum(VisitPurpose) purpose: VisitPurpose;
   @IsOptional() @IsEnum(DocumentType) documentType?: DocumentType;
   @IsOptional() @Transform(trim) @IsString() @Length(3, 40) @Matches(/^[A-Za-z0-9 .\-/]+$/) documentNumber?: string;

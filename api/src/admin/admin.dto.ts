@@ -55,6 +55,30 @@ export class UpdateUserDto {
   @IsOptional() @IsBoolean() active?: boolean;
 }
 
+const optionalText = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() || null : value);
+const HOST_NAME = /^[\p{L}\p{M}' .-]+$/u;
+
+export class CreateHostDto {
+  @Transform(trim) @IsString() @Length(1, 80) @Matches(HOST_NAME) firstName: string;
+  @Transform(trim) @IsString() @Length(1, 80) @Matches(HOST_NAME) lastName: string;
+  @IsOptional() @Transform(optionalText) @IsString() @MaxLength(120) department?: string | null;
+  @IsOptional() @Transform(optionalText) @IsString() @MaxLength(120) jobTitle?: string | null;
+  @IsOptional() @Transform(({ value }) => (typeof value === 'string' ? value.trim().toLowerCase() || null : value)) @IsEmail() @MaxLength(190) email?: string | null;
+  @IsOptional() @Transform(optionalText) @IsString() @MaxLength(40) @Matches(/^[0-9 +().\-/]*$/) phone?: string | null;
+  @IsArray() @ArrayMaxSize(200) @IsUUID('all', { each: true }) siteIds: string[];
+}
+
+export class UpdateHostDto {
+  @IsOptional() @Transform(trim) @IsString() @Length(1, 80) @Matches(HOST_NAME) firstName?: string;
+  @IsOptional() @Transform(trim) @IsString() @Length(1, 80) @Matches(HOST_NAME) lastName?: string;
+  @IsOptional() @Transform(optionalText) @IsString() @MaxLength(120) department?: string | null;
+  @IsOptional() @Transform(optionalText) @IsString() @MaxLength(120) jobTitle?: string | null;
+  @IsOptional() @Transform(({ value }) => (typeof value === 'string' ? value.trim().toLowerCase() || null : value)) @IsEmail() @MaxLength(190) email?: string | null;
+  @IsOptional() @Transform(optionalText) @IsString() @MaxLength(40) @Matches(/^[0-9 +().\-/]*$/) phone?: string | null;
+  @IsOptional() @IsArray() @ArrayMaxSize(200) @IsUUID('all', { each: true }) siteIds?: string[];
+  @IsOptional() @IsBoolean() active?: boolean;
+}
+
 export class ResetPasswordDto { @IsString() @MinLength(12) @MaxLength(200) temporaryPassword: string }
 
 export class UpdatePolicyDto {
@@ -82,6 +106,14 @@ export class AuditQueryDto {
   @IsOptional() @IsString() @MaxLength(190) actor?: string;
   @IsOptional() @IsString() @MaxLength(36) entityId?: string;
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(10_000) page?: number;
+}
+
+export class AuditExportQueryDto {
+  @IsOptional() @IsISO8601() from?: string;
+  @IsOptional() @IsISO8601() to?: string;
+  @IsOptional() @IsString() @MaxLength(40) action?: string;
+  @IsOptional() @IsString() @MaxLength(190) actor?: string;
+  @IsOptional() @IsString() @MaxLength(36) entityId?: string;
 }
 
 export class CreatePolicyDto {

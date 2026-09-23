@@ -4,9 +4,9 @@ Registro digitale degli ingressi per le reception aziendali: il visitatore si re
 
 ## Cosa fa
 
-Sul **tablet** della reception il visitatore sceglie la lingua, inserisce i propri dati, legge e accetta l'informativa privacy, firma, e riceve un codice di uscita mostrato su un badge. Dove la policy del paese lo richiede scatta anche la foto del numero di serie del portatile, in ingresso e in uscita. All'uscita digita il codice o le prime lettere del cognome: il tablet non mostra mai l'elenco dei presenti.
+Sul **tablet** della reception il visitatore sceglie la lingua, inserisce i propri dati, sceglie la persona da incontrare dall'elenco della sede, indica quanta strada ha fatto per arrivare (meno di 10 km, 10-100 km, oltre 100 km), legge e accetta l'informativa privacy, firma, e riceve un codice di uscita mostrato su un badge; se lascia l'email, il badge gli arriva anche per posta. Dove la policy del paese lo richiede scatta anche la foto del numero di serie del portatile, in ingresso e in uscita. All'uscita digita il codice o le prime lettere del cognome: il tablet non mostra mai l'elenco dei presenti.
 
-Nella **console** l'azienda vede chi è in sede adesso (elenco stampabile per l'evacuazione), consulta lo storico, esporta, cancella i dati su richiesta dell'interessato, gestisce tablet, sedi, utenti, regole privacy per paese, informative versionate e il registro degli accessi.
+Nella **console** l'azienda vede chi è in sede adesso (elenco stampabile per l'evacuazione), consulta lo storico, esporta, cancella i dati su richiesta dell'interessato, gestisce sedi, tablet, persone da visitare, utenti, regole privacy per paese, informative versionate e il registro degli accessi. Il ruolo Auditor consulta in sola lettura tutti i visitatori di tutte le sedi, con documenti, e scarica storico e registro accessi.
 
 ## Architettura in breve
 

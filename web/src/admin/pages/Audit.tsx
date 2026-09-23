@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { api, qs } from '../../lib/api';
 import { dayEnd, dayStart, fmtDateTime, todayIso } from '../../lib/format';
-import { useI18n } from '../i18n';
+import { errorText, useI18n } from '../i18n';
 import type { AuditRow, Paged } from '../types';
 import { ErrorBox, PageHead, useAsync } from '../ui';
 
 const ACTIONS = ['LOGIN', 'LOGIN_FAILED', 'VISIT_CHECK_IN', 'VISIT_CHECK_OUT', 'VISIT_LIST', 'VISIT_VIEW', 'FILE_VIEW', 'VISIT_EXPORT', 'VISIT_ERASED', 'PRESENT_LIST',
-  'DEVICE_PAIRED', 'DEVICE_REVOKED', 'USER_CREATED', 'USER_UPDATED', 'USER_PASSWORD_RESET', 'POLICY_UPDATED', 'NOTICE_PUBLISHED', 'RETENTION_RUN', 'AUDIT_VIEW'];
+  'DEVICE_PAIRED', 'DEVICE_REVOKED', 'USER_CREATED', 'USER_UPDATED', 'USER_PASSWORD_RESET', 'POLICY_UPDATED', 'NOTICE_PUBLISHED', 'HOST_CREATED', 'HOST_UPDATED', 'RETENTION_RUN', 'AUDIT_VIEW', 'AUDIT_EXPORT'];
 
 function daysAgo(n: number) { const d = new Date(); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); }
 
@@ -17,9 +17,20 @@ export function AuditPage() {
   const [page, setPage] = useState(1);
   const list = useAsync(() => api.get<Paged<AuditRow>>(`/admin/audit${qs({ from: dayStart(f.from), to: dayEnd(f.to), action: f.action, actor: f.actor, page })}`), [f, page]);
   const pages = list.data ? Math.max(1, Math.ceil(list.data.total / list.data.pageSize)) : 1;
+  const [exportError, setExportError] = useState<string | null>(null);
+  const doExport = async () => {
+    setExportError(null);
+    try {
+      const blob = await api.blob(`/admin/audit/export.csv${qs({ from: dayStart(f.from), to: dayEnd(f.to), action: f.action, actor: f.actor })}`);
+      const url = URL.createObjectURL(blob);
+      Object.assign(document.createElement('a'), { href: url, download: `registro-accessi-${todayIso()}.csv` }).click();
+      URL.revokeObjectURL(url);
+    } catch (e) { setExportError(errorText(t, e)); }
+  };
   return (
     <>
-      <PageHead title={t.audit.title} intro={t.audit.intro} />
+      <PageHead title={t.audit.title} intro={t.audit.intro} actions={<button type="button" className="btn btn-ghost" onClick={doExport}>{t.audit.export}</button>} />
+      {exportError && <p className="alert" role="alert">{exportError}</p>}
       <form className="a-filters" onSubmit={(e) => { e.preventDefault(); setPage(1); setF({ ...draft }); }}>
         <div className="field"><label htmlFor="af">{t.from}</label><input id="af" type="date" className="input" value={draft.from} onChange={(e) => setDraft({ ...draft, from: e.target.value })} /></div>
         <div className="field"><label htmlFor="at">{t.to}</label><input id="at" type="date" className="input" value={draft.to} onChange={(e) => setDraft({ ...draft, to: e.target.value })} /></div>

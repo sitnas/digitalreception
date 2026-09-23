@@ -8,10 +8,15 @@ import { MailService } from '../common/mail.service';
 import { AppRequest, AuthDevice, AuthTenant } from '../common/request-context';
 import { TenantKeysService } from '../common/tenant-keys.service';
 import { addDays } from '../common/time.util';
-import { CountryPolicy, Device, FileKind, NoticeEmailStatus, PairingCode, PrivacyNotice, Site, Tenant, Visit, VisitStatus } from '../entities';
+import { CountryPolicy, Device, FileKind, Host, NoticeEmailStatus, PairingCode, PrivacyNotice, Site, Tenant, Visit, VisitStatus } from '../entities';
 import { CheckInDto, CheckOutDto } from './kiosk.dto';
 
+const MAX_KIOSK_HOSTS = 2000;
+
 /** Fills runtime placeholders so the text always matches the configured policy. */
+/** The document request always includes its photo; the photo can also be requested on its own. */
+export const documentPhotoRequired = (p: CountryPolicy) => p.documentDataEnabled || p.documentPhotoEnabled;
+
 export function renderNotice(body: string, policy: CountryPolicy): string {
   return body.split('{{visitRetentionDays}}').join(String(policy.visitRetentionDays));
 }
@@ -26,6 +31,7 @@ export class KioskService {
     @InjectRepository(PrivacyNotice) private readonly notices: Repository<PrivacyNotice>,
     @InjectRepository(Visit) private readonly visits: Repository<Visit>,
     @InjectRepository(PairingCode) private readonly codes: Repository<PairingCode>,
+    @InjectRepository(Host) private readonly hosts: Repository<Host>,
     private readonly crypto: CryptoService,
     private readonly keys: TenantKeysService,
     private readonly files: FilesService,
@@ -61,6 +67,16 @@ export class KioskService {
     return this.notices.findOne({ where: { tenantId, countryCode, locale }, order: { version: 'DESC' } });
   }
 
+  /** Active hosts of the tablet's site. Only name and profile go to the tablet, never contact details. */
+  private siteHosts(device: AuthDevice) {
+    return this.hosts.createQueryBuilder('h')
+      .innerJoin('h.sites', 's', 's.id = :siteId', { siteId: device.siteId })
+      .where('h.tenantId = :tid AND h.active = :active', { tid: device.tenantId, active: true })
+      .orderBy('h.lastName', 'ASC').addOrderBy('h.firstName', 'ASC')
+      .take(MAX_KIOSK_HOSTS)
+      .getMany();
+  }
+
   async config(device: AuthDevice) {
     const { site, policy } = await this.siteAndPolicy(device);
     const tenant = await this.tenants.findOneOrFail({ where: { id: device.tenantId }, select: { id: true, name: true, logoDataUrl: true } });
@@ -75,9 +91,10 @@ export class KioskService {
       site: { name: site.name, countryCode: site.countryCode, timezone: site.timezone },
       policy: {
         locales: policy.locales.filter((l) => notices[l]), defaultLocale: policy.defaultLocale,
-        documentDataEnabled: policy.documentDataEnabled, documentPhotoEnabled: policy.documentPhotoEnabled, assetPhotosRequired: policy.assetPhotosRequired,
+        documentDataEnabled: policy.documentDataEnabled, documentPhotoEnabled: documentPhotoRequired(policy), assetPhotosRequired: policy.assetPhotosRequired,
       },
       notices,
+      hosts: (await this.siteHosts(device)).map((h) => ({ id: h.id, firstName: h.firstName, lastName: h.lastName, department: h.department, jobTitle: h.jobTitle })),
       emailAvailable: this.mail.enabled,
     };
   }
@@ -91,17 +108,33 @@ export class KioskService {
 
     // Server-side data minimisation: fields not allowed by the country policy are discarded, never stored.
     if (policy.documentDataEnabled && (!dto.documentType || !dto.documentNumber)) throw new BadRequestException('DOCUMENT_REQUIRED');
-    if (policy.documentPhotoEnabled && !dto.documentPhoto) throw new BadRequestException('DOCUMENT_PHOTO_REQUIRED');
+    if (documentPhotoRequired(policy) && !dto.documentPhoto) throw new BadRequestException('DOCUMENT_PHOTO_REQUIRED');
     if (policy.assetPhotosRequired && !dto.assetPhoto) throw new BadRequestException('ASSET_PHOTO_REQUIRED');
     if (dto.sendNoticeEmail && !dto.email) throw new BadRequestException('EMAIL_REQUIRED');
 
+    // When the site has a host directory the visitor must pick from it; free text is accepted only without one.
+    const directory = await this.siteHosts(device);
+    let hostName: string;
+    let hostId: string | null = null;
+    if (directory.length) {
+      const host = dto.hostId ? directory.find((h) => h.id === dto.hostId) : undefined;
+      if (!host) throw new BadRequestException(dto.hostId ? 'HOST_NOT_FOUND' : 'HOST_REQUIRED');
+      hostName = `${host.firstName} ${host.lastName}`;
+      hostId = host.id;
+    } else {
+      if (!dto.host) throw new BadRequestException('HOST_REQUIRED');
+      hostName = dto.host;
+    }
+
     const signature = this.files.parseImage(dto.signature, 'signature');
-    const docPhoto = policy.documentPhotoEnabled && dto.documentPhoto ? this.files.parseImage(dto.documentPhoto, 'documentPhoto') : null;
+    const docPhoto = documentPhotoRequired(policy) && dto.documentPhoto ? this.files.parseImage(dto.documentPhoto, 'documentPhoto') : null;
     const assetPhoto = policy.assetPhotosRequired && dto.assetPhoto ? this.files.parseImage(dto.assetPhoto, 'assetPhoto') : null;
 
     const tc = await this.keys.forTenant(device.tenantId);
     const now = new Date();
     const wantsEmail = dto.sendNoticeEmail && this.mail.enabled;
+    // Whoever leaves an email address receives the exit badge (visit code) there.
+    const wantsBadge = !!dto.email && this.mail.enabled;
 
     const visit = await this.ds.transaction(async (em) => {
       const saved = await em.save(em.create(Visit, {
@@ -113,14 +146,18 @@ export class KioskService {
         companyEnc: tc.encrypt(dto.company, 'visit.company'),
         emailEnc: tc.encrypt(dto.email, 'visit.email'),
         emailIndex: tc.blindIndex(dto.email, 'visit.email'),
-        hostEnc: tc.encrypt(dto.host, 'visit.host'),
+        hostEnc: tc.encrypt(hostName, 'visit.host'),
+        hostId,
         purpose: dto.purpose,
+        travelDistance: dto.travelDistance,
         documentType: policy.documentDataEnabled ? dto.documentType! : null,
         documentNumberEnc: policy.documentDataEnabled ? tc.encrypt(dto.documentNumber, 'visit.documentNumber') : null,
         locale: dto.locale, privacyNoticeId: notice.id, privacyNoticeVersion: notice.version, privacyAcceptedAt: now,
         // PENDING = queued in the transactional outbox; the mail worker delivers it (retries survive restarts).
         noticeEmailStatus: dto.sendNoticeEmail ? (wantsEmail ? NoticeEmailStatus.PENDING : NoticeEmailStatus.SKIPPED) : NoticeEmailStatus.NOT_REQUESTED,
-        noticeEmailAttempts: 0, anonymizedAt: null,
+        noticeEmailAttempts: 0,
+        badgeEmailStatus: dto.email ? (wantsBadge ? NoticeEmailStatus.PENDING : NoticeEmailStatus.SKIPPED) : NoticeEmailStatus.NOT_REQUESTED,
+        badgeEmailAttempts: 0, anonymizedAt: null,
       }));
       await this.files.store(em, tc, saved.id, FileKind.SIGNATURE, signature, addDays(now, policy.visitRetentionDays));
       if (docPhoto) await this.files.store(em, tc, saved.id, FileKind.DOCUMENT, docPhoto, addDays(now, Math.min(policy.documentPhotoRetentionDays, policy.visitRetentionDays)));
@@ -130,9 +167,9 @@ export class KioskService {
 
     await this.audit.fromRequest(req, {
       action: 'VISIT_CHECK_IN', entityType: 'visit', entityId: visit.id, siteId: site.id,
-      details: { noticeVersion: notice.version, locale: dto.locale, documentPhoto: !!docPhoto, assetPhoto: !!assetPhoto },
+      details: { noticeVersion: notice.version, locale: dto.locale, documentPhoto: !!docPhoto, assetPhoto: !!assetPhoto, hostId, travelDistance: dto.travelDistance },
     });
-    return { code: visit.code, checkInAt: visit.checkInAt, emailQueued: wantsEmail };
+    return { code: visit.code, checkInAt: visit.checkInAt, emailQueued: wantsEmail, badgeEmailQueued: wantsBadge };
   }
 
   private async uniqueCode(tenantId: string, siteId: string): Promise<string> {

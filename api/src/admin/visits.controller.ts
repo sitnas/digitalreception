@@ -6,7 +6,11 @@ import { Role } from '../entities';
 import { EraseVisitDto, SiteQueryDto, VisitQueryDto } from './admin.dto';
 import { VisitsService } from './visits.service';
 
-const VISIT_READERS = [Role.SUPER_ADMIN, Role.SITE_MANAGER, Role.RECEPTIONIST];
+const VISIT_READERS = [Role.SUPER_ADMIN, Role.SITE_MANAGER, Role.RECEPTIONIST, Role.AUDITOR];
+/** Full history export and identity documents / photos. */
+const SENSITIVE_READERS = [Role.SUPER_ADMIN, Role.SITE_MANAGER, Role.AUDITOR];
+/** Roles that change visits. The auditor is strictly read-only. */
+const VISIT_WRITERS = [Role.SUPER_ADMIN, Role.SITE_MANAGER, Role.RECEPTIONIST];
 
 @Controller('admin/visits')
 @UseGuards(AdminAuthGuard)
@@ -26,7 +30,7 @@ export class VisitsController {
   }
 
   @Get('export.csv')
-  @Roles(Role.SUPER_ADMIN, Role.SITE_MANAGER)
+  @Roles(...SENSITIVE_READERS)
   @Header('Content-Type', 'text/csv; charset=utf-8')
   async export(@CurrentUser() user: AuthUser, @Query() q: VisitQueryDto, @Req() req: AppRequest, @Res({ passthrough: true }) res: Response) {
     res.setHeader('Content-Disposition', `attachment; filename="visits-${new Date().toISOString().slice(0, 10)}.csv"`);
@@ -40,7 +44,7 @@ export class VisitsController {
   }
 
   @Get(':id/files/:fileId')
-  @Roles(Role.SUPER_ADMIN, Role.SITE_MANAGER)
+  @Roles(...SENSITIVE_READERS)
   async file(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Param('fileId', ParseUUIDPipe) fileId: string, @Req() req: AppRequest, @Res({ passthrough: true }) res: Response) {
     const f = await this.visits.file(user, id, fileId, req);
     res.setHeader('Content-Type', f.mime);
@@ -50,7 +54,7 @@ export class VisitsController {
 
   @Post(':id/checkout')
   @HttpCode(200)
-  @Roles(...VISIT_READERS)
+  @Roles(...VISIT_WRITERS)
   checkout(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Req() req: AppRequest) {
     return this.visits.manualCheckout(user, id, req);
   }

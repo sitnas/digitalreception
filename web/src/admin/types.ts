@@ -4,15 +4,16 @@ export interface Me { id: string; tenantId: string; email: string; displayName: 
 export interface Site { id: string; code: string; name: string; countryCode: string; timezone: string; active: boolean }
 export interface VisitRow {
   id: string; code: string; status: VisitStatus; siteId: string; siteName: string | null; siteTimezone: string | null; checkInAt: string; checkOutAt: string | null;
-  purpose: string; firstName: string | null; lastName: string | null; company: string | null; host: string | null; anonymized: boolean;
+  purpose: string; travelDistance: string | null; firstName: string | null; lastName: string | null; company: string | null; host: string | null; anonymized: boolean;
 }
 export interface VisitDetail extends VisitRow {
   email: string | null; documentType: string | null; documentNumber: string | null; checkOutBy: string | null; locale: string;
-  privacyNoticeVersion: number; privacyAcceptedAt: string; noticeEmailStatus: string; anonymizedAt: string | null;
+  privacyNoticeVersion: number; privacyAcceptedAt: string; noticeEmailStatus: string; badgeEmailStatus: string; anonymizedAt: string | null;
   files: { id: string; kind: string; available: boolean; purgeAfter: string; viewable: boolean }[];
 }
 export interface Paged<T> { items: T[]; total: number; page: number; pageSize: number }
 export interface Device { id: string; siteId: string; site?: Site; name: string; createdAt: string; lastSeenAt: string | null; revokedAt: string | null }
+export interface HostRow { id: string; firstName: string; lastName: string; department: string | null; jobTitle: string | null; email: string | null; phone: string | null; sites: Site[]; active: boolean }
 export interface UserRow { id: string; email: string; displayName: string; role: Role; sites: Site[]; active: boolean; lastLoginAt: string | null }
 export interface Policy {
   countryCode: string; name: string; defaultLocale: string; locales: string[]; visitRetentionDays: number; documentDataEnabled: boolean;

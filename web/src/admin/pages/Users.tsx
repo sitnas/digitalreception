@@ -91,7 +91,7 @@ export function UsersPage() {
             {users.data?.map((u) => (
               <tr key={u.id} style={u.active ? undefined : { opacity: 0.55 }}>
                 <td><strong>{u.displayName}</strong>{!u.active && <> <span className="pill">{t.users.inactive}</span></>}</td><td>{u.email}</td><td>{t.roles[u.role]}</td>
-                <td className="wrap">{u.role === 'SUPER_ADMIN' ? t.allSites : u.role === 'AUDITOR' ? '—' : u.sites.map((s) => s.name).join(', ') || '—'}</td>
+                <td className="wrap">{u.role === 'SUPER_ADMIN' || u.role === 'AUDITOR' ? t.allSites : u.sites.map((s) => s.name).join(', ') || '—'}</td>
                 <td className="num">{u.lastLoginAt ? fmtDateTime(u.lastLoginAt, intl) : t.users.never}</td>
                 <td className="inline">
                   <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setNotice(null); setForm({ id: u.id, email: u.email, displayName: u.displayName, role: u.role, siteIds: u.sites.map((s) => s.id), temporaryPassword: '' }); }}>{t.users.edit}</button>

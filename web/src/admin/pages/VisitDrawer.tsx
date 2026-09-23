@@ -57,10 +57,12 @@ export function VisitDrawer({ id, onClose, onChanged }: { id: string; onClose: (
               <dt>{t.company}</dt><dd>{v.company ?? '—'}</dd>
               <dt>{t.host}</dt><dd>{v.host ?? '—'}</dd>
               <dt>{t.purpose}</dt><dd>{t.purposes[v.purpose as keyof typeof t.purposes] ?? v.purpose}</dd>
+              <dt>{t.distance}</dt><dd>{v.travelDistance ? t.distances[v.travelDistance as keyof typeof t.distances] : '—'}</dd>
               <dt>{t.detail.email}</dt><dd>{v.email ?? '—'}</dd>
               {v.documentType && <><dt>{t.detail.document}</dt><dd>{t.docTypes[v.documentType as keyof typeof t.docTypes]} {v.documentNumber}</dd></>}
               <dt>{t.detail.notice}</dt><dd>v{v.privacyNoticeVersion}, {fmtDateTime(v.privacyAcceptedAt, intl, tz)} ({v.locale.toUpperCase()})</dd>
               <dt>{t.detail.noticeEmail}</dt><dd>{t.emailStatus[v.noticeEmailStatus as keyof typeof t.emailStatus]}</dd>
+              <dt>{t.detail.badgeEmail}</dt><dd>{t.emailStatus[v.badgeEmailStatus as keyof typeof t.emailStatus]}</dd>
               {v.anonymizedAt && <><dt>{t.detail.anonymized}</dt><dd>{fmtDateTime(v.anonymizedAt, intl, tz)}</dd></>}
             </dl>
 

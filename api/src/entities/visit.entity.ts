@@ -1,5 +1,6 @@
 import { Column, CreateDateColumn, Entity, Index, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
-import { DocumentType, NoticeEmailStatus, VisitPurpose, VisitStatus } from './enums';
+import { DocumentType, NoticeEmailStatus, TravelDistance, VisitPurpose, VisitStatus } from './enums';
+import { Host } from './host.entity';
 import { Site } from './site.entity';
 import { StoredFile } from './stored-file.entity';
 
@@ -12,6 +13,7 @@ import { StoredFile } from './stored-file.entity';
 @Index(['tenantId', 'siteId', 'status'])
 @Index(['tenantId', 'checkInAt'])
 @Index(['noticeEmailStatus'])
+@Index('IDX_visits_badge_email_status', ['badgeEmailStatus'])
 export class Visit {
   @PrimaryGeneratedColumn('uuid') id: string;
   @Column({ type: 'uuid' }) tenantId: string;
@@ -32,6 +34,11 @@ export class Visit {
   @Column({ type: 'text', nullable: true }) emailEnc: string | null;
   @Index() @Column({ type: 'char', length: 64, nullable: true }) emailIndex: string | null;
   @Column({ type: 'text', nullable: true }) hostEnc: string | null;
+  /** Host picked from the directory; hostEnc keeps a snapshot of the name shown at check-in. */
+  @Column({ type: 'uuid', nullable: true }) hostId: string | null;
+  @ManyToOne(() => Host, { nullable: true }) @JoinColumn({ name: 'hostId', foreignKeyConstraintName: 'FK_visits_host' }) hostRef?: Host | null;
+  /** Null only for visits registered before the question existed. */
+  @Column({ type: 'varchar', length: 20, nullable: true }) travelDistance: TravelDistance | null;
   @Column({ type: 'varchar', length: 20 }) purpose: VisitPurpose;
   @Column({ type: 'varchar', length: 20, nullable: true }) documentType: DocumentType | null;
   @Column({ type: 'text', nullable: true }) documentNumberEnc: string | null;
@@ -42,6 +49,9 @@ export class Visit {
   @Column({ type: 'datetime', precision: 3 }) privacyAcceptedAt: Date;
   @Column({ type: 'varchar', length: 16 }) noticeEmailStatus: NoticeEmailStatus;
   @Column({ type: 'tinyint', default: 0 }) noticeEmailAttempts: number;
+  /** Exit badge (visit code) sent to the email given at check-in, through the same outbox. */
+  @Column({ type: 'varchar', length: 16, default: NoticeEmailStatus.NOT_REQUESTED }) badgeEmailStatus: NoticeEmailStatus;
+  @Column({ type: 'tinyint', default: 0 }) badgeEmailAttempts: number;
 
   @Column({ type: 'datetime', precision: 3, nullable: true }) anonymizedAt: Date | null;
   @OneToMany(() => StoredFile, (f) => f.visit) files?: StoredFile[];
