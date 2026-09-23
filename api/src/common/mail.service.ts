@@ -30,15 +30,15 @@ export class MailService {
     const s = BADGE_STRINGS[b.locale as keyof typeof BADGE_STRINGS] ?? BADGE_STRINGS.en;
     const when = new Intl.DateTimeFormat(b.locale, { dateStyle: 'medium', timeStyle: 'short', timeZone: b.timezone }).format(b.checkInAt);
     const text = [`${s.title} - ${b.siteName}`, '', `${s.visitor}: ${b.visitorLabel}`, `${s.host}: ${b.hostName}`, `${s.checkIn}: ${when}`, '', `${s.code}: ${b.code}`, '', s.hint].join('\n');
-    const html = `<div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;line-height:1.5;color:#1b2b2b">
-<div style="border:2px solid #0B5D5B;border-radius:16px;overflow:hidden;text-align:center">
-<div style="background:#0B5D5B;color:#fff;padding:14px 18px;font-weight:700">${esc(fromName)}<br><span style="font-weight:400">${esc(b.siteName)}</span></div>
+    const html = `<div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;line-height:1.5;color:#111111">
+<div style="border:3px solid #111111;border-radius:16px;overflow:hidden;text-align:center;background:#FFD100">
+<div style="background:#111111;color:#FFD100;padding:14px 18px;font-weight:700">${esc(fromName)}<br><span style="font-weight:400;color:#FFFFFF">${esc(b.siteName)}</span></div>
 <div style="padding:22px 18px">
 <div style="font-size:22px;font-weight:700">${esc(b.visitorLabel)}</div>
-<div style="color:#555;margin-top:4px">${esc(s.host)}: ${esc(b.hostName)}</div>
-<div style="margin-top:20px;font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:#555">${esc(s.code)}</div>
+<div style="color:#333333;margin-top:4px">${esc(s.host)}: ${esc(b.hostName)}</div>
+<div style="margin-top:20px;font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:#333333">${esc(s.code)}</div>
 <div style="font-size:44px;font-weight:700;letter-spacing:.2em;font-family:'Courier New',monospace">${esc(b.code)}</div>
-<div style="margin-top:14px;color:#555">${esc(s.checkIn)}: ${esc(when)}</div>
+<div style="margin-top:14px;color:#333333">${esc(s.checkIn)}: ${esc(when)}</div>
 </div></div>
 <p style="margin-top:16px">${esc(s.hint)}</p></div>`;
     return this.send(to, fromName, `${s.title} - ${b.siteName}`, text, html);
