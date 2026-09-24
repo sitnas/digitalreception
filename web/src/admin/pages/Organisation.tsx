@@ -6,6 +6,7 @@ import { ErrorBox, PageHead, useAsync } from '../ui';
 
 interface Org {
   name: string; slug: string; logo: string | null; primaryColor: string | null; secondaryColor: string | null;
+  email: { enabled: boolean; from: string | null };
   usage: { sites: number; devices: number; users: number }; limits: { sites: number | null; devices: number | null; users: number | null };
 }
 
@@ -92,6 +93,8 @@ export function OrganisationPage() {
             <div><button className="btn btn-primary">{t.org.save}</button></div>
           </form>
 
+          <div className="stack">
+          <EmailCard email={org.data.email} t={t} />
           <aside className="a-card">
             <h2>{t.org.usage2}</h2>
             <table><tbody>
@@ -102,9 +105,35 @@ export function OrganisationPage() {
             <p className="muted" style={{ marginBottom: 0 }}>{t.org.planHint}</p>
             <p className="muted" style={{ marginBottom: 0 }}>{t.org.address}: <code>{window.location.host}</code></p>
           </aside>
+          </div>
         </div>
       )}
     </>
+  );
+}
+
+/** Whether the server can send email, with a test message: without SMTP no badge or notice ever leaves. */
+function EmailCard({ email, t }: { email: Org['email']; t: ReturnType<typeof useI18n>['t'] }) {
+  const [busy, setBusy] = useState(false);
+  const [res, setRes] = useState<{ ok: boolean; text: string } | null>(null);
+  const test = async () => {
+    setBusy(true); setRes(null);
+    try {
+      const r = await api.post<{ ok: boolean; error?: string; to: string }>('/admin/organisation/test-email', {});
+      setRes(r.ok ? { ok: true, text: t.org.emailSent.replace('{to}', r.to) } : { ok: false, text: `${t.org.emailFailed} ${r.error ?? ''}` });
+    } catch (err) { setRes({ ok: false, text: errorText(t, err) }); }
+    finally { setBusy(false); }
+  };
+  return (
+    <section className="a-card stack" aria-labelledby="email-h">
+      <h2 id="email-h" style={{ margin: 0 }}>{t.org.email}</h2>
+      <span className={`pill ${email.enabled ? 'OPEN' : 'AUTO_CLOSED'}`}>{email.enabled ? t.org.emailOn : t.org.emailOff}</span>
+      {email.enabled
+        ? <p className="muted" style={{ margin: 0 }}>{t.org.emailFrom}: <code>{email.from}</code></p>
+        : <p className="muted" style={{ margin: 0 }}>{t.org.emailOffHint}</p>}
+      {email.enabled && <button type="button" className="btn btn-ghost btn-sm" style={{ justifySelf: 'start' }} onClick={test} disabled={busy}>{busy ? t.org.emailSending : t.org.emailTest}</button>}
+      {res && <p className={res.ok ? 'alert alert-info' : 'alert'} role="status" style={{ margin: 0, overflowWrap: 'anywhere' }}>{res.text}</p>}
+    </section>
   );
 }
 
