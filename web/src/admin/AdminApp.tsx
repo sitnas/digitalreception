@@ -6,6 +6,7 @@ import { ADMIN_STRINGS, AdminLocale, I18nContext, useI18n } from './i18n';
 import { AuditPage } from './pages/Audit';
 import { DevicesPage } from './pages/Devices';
 import { HistoryPage } from './pages/History';
+import { InvitationsPage } from './pages/Invitations';
 import { HostsPage } from './pages/Hosts';
 import { OrganisationPage } from './pages/Organisation';
 import { PrivacyPage } from './pages/Privacy';
@@ -28,6 +29,7 @@ function initialLocale(): AdminLocale {
 type NavGroup = keyof typeof ADMIN_STRINGS.it.navGroups;
 const NAV: { to: string; key: keyof typeof ADMIN_STRINGS.it.nav; group: NavGroup; roles: Role[] }[] = [
   { to: 'today', key: 'today', group: 'visits', roles: ['SUPER_ADMIN', 'SITE_MANAGER', 'RECEPTIONIST', 'AUDITOR'] },
+  { to: 'invites', key: 'invites', group: 'visits', roles: ['SUPER_ADMIN', 'SITE_MANAGER', 'RECEPTIONIST', 'AUDITOR'] },
   { to: 'history', key: 'history', group: 'visits', roles: ['SUPER_ADMIN', 'SITE_MANAGER', 'RECEPTIONIST', 'AUDITOR'] },
   { to: 'stats', key: 'stats', group: 'visits', roles: ['SUPER_ADMIN', 'SITE_MANAGER', 'AUDITOR'] },
   { to: 'sites', key: 'sites', group: 'setup', roles: ['SUPER_ADMIN'] },
@@ -205,6 +207,7 @@ function Shell({ branding, me, onLogout }: { branding: Branding; me: Me; onLogou
         <Routes>
           <Route index element={<Navigate to={home} replace />} />
           {items.some((i) => i.to === 'today') && <Route path="today" element={<TodayPage />} />}
+          {items.some((i) => i.to === 'invites') && <Route path="invites" element={<InvitationsPage />} />}
           {items.some((i) => i.to === 'history') && <Route path="history" element={<HistoryPage />} />}
           {items.some((i) => i.to === 'stats') && <Route path="stats" element={<StatsPage />} />}
           {items.some((i) => i.to === 'sites') && <Route path="sites" element={<SitesPage />} />}

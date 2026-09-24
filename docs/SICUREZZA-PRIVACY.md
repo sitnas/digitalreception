@@ -14,6 +14,7 @@ Documento di riferimento per CISO, DPO e responsabili infrastruttura. Descrive c
 | Motivo della visita | sì (lista chiusa) | come la visita | no, non identifica |
 | Orari di ingresso e uscita | sì | come la visita | no |
 | Firma | sì | come la visita | sì (file) |
+| Invito (nome, cognome, azienda, email dell'ospite atteso) | solo per le visite preregistrate, inserito dalla reception | cancellato 7 giorni dopo il giorno previsto, anche se l'ospite non si presenta; all'arrivo i dati passano nella visita | sì |
 | Tipo e numero documento | solo dove attivato per il paese | come la visita | sì |
 | Foto del documento | sempre insieme a tipo e numero del documento, oppure da sola dove attivata; **spenta ovunque di default** | 7 giorni | sì (file) |
 | Foto del seriale del portatile | solo dove attivata (predefinito: Perù, Colombia) | 30 giorni | sì (file) |
@@ -88,6 +89,8 @@ Espressi come necessità dell'applicazione; le scelte tecniche su come soddisfar
 4. **Un luogo sicuro per i segreti** (`MASTER_KEYS`, `JWT_SECRET`, password DB), separato dai backup del database: chi ha solo il backup non deve poter leggere i dati.
 5. **Backup** di database e immagini secondo la politica aziendale; le copie restano cifrate.
 6. **Un relay SMTP** con STARTTLS, se si vuole l'invio via email del badge di uscita e dell'informativa.
+
+**Inviti.** Il QR dell'invito contiene solo un codice casuale di 8 caratteri (`DRI1:` seguito dal codice), conservato come hash e cifrato. Il tablet restituisce i dati dell'invito solo se il codice è della sua sede, è per oggi e non è già stato usato o annullato; la richiesta è limitata a 10 al minuto per tablet. L'email d'invito spiega all'ospite perché i suoi dati sono stati registrati e quando vengono cancellati; l'informativa completa la legge e accetta al tablet, come ogni visitatore.
 
 **QR di uscita.** Il QR del badge contiene solo il codice di uscita (`DRX1:` seguito dal codice), non dati personali, e non dà alcun accesso in più rispetto al codice scritto sotto. Il tablet legge il QR nel browser: le immagini della fotocamera non vengono salvate né inviate al server, e la fotocamera si spegne appena il codice è letto o si torna indietro.
 7. **Rete:** i tablet devono raggiungere l'indirizzo della console via HTTPS; nessun'altra porta è necessaria.

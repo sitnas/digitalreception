@@ -9,6 +9,7 @@ import { AppRequest, AuthDevice, AuthTenant } from '../common/request-context';
 import { TenantKeysService } from '../common/tenant-keys.service';
 import { addDays } from '../common/time.util';
 import { exitQrSvg } from '../common/exit-qr';
+import { InvitationsService } from '../invitations/invitations.service';
 import { CountryPolicy, Device, FileKind, Host, NoticeEmailStatus, PairingCode, PrivacyNotice, Site, Tenant, Visit, VisitStatus } from '../entities';
 import { CheckInDto, CheckOutDto } from './kiosk.dto';
 
@@ -40,6 +41,7 @@ export class KioskService {
     private readonly files: FilesService,
     private readonly mail: MailService,
     private readonly audit: AuditService,
+    private readonly invitations: InvitationsService,
   ) {}
 
   async pair(tenant: AuthTenant, code: string, req: AppRequest) {
@@ -171,12 +173,13 @@ export class KioskService {
       await this.files.store(em, tc, saved.id, FileKind.SIGNATURE, signature, addDays(now, policy.visitRetentionDays));
       if (docPhoto) await this.files.store(em, tc, saved.id, FileKind.DOCUMENT, docPhoto, addDays(now, Math.min(policy.documentPhotoRetentionDays, policy.visitRetentionDays)));
       if (assetPhoto) await this.files.store(em, tc, saved.id, FileKind.ASSET_IN, assetPhoto, addDays(now, Math.min(policy.assetPhotoRetentionDays, policy.visitRetentionDays)));
+      if (dto.invitationCode) await this.invitations.consume(em, device, dto.invitationCode, saved.id);
       return saved;
     });
 
     await this.audit.fromRequest(req, {
       action: 'VISIT_CHECK_IN', entityType: 'visit', entityId: visit.id, siteId: site.id,
-      details: { noticeVersion: notice.version, locale: dto.locale, documentPhoto: !!docPhoto, assetPhoto: !!assetPhoto, hostId, travelDistance: dto.travelDistance },
+      details: { noticeVersion: notice.version, locale: dto.locale, invitation: !!dto.invitationCode, documentPhoto: !!docPhoto, assetPhoto: !!assetPhoto, hostId, travelDistance: dto.travelDistance },
     });
     return { code: visit.code, qrSvg: await exitQrSvg(visit.code), checkInAt: visit.checkInAt, emailQueued: wantsEmail, badgeEmailQueued: wantsBadge, hostNotified: wantsHostNotice };
   }

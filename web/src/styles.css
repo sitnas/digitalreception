@@ -441,3 +441,14 @@ code.secret { font-size: 16px; padding: 6px 10px; letter-spacing: .04em; user-se
 .swatch-custom { display: inline-flex; align-items: center; gap: 8px; }
 .swatch-custom input[type='color'] { width: 40px; height: 34px; padding: 2px; border: 1px solid var(--line-strong); border-radius: var(--r-sm); background: var(--surface); cursor: pointer; }
 .swatch-custom .input { width: 110px; font-variant-numeric: tabular-nums; text-transform: uppercase; }
+
+/* Invitation QR in the console */
+.invite-qr { display: grid; justify-items: center; gap: 10px; margin: 24px 0 12px; }
+.invite-qr img { width: min(260px, 70vw); height: auto; background: #FFFFFF; padding: 14px; border-radius: var(--r-lg); border: 1px solid var(--line); }
+.invite-qr code { font-size: 22px; letter-spacing: .14em; font-weight: 700; }
+.k-invite-btn { display: flex; align-items: center; gap: 16px; width: 100%; margin-top: 18px; padding: 18px 22px; text-align: left; background: var(--surface); color: var(--ink); border: 1.5px dashed var(--line-strong); border-radius: var(--r-lg); cursor: pointer; }
+.k-invite-btn:hover { border-color: var(--brand-strong); background: var(--brand-soft); }
+.k-invite-btn span { display: grid; gap: 2px; }
+.k-invite-btn strong { font-size: 22px; }
+.k-invite-btn small { font-size: 16px; color: var(--ink-2); }
+.k-invite-hello { display: grid; gap: 4px; background: var(--brand-soft); border-left: 4px solid var(--brand-strong); border-radius: var(--r); padding: 14px 18px; margin-bottom: 18px; font-size: 18px; }

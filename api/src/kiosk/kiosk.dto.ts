@@ -29,6 +29,8 @@ export class CheckInDto {
   @IsString() @MaxLength(5_000_000) signature: string;
   @IsOptional() @IsString() @MaxLength(5_000_000) documentPhoto?: string;
   @IsOptional() @IsString() @MaxLength(5_000_000) assetPhoto?: string;
+  /** Code of the invitation scanned on arrival: the visit consumes it. */
+  @IsOptional() @IsString() @Transform(({ value }) => (typeof value === 'string' ? value.toUpperCase().replace(/[^A-Z0-9]/g, '') : value)) @Length(8, 8) invitationCode?: string;
 }
 
 export class OpenVisitsQuery {

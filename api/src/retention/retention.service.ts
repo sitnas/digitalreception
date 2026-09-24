@@ -8,7 +8,8 @@ import { withDbLock } from '../common/db-lock';
 import { FilesService } from '../common/files.service';
 import { addDays, startOfLocalDay } from '../common/time.util';
 import { VisitLifecycleService } from '../common/visit-lifecycle.service';
-import { CountryPolicy, Site, StoredFile, Visit, VisitStatus } from '../entities';
+import { CountryPolicy, Invitation, Site, StoredFile, Visit, VisitStatus } from '../entities';
+import { INVITATION_KEEP_DAYS } from '../invitations/invitations.service';
 
 const BATCH = 500;
 
@@ -16,7 +17,8 @@ const BATCH = 500;
  * Storage limitation (GDPR art. 5.1.e) enforced by code, for every tenant:
  *  1. images past their own retention are deleted;
  *  2. visits past the country retention are anonymised;
- *  3. visits still open from a previous local day are closed as AUTO_CLOSED.
+ *  3. visits still open from a previous local day are closed as AUTO_CLOSED;
+ *  4. invitations are deleted INVITATION_KEEP_DAYS after their day (used, cancelled or not).
  * Runs on one replica at a time (DB lock), in bounded batches so it scales with data volume.
  */
 @Injectable()
@@ -79,6 +81,9 @@ export class RetentionService {
       );
       if (res.affected) bump(site.tenantId, 'autoClosed', res.affected);
     }
+
+    const inv = await this.ds.getRepository(Invitation).delete({ validUntil: LessThan(addDays(now, -INVITATION_KEEP_DAYS)) });
+    if (inv.affected) this.log.log(`Retention: ${inv.affected} past invitations deleted`);
 
     for (const [tenantId, s] of stats) {
       await this.audit.system(tenantId, { action: 'RETENTION_RUN', details: { ...s } });

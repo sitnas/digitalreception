@@ -7,7 +7,7 @@ import { withDbLock } from '../common/db-lock';
 import { MailService } from '../common/mail.service';
 import { TenantKeysService } from '../common/tenant-keys.service';
 import { renderNotice } from '../kiosk/kiosk.service';
-import { CountryPolicy, Host, NoticeEmailStatus, PrivacyNotice, Site, Tenant, Visit, VisitStatus } from '../entities';
+import { CountryPolicy, Host, Invitation, InvitationStatus, NoticeEmailStatus, PrivacyNotice, Site, Tenant, Visit, VisitStatus } from '../entities';
 
 const MAX_ATTEMPTS = 3;
 
@@ -41,6 +41,7 @@ export class MailOutboxService {
     await this.sendNotices();
     await this.sendBadges();
     await this.sendHostArrivals();
+    await this.sendInvitations();
   }
 
   private next(ok: boolean, attempts: number): NoticeEmailStatus {
@@ -123,6 +124,37 @@ export class MailOutboxService {
       });
       const attempts = v.hostEmailAttempts + 1;
       await this.visits.update({ id: v.id }, { hostEmailAttempts: attempts, hostEmailStatus: this.next(ok, attempts) });
+    }
+  }
+
+  /** Invitation email: only while the invitation can still be used. */
+  private async sendInvitations() {
+    const repo = this.ds.getRepository(Invitation);
+    const pending = await repo.find({ where: { emailStatus: NoticeEmailStatus.PENDING }, order: { createdAt: 'ASC' }, take: 100 });
+    for (const inv of pending) {
+      if (inv.status !== InvitationStatus.PENDING || inv.validUntil < new Date()) {
+        await repo.update({ id: inv.id }, { emailStatus: NoticeEmailStatus.SKIPPED });
+        continue;
+      }
+      const tc = await this.keys.forTenant(inv.tenantId);
+      const email = tc.decrypt(inv.emailEnc, 'invitation.email');
+      const code = tc.decrypt(inv.codeEnc, 'invitation.code');
+      const firstName = tc.decrypt(inv.firstNameEnc, 'invitation.firstName');
+      const lastName = tc.decrypt(inv.lastNameEnc, 'invitation.lastName');
+      const site = await this.ds.getRepository(Site).findOne({ where: { id: inv.siteId, tenantId: inv.tenantId } });
+      const host = await this.ds.getRepository(Host).findOne({ where: { id: inv.hostId, tenantId: inv.tenantId } });
+      const tenant = await this.ds.getRepository(Tenant).findOne({ where: { id: inv.tenantId }, select: { id: true, name: true, primaryColor: true, secondaryColor: true } });
+      if (!email || !code || !firstName || !lastName || !site || !host || !tenant) {
+        await repo.update({ id: inv.id }, { emailStatus: NoticeEmailStatus.FAILED });
+        continue;
+      }
+      const ok = await this.mail.sendInvitation(email, tenant.name, {
+        locale: inv.locale, timezone: site.timezone, siteName: site.name, visitorName: `${firstName} ${lastName}`,
+        hostName: `${host.firstName} ${host.lastName}`, expectedAt: inv.expectedAt, code,
+        primaryColor: tenant.primaryColor, secondaryColor: tenant.secondaryColor,
+      });
+      const attempts = inv.emailAttempts + 1;
+      await repo.update({ id: inv.id }, { emailAttempts: attempts, emailStatus: this.next(ok, attempts) });
     }
   }
 }

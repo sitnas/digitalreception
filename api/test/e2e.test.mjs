@@ -181,6 +181,46 @@ describe('end-to-end', { skip: !enabled && 'E2E_DB_HOST not set' }, () => {
     assert.equal((await admin.get('/admin/stats?from=2020-01-01T00:00:00Z&to=2022-01-01T00:00:00Z')).status, 400, 'range capped');
   });
 
+  test('invitations: staff invite, the tablet reads the QR code once, on the right day and site', async () => {
+    // Day and time at the site (Europe/Rome), as the console sends them.
+    const at = (ms) => {
+      const p = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Rome', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date(Date.now() + ms)).map((x) => [x.type, x.value]));
+      return { date: `${p.year}-${p.month}-${p.day}`, time: `${p.hour}:${p.minute}` };
+    };
+    const base = { siteId: ctx.milano.id, hostId: ctx.mario.id, firstName: 'Irene', lastName: 'Galli', company: 'Galli Srl', email: 'irene@e2e.test', purpose: 'MEETING' };
+    const created = await admin.post('/admin/invitations', { ...base, ...at(0) });
+    assert.equal(created.status, 201, JSON.stringify(created.data));
+    assert.equal(created.data.emailStatus, 'SKIPPED', 'no SMTP in tests');
+    assert.equal((await admin.post('/admin/invitations', { ...base, ...at(-3 * 86_400_000) })).data.message, 'INVITATION_IN_PAST');
+    assert.equal((await admin.post('/admin/invitations', { ...base, hostId: ctx.anna.id, ...at(0) })).data.message, 'HOST_NOT_FOUND');
+    assert.equal((await ctx.rec.post('/admin/invitations', { ...base, ...at(0) })).status, 403, 'receptionist of another site');
+    assert.equal((await ctx.aud.post('/admin/invitations', { ...base, ...at(0) })).status, 403, 'auditor is read-only');
+
+    const list = (await ctx.aud.get('/admin/invitations')).data;
+    const row = list.find((r) => r.id === created.data.id);
+    assert.ok(Math.abs(new Date(row.expectedAt).getTime() - Date.now()) < 120_000, 'the time is read in the site time zone');
+    assert.equal(row.lastName, 'Galli'); assert.equal(row.hostName, 'Mario Rossi'); assert.equal(row.status, 'PENDING');
+
+    const { code, qrSvg } = (await admin.get(`/admin/invitations/${created.data.id}/qr`)).data;
+    assert.match(code, /^[A-Z0-9]{8}$/); assert.match(qrSvg, /^<svg/);
+    const kiosk = (c) => new Client().get(`/kiosk/invitations/${c}`, { bearer: ctx.token });
+    assert.equal((await kiosk('ZZZZZZZZ')).status, 404);
+    const pre = (await kiosk(code.toLowerCase())).data;
+    assert.equal(pre.firstName, 'Irene'); assert.equal(pre.hostId, ctx.mario.id); assert.equal(pre.email, 'irene@e2e.test');
+
+    const visit = await checkIn({ firstName: 'Irene', lastName: 'Galli', invitationCode: code });
+    assert.equal(visit.status, 201, JSON.stringify(visit.data));
+    assert.equal((await checkIn({ firstName: 'Irene', lastName: 'Galli', invitationCode: code })).data.message, 'INVITATION_USED');
+    assert.equal((await kiosk(code)).data.message, 'INVITATION_USED');
+    assert.equal((await admin.get('/admin/invitations')).data.find((r) => r.id === created.data.id).status, 'USED');
+
+    const later = await admin.post('/admin/invitations', { ...base, ...at(2 * 86_400_000) });
+    const laterCode = (await admin.get(`/admin/invitations/${later.data.id}/qr`)).data.code;
+    assert.equal((await kiosk(laterCode)).data.message, 'INVITATION_NOT_TODAY');
+    assert.equal((await admin.post(`/admin/invitations/${later.data.id}/cancel`)).status, 200);
+    assert.equal((await kiosk(laterCode)).status, 404, 'cancelled invitations are unknown to the tablet');
+  });
+
   test('deleting the tenant removes its host directory too', async () => {
     const mysql = require('mysql2/promise');
     const db = await mysql.createConnection({ host: env.DB_HOST, port: Number(env.DB_PORT), user: env.DB_USER, password: env.DB_PASSWORD, database: env.DB_NAME });
@@ -188,7 +228,8 @@ describe('end-to-end', { skip: !enabled && 'E2E_DB_HOST not set' }, () => {
     await run('node', ['dist/cli/tenants.js', 'delete', '--slug', SLUG, '--confirm', SLUG], { env });
     const [[h]] = await db.query('SELECT COUNT(*) AS n FROM hosts WHERE tenantId = ?', [t.id]);
     const [[v]] = await db.query('SELECT COUNT(*) AS n FROM visits WHERE tenantId = ?', [t.id]);
+    const [[i]] = await db.query('SELECT COUNT(*) AS n FROM invitations WHERE tenantId = ?', [t.id]);
     await db.end();
-    assert.equal(Number(h.n), 0); assert.equal(Number(v.n), 0);
+    assert.equal(Number(h.n), 0); assert.equal(Number(v.n), 0); assert.equal(Number(i.n), 0);
   });
 });

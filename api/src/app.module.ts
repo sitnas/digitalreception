@@ -6,6 +6,8 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ManagementController } from './admin/management.controller';
 import { StatsController } from './admin/stats.controller';
+import { InvitationsController } from './invitations/invitations.controller';
+import { InvitationsService } from './invitations/invitations.service';
 import { VisitsController } from './admin/visits.controller';
 import { VisitsService } from './admin/visits.service';
 import { AuthController } from './auth/auth.controller';
@@ -39,12 +41,12 @@ const JWT = { algorithm: 'HS256' as const, issuer: 'reception-api', audience: 'r
     ThrottlerModule.forRoot([{ name: 'default', ttl: 60_000, limit: 120 }]),
     ScheduleModule.forRoot(),
   ],
-  controllers: [HealthController, TenantController, AuthController, KioskController, VisitsController, ManagementController, StatsController],
+  controllers: [HealthController, TenantController, AuthController, KioskController, VisitsController, ManagementController, StatsController, InvitationsController],
   providers: [
     { provide: APP_CONFIG, useValue: config as AppConfig },
     { provide: STORAGE, useFactory: () => createStorage(config) },
     { provide: APP_GUARD, useClass: ThrottlerGuard },
-    CryptoService, TenantKeysService, AuditService, FilesService, MailService, VisitLifecycleService,
+    CryptoService, TenantKeysService, InvitationsService, AuditService, FilesService, MailService, VisitLifecycleService,
     AdminAuthGuard, DeviceGuard, KioskService, VisitsService, RetentionService, MailOutboxService,
   ],
 })
