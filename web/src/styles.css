@@ -30,6 +30,7 @@
   --brand-2-line: #373737;
   --on-brand-2: #FFFFFF;
   --on-brand-2-muted: #B3B3B3;
+  --brand-on-2: #FFD100;          /* brand as text on the secondary colour, when it contrasts enough */
 
   --r-sm: 6px; --r: 8px; --r-lg: 12px; --r-xl: 16px;
   --shadow-pop: 0 16px 40px -16px rgba(16, 16, 16, .28);
@@ -104,7 +105,12 @@ select.input { appearance: none; -webkit-appearance: none; padding-right: 34px; 
 .a-brand img { width: 32px; height: 32px; object-fit: contain; border-radius: var(--r-sm); flex: none; }
 .a-brand img.logo { background: #fff; padding: 3px; }
 .a-nav { display: grid; gap: 2px; }
-.a-nav-group { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--on-brand-2-muted); padding: 16px 10px 6px; }
+/* Section titles: icon + accent colour + divider, clearly a heading and not a link. */
+.a-nav-section + .a-nav-section { border-top: 1px solid var(--brand-2-line); margin-top: 10px; }
+.a-nav-group { display: flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--brand-on-2); padding: 16px 10px 8px; }
+.a-nav-group svg { width: 16px; height: 16px; flex: none; }
+.a-side .a-nav-section a { padding-left: 34px; font-weight: 400; }
+.a-side .a-nav-section a.active { font-weight: 700; }
 .a-nav a { position: relative; display: flex; align-items: center; height: 34px; padding: 0 10px; border-radius: var(--r-sm); color: var(--on-brand-2-muted); text-decoration: none; font-weight: 700; }
 .a-nav a:hover { background: var(--brand-2-hover); color: var(--on-brand-2); }
 .a-nav a.active { background: var(--brand-2-hover); color: var(--on-brand-2); }
@@ -183,6 +189,8 @@ dl.kv dd { margin: 0; overflow-wrap: anywhere; }
   .a-brand { padding-bottom: 0; }
   .a-nav { display: flex; flex-wrap: wrap; gap: 2px; }
   .a-nav-group { display: none; }
+  .a-nav-section + .a-nav-section { border: 0; margin: 0; }
+  .a-side .a-nav-section a { padding-left: 10px; }
   .a-nav a.active::before { display: none; }
   .a-me { margin: 0 0 0 auto; border: 0; padding: 0; }
   dl.kv { grid-template-columns: 1fr; gap: 2px; } dl.kv dd { margin-bottom: 8px; }
