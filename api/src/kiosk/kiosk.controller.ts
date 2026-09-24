@@ -32,7 +32,7 @@ export class KioskController {
 
   @Get('visits/open')
   @UseGuards(DeviceGuard)
-  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @Throttle({ default: { limit: 15, ttl: 60_000 } })
   open(@CurrentDevice() device: AuthDevice, @Query() query: OpenVisitsQuery) {
     return this.kiosk.findOpen(device, query.q);
   }
