@@ -2,15 +2,17 @@ import { useEffect, useRef, useState } from 'react';
 import { compressPhoto } from '../lib/image';
 import type { Strings } from './strings';
 
-export function Steps({ labels, current }: { labels: string[]; current: number }) {
+/** Segmented progress bar with "Step n of N" and the current step's name. */
+export function Steps({ labels, current, caption }: { labels: string[]; current: number; caption: string }) {
   return (
-    <ol className="k-steps" aria-label="Progress">
-      {labels.map((l, i) => (
-        <li key={l} className={i < current ? 'done' : undefined} aria-current={i === current ? 'step' : undefined}>
-          <span className="n">{i < current ? '✓' : i + 1}</span>{l}
-        </li>
-      ))}
-    </ol>
+    <div className="k-progress">
+      <div className="k-progress-caption"><strong>{labels[current]}</strong><span>{caption}</span></div>
+      <ol className="k-progress-bar" aria-label={caption}>
+        {labels.map((l, i) => (
+          <li key={l} className={i < current ? 'done' : undefined} aria-current={i === current ? 'step' : undefined}><span className="sr-only">{l}</span></li>
+        ))}
+      </ol>
+    </div>
   );
 }
 

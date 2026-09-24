@@ -86,7 +86,7 @@ export function VisitDrawer({ id, onClose, onChanged }: { id: string; onClose: (
             {actionError && <p className="alert" role="alert" style={{ marginTop: 16 }}>{actionError}</p>}
             <div className="inline" style={{ marginTop: 24 }}>
               {v.status === 'OPEN' && me.role !== 'AUDITOR' && <button type="button" className="btn btn-primary" onClick={() => act(() => api.post(`/admin/visits/${id}/checkout`))}>{t.today.checkoutNow}</button>}
-              {canErase && v.status !== 'ERASED' && !erasing && <button type="button" className="btn btn-ghost" onClick={() => setErasing(true)}>{t.detail.erase}</button>}
+              {canErase && v.status !== 'ERASED' && !erasing && <button type="button" className="btn btn-ghost is-danger" style={{ marginLeft: 'auto' }} onClick={() => setErasing(true)}>{t.detail.erase}</button>}
             </div>
 
             {erasing && (

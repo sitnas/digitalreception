@@ -82,7 +82,7 @@ export class MailOutboxService {
       const firstName = tc.decrypt(v.firstNameEnc, 'visit.firstName');
       const lastName = tc.decrypt(v.lastNameEnc, 'visit.lastName');
       const site = await this.ds.getRepository(Site).findOne({ where: { id: v.siteId, tenantId: v.tenantId } });
-      const tenant = await this.ds.getRepository(Tenant).findOne({ where: { id: v.tenantId }, select: { id: true, name: true } });
+      const tenant = await this.ds.getRepository(Tenant).findOne({ where: { id: v.tenantId }, select: { id: true, name: true, primaryColor: true, secondaryColor: true } });
       if (!email || !firstName || !lastName || !site || !tenant) {
         await this.visits.update({ id: v.id }, { badgeEmailStatus: NoticeEmailStatus.FAILED });
         continue;
@@ -90,6 +90,7 @@ export class MailOutboxService {
       const ok = await this.mail.sendBadge(email, tenant.name, {
         locale: v.locale, timezone: site.timezone, siteName: site.name, code: v.code, checkInAt: v.checkInAt,
         visitorLabel: `${firstName} ${lastName}`, hostName: tc.decrypt(v.hostEnc, 'visit.host') ?? '—',
+        primaryColor: tenant.primaryColor, secondaryColor: tenant.secondaryColor,
       });
       const attempts = v.badgeEmailAttempts + 1;
       await this.visits.update({ id: v.id }, { badgeEmailAttempts: attempts, badgeEmailStatus: this.next(ok, attempts) });

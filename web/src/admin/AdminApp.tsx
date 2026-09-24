@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom';
 import { ApiError, api } from '../lib/api';
+import { applyBrand } from '../lib/theme';
 import { ADMIN_STRINGS, AdminLocale, I18nContext, useI18n } from './i18n';
 import { AuditPage } from './pages/Audit';
 import { DevicesPage } from './pages/Devices';
@@ -13,7 +14,7 @@ import { TodayPage } from './pages/Today';
 import { UsersPage } from './pages/Users';
 import type { Me, Role } from './types';
 
-interface Branding { name: string; logo: string | null }
+interface Branding { name: string; logo: string | null; primaryColor: string | null; secondaryColor: string | null }
 const MeContext = createContext<Me | null>(null);
 export const useMe = () => useContext(MeContext)!;
 
@@ -23,16 +24,17 @@ function initialLocale(): AdminLocale {
   return navigator.language.toLowerCase().startsWith('es') ? 'es' : 'it';
 }
 
-const NAV: { to: string; key: keyof typeof ADMIN_STRINGS.it.nav; roles: Role[] }[] = [
-  { to: 'today', key: 'today', roles: ['SUPER_ADMIN', 'SITE_MANAGER', 'RECEPTIONIST', 'AUDITOR'] },
-  { to: 'history', key: 'history', roles: ['SUPER_ADMIN', 'SITE_MANAGER', 'RECEPTIONIST', 'AUDITOR'] },
-  { to: 'sites', key: 'sites', roles: ['SUPER_ADMIN'] },
-  { to: 'devices', key: 'devices', roles: ['SUPER_ADMIN', 'SITE_MANAGER'] },
-  { to: 'hosts', key: 'hosts', roles: ['SUPER_ADMIN', 'SITE_MANAGER'] },
-  { to: 'users', key: 'users', roles: ['SUPER_ADMIN'] },
-  { to: 'privacy', key: 'privacy', roles: ['SUPER_ADMIN', 'SITE_MANAGER', 'AUDITOR'] },
-  { to: 'audit', key: 'audit', roles: ['SUPER_ADMIN', 'AUDITOR'] },
-  { to: 'organisation', key: 'org', roles: ['SUPER_ADMIN'] },
+type NavGroup = keyof typeof ADMIN_STRINGS.it.navGroups;
+const NAV: { to: string; key: keyof typeof ADMIN_STRINGS.it.nav; group: NavGroup; roles: Role[] }[] = [
+  { to: 'today', key: 'today', group: 'visits', roles: ['SUPER_ADMIN', 'SITE_MANAGER', 'RECEPTIONIST', 'AUDITOR'] },
+  { to: 'history', key: 'history', group: 'visits', roles: ['SUPER_ADMIN', 'SITE_MANAGER', 'RECEPTIONIST', 'AUDITOR'] },
+  { to: 'sites', key: 'sites', group: 'setup', roles: ['SUPER_ADMIN'] },
+  { to: 'devices', key: 'devices', group: 'setup', roles: ['SUPER_ADMIN', 'SITE_MANAGER'] },
+  { to: 'hosts', key: 'hosts', group: 'setup', roles: ['SUPER_ADMIN', 'SITE_MANAGER'] },
+  { to: 'users', key: 'users', group: 'setup', roles: ['SUPER_ADMIN'] },
+  { to: 'privacy', key: 'privacy', group: 'compliance', roles: ['SUPER_ADMIN', 'SITE_MANAGER', 'AUDITOR'] },
+  { to: 'audit', key: 'audit', group: 'compliance', roles: ['SUPER_ADMIN', 'AUDITOR'] },
+  { to: 'organisation', key: 'org', group: 'setup', roles: ['SUPER_ADMIN'] },
 ];
 
 export function AdminApp() {
@@ -48,7 +50,7 @@ export function AdminApp() {
   }, []);
 
   useEffect(() => {
-    api.get<Branding>('/tenant').then(setBranding).catch((e) => setFatal(e instanceof ApiError ? e.code : 'offline'));
+    api.get<Branding>('/tenant').then((b) => { applyBrand(b); setBranding(b); }).catch((e) => setFatal(e instanceof ApiError ? e.code : 'offline'));
     loadMe();
   }, [loadMe]);
 
@@ -68,14 +70,29 @@ export function AdminApp() {
 function FatalScreen({ code }: { code: string }) {
   const { t } = useI18n();
   const msg = code === 'TENANT_SUSPENDED' ? t.errors.TENANT_SUSPENDED : t.errors.generic;
-  return <div className="login"><div className="alert" role="alert" style={{ maxWidth: 480 }}>{msg}</div></div>;
+  return <div className="login-main" style={{ minHeight: '100dvh' }}><div className="alert" role="alert" style={{ maxWidth: 480 }}>{msg}</div></div>;
 }
 
 function Brand({ branding }: { branding: Branding }) {
   return (
     <div className="a-brand">
-      {branding.logo ? <img src={branding.logo} alt="" /> : <img src="/icon.svg" alt="" />}
+      <img src={branding.logo ?? '/icon.svg'} alt="" className={branding.logo ? 'logo' : undefined} />
       <span>{branding.name}</span>
+    </div>
+  );
+}
+
+/** Two-panel sign-in: the organisation's colours and name on the left, the form on the right. */
+function AuthLayout({ branding, children }: { branding: Branding; children: React.ReactNode }) {
+  const { t } = useI18n();
+  return (
+    <div className="login">
+      <aside className="login-aside">
+        <Brand branding={branding} />
+        <h2>{t.login.tagline}</h2>
+        <p>{t.login.footnote}</p>
+      </aside>
+      <main className="login-main">{children}</main>
     </div>
   );
 }
@@ -85,7 +102,7 @@ function LangSwitch() {
   return (
     <label className="inline" style={{ fontSize: 13 }}>
       <span className="muted">{t.language}</span>
-      <select className="input" style={{ minHeight: 32, width: 'auto', padding: '2px 8px', borderWidth: 1 }} value={locale} onChange={(e) => setLocale(e.target.value as AdminLocale)}>
+      <select className="input" style={{ height: 32, width: 'auto', fontSize: 13 }} value={locale} onChange={(e) => setLocale(e.target.value as AdminLocale)}>
         <option value="it">Italiano</option><option value="es">Español</option>
       </select>
     </label>
@@ -105,9 +122,8 @@ function LoginScreen({ branding, onLoggedIn }: { branding: Branding; onLoggedIn:
     finally { setBusy(false); }
   };
   return (
-    <div className="login">
+    <AuthLayout branding={branding}>
       <form onSubmit={submit}>
-        <Brand branding={branding} />
         <h1>{t.login.title}</h1>
         <div className="field"><label htmlFor="em">{t.login.email}</label><input id="em" className="input" type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} required /></div>
         <div className="field"><label htmlFor="pw">{t.login.password}</label><input id="pw" className="input" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required /></div>
@@ -115,7 +131,7 @@ function LoginScreen({ branding, onLoggedIn }: { branding: Branding; onLoggedIn:
         <button className="btn btn-primary" disabled={busy}>{t.login.submit}</button>
         <LangSwitch />
       </form>
-    </div>
+    </AuthLayout>
   );
 }
 
@@ -131,9 +147,8 @@ function ChangePasswordScreen({ branding, onDone }: { branding: Branding; onDone
     catch (err) { setError(err instanceof ApiError && err.status === 401 ? t.pwd.wrong : t.errors.generic); }
   };
   return (
-    <div className="login">
+    <AuthLayout branding={branding}>
       <form onSubmit={submit}>
-        <Brand branding={branding} />
         <h1>{t.pwd.title}</h1>
         <p className="muted" style={{ margin: 0 }}>{t.pwd.intro}</p>
         <div className="field"><label htmlFor="c">{t.pwd.current}</label><input id="c" className="input" type="password" autoComplete="current-password" value={f.current} onChange={(e) => setF({ ...f, current: e.target.value })} required /></div>
@@ -143,7 +158,7 @@ function ChangePasswordScreen({ branding, onDone }: { branding: Branding; onDone
         {done && <p className="alert alert-info" role="status">{t.pwd.done}</p>}
         <button className="btn btn-primary" disabled={done}>{t.pwd.submit}</button>
       </form>
-    </div>
+    </AuthLayout>
   );
 }
 
@@ -157,7 +172,15 @@ function Shell({ branding, me, onLogout }: { branding: Branding; me: Me; onLogou
       <aside className="a-side">
         <Brand branding={branding} />
         <nav className="a-nav" aria-label="Menu">
-          {items.map((n) => <NavLink key={n.to} to={n.to}>{t.nav[n.key]}</NavLink>)}
+          {(Object.keys(t.navGroups) as NavGroup[]).map((g) => {
+            const group = items.filter((n) => n.group === g);
+            return group.length > 0 && (
+              <div key={g} className="a-nav" role="group" aria-label={t.navGroups[g]}>
+                <span className="a-nav-group" aria-hidden>{t.navGroups[g]}</span>
+                {group.map((n) => <NavLink key={n.to} to={n.to}>{t.nav[n.key]}</NavLink>)}
+              </div>
+            );
+          })}
         </nav>
         <div className="a-me">
           <strong>{me.displayName}</strong>

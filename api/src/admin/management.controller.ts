@@ -53,7 +53,7 @@ export class ManagementController {
       this.devices.count({ where: { tenantId: user.tenantId, revokedAt: IsNull() } }),
       this.users.count({ where: { tenantId: user.tenantId, active: true } }),
     ]);
-    return { name: t.name, slug: t.slug, logo: t.logoDataUrl, usage: { sites, devices, users }, limits: { sites: t.maxSites, devices: t.maxDevices, users: t.maxUsers } };
+    return { name: t.name, slug: t.slug, logo: t.logoDataUrl, primaryColor: t.primaryColor, secondaryColor: t.secondaryColor, usage: { sites, devices, users }, limits: { sites: t.maxSites, devices: t.maxDevices, users: t.maxUsers } };
   }
 
   @Patch('organisation')
@@ -62,8 +62,10 @@ export class ManagementController {
     const patch: Partial<Tenant> = {};
     if (dto.name !== undefined) patch.name = dto.name;
     if (dto.logoDataUrl !== undefined) patch.logoDataUrl = dto.logoDataUrl || null;
+    if (dto.primaryColor !== undefined) patch.primaryColor = dto.primaryColor ? dto.primaryColor.toUpperCase() : null;
+    if (dto.secondaryColor !== undefined) patch.secondaryColor = dto.secondaryColor ? dto.secondaryColor.toUpperCase() : null;
     await this.tenants.update(user.tenantId, patch);
-    await this.audit.fromRequest(req, { action: 'ORGANISATION_UPDATED', entityType: 'tenant', entityId: user.tenantId, details: { name: dto.name, logoChanged: dto.logoDataUrl !== undefined } });
+    await this.audit.fromRequest(req, { action: 'ORGANISATION_UPDATED', entityType: 'tenant', entityId: user.tenantId, details: { name: dto.name, logoChanged: dto.logoDataUrl !== undefined, primaryColor: dto.primaryColor, secondaryColor: dto.secondaryColor } });
     return { ok: true };
   }
 

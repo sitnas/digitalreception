@@ -98,7 +98,7 @@ export function CheckIn({ cfg, locale, t, onDone, onCancel, onReloadConfig }: Pr
 
   return (
     <div>
-      <Steps labels={labels} current={step} />
+      <Steps labels={labels} current={step} caption={t.stepOf.replace('{n}', String(step + 1)).replace('{total}', String(steps.length))} />
       {error && <p className="alert" role="alert">{error}</p>}
 
       {key === 'details' && (

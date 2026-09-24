@@ -81,14 +81,14 @@ export class KioskService {
 
   async config(device: AuthDevice) {
     const { site, policy } = await this.siteAndPolicy(device);
-    const tenant = await this.tenants.findOneOrFail({ where: { id: device.tenantId }, select: { id: true, name: true, logoDataUrl: true } });
+    const tenant = await this.tenants.findOneOrFail({ where: { id: device.tenantId }, select: { id: true, name: true, logoDataUrl: true, primaryColor: true, secondaryColor: true } });
     const notices: Record<string, { id: string; version: number; title: string; body: string }> = {};
     for (const locale of policy.locales) {
       const n = await this.latestNotice(device.tenantId, site.countryCode, locale);
       if (n) notices[locale] = { id: n.id, version: n.version, title: n.title, body: renderNotice(n.body, policy) };
     }
     return {
-      organisation: { name: tenant.name, logo: tenant.logoDataUrl },
+      organisation: { name: tenant.name, logo: tenant.logoDataUrl, primaryColor: tenant.primaryColor, secondaryColor: tenant.secondaryColor },
       device: { name: device.name },
       site: { name: site.name, countryCode: site.countryCode, timezone: site.timezone },
       policy: {
