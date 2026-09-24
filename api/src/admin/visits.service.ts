@@ -102,7 +102,7 @@ export class VisitsService {
       documentType: v.documentType,
       documentNumber: docNumber ? (canSeeSensitive ? docNumber : `•••${docNumber.slice(-3)}`) : null,
       checkOutBy: v.checkOutBy, locale: v.locale, privacyNoticeVersion: v.privacyNoticeVersion, privacyAcceptedAt: v.privacyAcceptedAt,
-      noticeEmailStatus: v.noticeEmailStatus, badgeEmailStatus: v.badgeEmailStatus, anonymizedAt: v.anonymizedAt,
+      noticeEmailStatus: v.noticeEmailStatus, badgeEmailStatus: v.badgeEmailStatus, hostEmailStatus: v.hostEmailStatus, anonymizedAt: v.anonymizedAt,
       files: (v.files ?? []).map((f) => ({ id: f.id, kind: f.kind, available: !f.purgedAt, purgeAfter: f.purgeAfter, viewable: canSeeSensitive && !f.purgedAt })),
     };
   }

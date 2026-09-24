@@ -118,11 +118,13 @@ export class KioskService {
     const directory = await this.siteHosts(device);
     let hostName: string;
     let hostId: string | null = null;
+    let hostEmail: string | null = null;
     if (directory.length) {
       const host = dto.hostId ? directory.find((h) => h.id === dto.hostId) : undefined;
       if (!host) throw new BadRequestException(dto.hostId ? 'HOST_NOT_FOUND' : 'HOST_REQUIRED');
       hostName = `${host.firstName} ${host.lastName}`;
       hostId = host.id;
+      hostEmail = host.email;
     } else {
       if (!dto.host) throw new BadRequestException('HOST_REQUIRED');
       hostName = dto.host;
@@ -137,6 +139,8 @@ export class KioskService {
     const wantsEmail = dto.sendNoticeEmail && this.mail.enabled;
     // Whoever leaves an email address receives the exit badge (visit code) there.
     const wantsBadge = !!dto.email && this.mail.enabled;
+    // The host picked from the directory is told that their visitor has arrived.
+    const wantsHostNotice = !!hostEmail && this.mail.enabled;
 
     const visit = await this.ds.transaction(async (em) => {
       const saved = await em.save(em.create(Visit, {
@@ -159,7 +163,9 @@ export class KioskService {
         noticeEmailStatus: dto.sendNoticeEmail ? (wantsEmail ? NoticeEmailStatus.PENDING : NoticeEmailStatus.SKIPPED) : NoticeEmailStatus.NOT_REQUESTED,
         noticeEmailAttempts: 0,
         badgeEmailStatus: dto.email ? (wantsBadge ? NoticeEmailStatus.PENDING : NoticeEmailStatus.SKIPPED) : NoticeEmailStatus.NOT_REQUESTED,
-        badgeEmailAttempts: 0, anonymizedAt: null,
+        badgeEmailAttempts: 0,
+        hostEmailStatus: hostEmail ? (wantsHostNotice ? NoticeEmailStatus.PENDING : NoticeEmailStatus.SKIPPED) : NoticeEmailStatus.NOT_REQUESTED,
+        hostEmailAttempts: 0, anonymizedAt: null,
       }));
       await this.files.store(em, tc, saved.id, FileKind.SIGNATURE, signature, addDays(now, policy.visitRetentionDays));
       if (docPhoto) await this.files.store(em, tc, saved.id, FileKind.DOCUMENT, docPhoto, addDays(now, Math.min(policy.documentPhotoRetentionDays, policy.visitRetentionDays)));
@@ -171,7 +177,7 @@ export class KioskService {
       action: 'VISIT_CHECK_IN', entityType: 'visit', entityId: visit.id, siteId: site.id,
       details: { noticeVersion: notice.version, locale: dto.locale, documentPhoto: !!docPhoto, assetPhoto: !!assetPhoto, hostId, travelDistance: dto.travelDistance },
     });
-    return { code: visit.code, checkInAt: visit.checkInAt, emailQueued: wantsEmail, badgeEmailQueued: wantsBadge };
+    return { code: visit.code, checkInAt: visit.checkInAt, emailQueued: wantsEmail, badgeEmailQueued: wantsBadge, hostNotified: wantsHostNotice };
   }
 
   private async uniqueCode(tenantId: string, siteId: string): Promise<string> {

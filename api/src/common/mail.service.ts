@@ -48,6 +48,27 @@ export class MailService {
     return this.send(to, fromName, `${s.title} - ${b.siteName}`, text, html);
   }
 
+  /** Tells the host that their visitor has checked in. Only what the host needs: name, company, time, reason. */
+  async sendHostArrival(to: string, fromName: string, a: HostArrivalMail): Promise<boolean> {
+    const s = ARRIVAL_STRINGS[a.locale as keyof typeof ARRIVAL_STRINGS] ?? ARRIVAL_STRINGS.en;
+    const when = new Intl.DateTimeFormat(a.locale, { timeStyle: 'short', timeZone: a.timezone }).format(a.checkInAt);
+    const who = a.company ? `${a.visitorName} (${a.company})` : a.visitorName;
+    const purpose = s.purposes[a.purpose as keyof typeof s.purposes] ?? a.purpose;
+    const subject = `${s.subject}: ${who}`;
+    const text = [`${s.title}`, '', `${s.visitor}: ${who}`, `${s.purpose}: ${purpose}`, `${s.site}: ${a.siteName}`, `${s.time}: ${when}`, '', s.footer].join('\n');
+    const primary = a.primaryColor ?? DEFAULT_PRIMARY;
+    const html = `<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;line-height:1.5;color:#1A1A1A">
+<div style="border-left:4px solid ${primary};padding:4px 0 4px 16px;margin-bottom:16px"><div style="font-size:13px;color:#5C5C58">${esc(fromName)} · ${esc(a.siteName)}</div>
+<div style="font-size:20px;font-weight:700">${esc(s.title)}</div></div>
+<table style="border-collapse:collapse;font-size:15px">
+<tr><td style="padding:4px 16px 4px 0;color:#5C5C58">${esc(s.visitor)}</td><td style="padding:4px 0;font-weight:700">${esc(who)}</td></tr>
+<tr><td style="padding:4px 16px 4px 0;color:#5C5C58">${esc(s.purpose)}</td><td style="padding:4px 0">${esc(purpose)}</td></tr>
+<tr><td style="padding:4px 16px 4px 0;color:#5C5C58">${esc(s.time)}</td><td style="padding:4px 0">${esc(when)}</td></tr>
+</table>
+<p style="margin-top:16px;font-size:13px;color:#5C5C58">${esc(s.footer)}</p></div>`;
+    return this.send(to, fromName, subject, text, html);
+  }
+
   private async send(to: string, fromName: string, subject: string, text: string, html: string): Promise<boolean> {
     if (!this.transport) return false;
     try {
@@ -61,6 +82,17 @@ export class MailService {
 }
 
 export interface BadgeMail { locale: string; timezone: string; siteName: string; visitorLabel: string; hostName: string; code: string; checkInAt: Date; primaryColor?: string | null; secondaryColor?: string | null }
+
+export interface HostArrivalMail { locale: string; timezone: string; siteName: string; visitorName: string; company: string | null; purpose: string; checkInAt: Date; primaryColor?: string | null }
+
+const ARRIVAL_STRINGS = {
+  it: { subject: 'Il tuo ospite è arrivato', title: 'Il tuo ospite è arrivato in reception', visitor: 'Ospite', purpose: 'Motivo', site: 'Sede', time: 'Arrivato alle', footer: 'Ricevi questo messaggio perché il visitatore ti ha indicato come persona da incontrare.',
+    purposes: { MEETING: 'Riunione', INTERVIEW: 'Colloquio', SUPPLIER: 'Fornitore', MAINTENANCE: 'Manutenzione', DELIVERY: 'Consegna', OTHER: 'Altro' } },
+  es: { subject: 'Su visita ha llegado', title: 'Su visita ha llegado a recepción', visitor: 'Visitante', purpose: 'Motivo', site: 'Sede', time: 'Llegó a las', footer: 'Recibe este mensaje porque le han indicado como la persona a visitar.',
+    purposes: { MEETING: 'Reunión', INTERVIEW: 'Entrevista', SUPPLIER: 'Proveedor', MAINTENANCE: 'Mantenimiento', DELIVERY: 'Entrega', OTHER: 'Otro' } },
+  en: { subject: 'Your visitor has arrived', title: 'Your visitor has arrived at reception', visitor: 'Visitor', purpose: 'Reason', site: 'Site', time: 'Arrived at', footer: 'You receive this message because you were named as the person to meet.',
+    purposes: { MEETING: 'Meeting', INTERVIEW: 'Interview', SUPPLIER: 'Supplier', MAINTENANCE: 'Maintenance', DELIVERY: 'Delivery', OTHER: 'Other' } },
+};
 
 const DEFAULT_PRIMARY = '#FFD100';
 const DEFAULT_SECONDARY = '#111111';

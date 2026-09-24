@@ -5,6 +5,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ManagementController } from './admin/management.controller';
+import { StatsController } from './admin/stats.controller';
 import { VisitsController } from './admin/visits.controller';
 import { VisitsService } from './admin/visits.service';
 import { AuthController } from './auth/auth.controller';
@@ -38,7 +39,7 @@ const JWT = { algorithm: 'HS256' as const, issuer: 'reception-api', audience: 'r
     ThrottlerModule.forRoot([{ name: 'default', ttl: 60_000, limit: 120 }]),
     ScheduleModule.forRoot(),
   ],
-  controllers: [HealthController, TenantController, AuthController, KioskController, VisitsController, ManagementController],
+  controllers: [HealthController, TenantController, AuthController, KioskController, VisitsController, ManagementController, StatsController],
   providers: [
     { provide: APP_CONFIG, useValue: config as AppConfig },
     { provide: STORAGE, useFactory: () => createStorage(config) },

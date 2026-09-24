@@ -63,6 +63,7 @@ export function VisitDrawer({ id, onClose, onChanged }: { id: string; onClose: (
               <dt>{t.detail.notice}</dt><dd>v{v.privacyNoticeVersion}, {fmtDateTime(v.privacyAcceptedAt, intl, tz)} ({v.locale.toUpperCase()})</dd>
               <dt>{t.detail.noticeEmail}</dt><dd>{t.emailStatus[v.noticeEmailStatus as keyof typeof t.emailStatus]}</dd>
               <dt>{t.detail.badgeEmail}</dt><dd>{t.emailStatus[v.badgeEmailStatus as keyof typeof t.emailStatus]}</dd>
+              <dt>{t.detail.hostEmail}</dt><dd>{t.emailStatus[v.hostEmailStatus as keyof typeof t.emailStatus]}</dd>
               {v.anonymizedAt && <><dt>{t.detail.anonymized}</dt><dd>{fmtDateTime(v.anonymizedAt, intl, tz)}</dd></>}
             </dl>
 
