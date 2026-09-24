@@ -113,7 +113,7 @@ export function CheckIn({ cfg, locale, t, onDone, onCancel, onReloadConfig }: Pr
           </div>
           {hasDirectory && (
             <div className="field">
-              <HostPicker hosts={cfg.hosts} value={f.hostId} onChange={(hostId) => setF({ ...f, hostId })} t={t} />
+              <HostPicker hosts={cfg.hosts} value={f.hostId} onChange={(hostId) => setF({ ...f, hostId })} invalid={inv('host')} t={t} />
               {err('host')}
             </div>
           )}
@@ -195,33 +195,20 @@ export function CheckIn({ cfg, locale, t, onDone, onCancel, onReloadConfig }: Pr
   );
 }
 
-/** The visitor sees who can be visited at this site and taps one: name, department and role only. */
-function HostPicker({ hosts, value, onChange, t }: { hosts: KioskHost[]; value: string; onChange: (id: string) => void; t: Strings }) {
-  const [q, setQ] = useState('');
-  const norm = (x: string) => x.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-  const term = norm(q.trim());
-  const shown = term ? hosts.filter((h) => [h.firstName, h.lastName, `${h.firstName} ${h.lastName}`, `${h.lastName} ${h.firstName}`, h.department ?? '', h.jobTitle ?? ''].some((x) => norm(x).includes(term))) : hosts;
-  const selected = hosts.find((h) => h.id === value);
+/** Drop-down of the people who can be visited at this site: name, department and role only. */
+function HostPicker({ hosts, value, onChange, invalid, t }: { hosts: KioskHost[]; value: string; onChange: (id: string) => void; invalid?: boolean; t: Strings }) {
+  const label = (h: KioskHost) => {
+    const profile = [h.department, h.jobTitle].filter(Boolean).join(' · ');
+    return profile ? `${h.firstName} ${h.lastName} — ${profile}` : `${h.firstName} ${h.lastName}`;
+  };
   return (
     <>
-      <span className="label" id="host-l">{t.host}</span>
-      {hosts.length > 6 && <input className="input" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t.hostSearch} aria-label={t.hostSearch} maxLength={60} />}
+      <label htmlFor="host">{t.host}</label>
+      <select id="host" className="input" value={value} onChange={(e) => onChange(e.target.value)} aria-invalid={invalid}>
+        <option value="" disabled>{t.hostPlaceholder}</option>
+        {hosts.map((h) => <option key={h.id} value={h.id}>{label(h)}</option>)}
+      </select>
       <span className="hint">{t.hostPickHint}</span>
-      <div className="k-hosts" role="radiogroup" aria-labelledby="host-l">
-        {selected && !shown.includes(selected) && <HostCard host={selected} selected onPick={onChange} />}
-        {shown.map((h) => <HostCard key={h.id} host={h} selected={h.id === value} onPick={onChange} />)}
-        {shown.length === 0 && !selected && <p className="muted" style={{ margin: 0 }}>{t.hostNone}</p>}
-      </div>
     </>
-  );
-}
-
-function HostCard({ host, selected, onPick }: { host: KioskHost; selected: boolean; onPick: (id: string) => void }) {
-  const profile = [host.department, host.jobTitle].filter(Boolean).join(' · ');
-  return (
-    <button type="button" role="radio" aria-checked={selected} className="k-host" onClick={() => onPick(host.id)}>
-      <strong>{host.firstName} {host.lastName}</strong>
-      {profile && <span>{profile}</span>}
-    </button>
   );
 }
