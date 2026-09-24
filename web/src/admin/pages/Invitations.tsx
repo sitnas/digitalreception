@@ -44,7 +44,7 @@ export function InvitationsPage() {
     <>
       <PageHead title={t.invites.title} intro={t.invites.intro}
         actions={canEdit && !form && activeSites.length > 0 && (
-          <button type="button" className="btn btn-primary" onClick={() => { setMsg(null); setForm({ siteId: activeSites.length === 1 ? activeSites[0].id : siteId, hostId: '', date: todayIso(), time: '10:00', firstName: '', lastName: '', company: '', email: '', purpose: 'MEETING' }); }}>{t.invites.add}</button>
+          <button type="button" className="btn btn-primary" onClick={() => { setMsg(null); setForm({ siteId: siteId || activeSites[0].id, hostId: '', date: todayIso(), time: '10:00', firstName: '', lastName: '', company: '', email: '', purpose: 'MEETING' }); }}>{t.invites.add}</button>
         )} />
       <ErrorBox error={list.error ?? sites.error} />
       {msg && <p className={msg.ok ? 'alert alert-info' : 'alert'} role="status">{msg.text}</p>}
@@ -124,6 +124,8 @@ function InviteForm({ form, setForm, sites, onSaved }: { form: Form; setForm: (f
     api.get<HostOption[]>(`/admin/invitations/hosts?siteId=${form.siteId}`).then(setHosts).catch((e) => setError(errorText(t, e)));
   }, [form.siteId, t]);
   const siteTz = sites.find((s) => s.id === form.siteId)?.timezone;
+  // Never leave the site empty: the host list depends on it.
+  useEffect(() => { if (!form.siteId && sites.length) setForm({ ...form, siteId: sites[0].id }); }, [form, sites, setForm]);
   const set = (k: keyof Form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setForm({ ...form, [k]: e.target.value });
 
   const save = async (e: React.FormEvent) => {
