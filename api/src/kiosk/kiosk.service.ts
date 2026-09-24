@@ -182,7 +182,7 @@ export class KioskService {
 
   /**
    * Check-out lookup. Never lists everyone on site: the visitor types the code or at least
-   * the first two letters of the surname, and only "Name S." is returned.
+   * the first two letters of the surname, and only "Surname N." is returned (the surname is what they typed).
    */
   async findOpen(device: AuthDevice, q: string) {
     const { policy } = await this.siteAndPolicy(device);
@@ -198,7 +198,7 @@ export class KioskService {
     return matches.slice(0, 8).map((v) => {
       const first = tc.decrypt(v.firstNameEnc, 'visit.firstName') ?? '';
       const last = tc.decrypt(v.lastNameEnc, 'visit.lastName') ?? '';
-      return { id: v.id, label: `${first} ${last.charAt(0)}.`, checkInAt: v.checkInAt, assetPhotoRequired: policy.assetPhotosRequired };
+      return { id: v.id, label: `${last} ${first.charAt(0)}.`, checkInAt: v.checkInAt, assetPhotoRequired: policy.assetPhotosRequired };
     });
   }
 
