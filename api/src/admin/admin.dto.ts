@@ -128,4 +128,7 @@ export class UpdateOrganisationDto {
   @IsOptional() @Transform(trim) @IsString() @Length(2, 120) name?: string;
   /** PNG or JPEG data URL, max ~200 KB. SVG is refused (it can carry scripts). */
   @IsOptional() @IsString() @MaxLength(280_000) @Matches(/^(data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+)?$/) logoDataUrl?: string;
+  /** #RRGGBB, or empty string to go back to the default. */
+  @IsOptional() @IsString() @Matches(/^(#[0-9A-Fa-f]{6})?$/) primaryColor?: string;
+  @IsOptional() @IsString() @Matches(/^(#[0-9A-Fa-f]{6})?$/) secondaryColor?: string;
 }

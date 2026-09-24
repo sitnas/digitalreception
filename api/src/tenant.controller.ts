@@ -12,7 +12,7 @@ export class TenantController {
 
   @Get()
   async branding(@CurrentTenant() tenant: AuthTenant) {
-    const t = await this.tenants.findOneOrFail({ where: { id: tenant.id }, select: { id: true, name: true, logoDataUrl: true } });
-    return { name: t.name, logo: t.logoDataUrl };
+    const t = await this.tenants.findOneOrFail({ where: { id: tenant.id }, select: { id: true, name: true, logoDataUrl: true, primaryColor: true, secondaryColor: true } });
+    return { name: t.name, logo: t.logoDataUrl, primaryColor: t.primaryColor, secondaryColor: t.secondaryColor };
   }
 }

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError, api, deviceToken } from '../lib/api';
+import { applyBrand } from '../lib/theme';
 import { CheckIn, CheckInResult } from './CheckIn';
 import { CheckOut } from './CheckOut';
 import { LOCALE_NAMES, Locale, STRINGS } from './strings';
@@ -22,7 +23,7 @@ export function KioskApp() {
   const loadConfig = useCallback(async () => {
     try {
       const c = await api.kiosk.get<KioskConfig>('/config');
-      setCfg(c); setOffline(false);
+      applyBrand(c.organisation); setCfg(c); setOffline(false);
       return c;
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) { deviceToken.clear(); setPaired(false); setCfg(null); }
@@ -76,11 +77,19 @@ export function KioskApp() {
   return (
     <div className="kiosk" lang={locale}>
       <header className="k-top">
-        <span className="k-site">{cfg.organisation.logo && <img src={cfg.organisation.logo} alt="" className="k-logo" />}<span className="k-org">{cfg.organisation.name}</span><span>{cfg.site.name}</span></span>
-        {langs.length > 1 && screen.name === 'welcome' && (
-          <nav className="k-langs" aria-label="Language">
-            {langs.map((l) => <button key={l} type="button" className="k-lang" aria-pressed={l === locale} onClick={() => setLocale(l)} lang={l}>{LOCALE_NAMES[l]}</button>)}
-          </nav>
+        <span className="k-site">
+          {cfg.organisation.logo ? <img src={cfg.organisation.logo} alt={cfg.organisation.name} className="k-logo" /> : <span className="k-org">{cfg.organisation.name}</span>}
+          <span className="k-place">{cfg.site.name}</span>
+        </span>
+        {screen.name === 'welcome' && (
+          <div className="k-right">
+            {langs.length > 1 && (
+              <nav className="k-langs" aria-label="Language">
+                {langs.map((l) => <button key={l} type="button" className="k-lang" aria-pressed={l === locale} onClick={() => setLocale(l)} lang={l}>{LOCALE_NAMES[l]}</button>)}
+              </nav>
+            )}
+            <Clock timezone={cfg.site.timezone} locale={locale} />
+          </div>
         )}
       </header>
 
@@ -93,10 +102,10 @@ export function KioskApp() {
             <p className="k-sub">{t.welcomeSub}</p>
             <div className="k-choices">
               <button type="button" className="k-choice in" onClick={() => setScreen({ name: 'checkin' })} disabled={!cfg.notices[locale]}>
-                <span className="glyph" aria-hidden>→</span><strong>{t.checkIn}</strong><span>{t.checkInSub}</span>
+                <span className="glyph" aria-hidden><Arrow dir="in" /></span><strong>{t.checkIn}</strong><span>{t.checkInSub}</span>
               </button>
               <button type="button" className="k-choice" onClick={() => setScreen({ name: 'checkout' })}>
-                <span className="glyph" aria-hidden>←</span><strong>{t.checkOut}</strong><span>{t.checkOutSub}</span>
+                <span className="glyph" aria-hidden><Arrow dir="out" /></span><strong>{t.checkOut}</strong><span>{t.checkOutSub}</span>
               </button>
             </div>
           </>
@@ -139,6 +148,27 @@ export function KioskApp() {
       </main>
 
       <footer className="k-foot">{t.privacyFooter}</footer>
+    </div>
+  );
+}
+
+function Arrow({ dir }: { dir: 'in' | 'out' }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      {dir === 'in' ? <path d="M5 12h13M13 6l6 6-6 6" /> : <path d="M19 12H6M11 6l-6 6 6 6" />}
+    </svg>
+  );
+}
+
+/** Local time of the site: a kiosk on a wall is also a clock people glance at. */
+function Clock({ timezone, locale }: { timezone: string; locale: Locale }) {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => { const h = setInterval(() => setNow(new Date()), 15_000); return () => clearInterval(h); }, []);
+  const loc = locale === 'en' ? 'en-GB' : locale;
+  return (
+    <div className="k-clock" aria-hidden>
+      <strong>{new Intl.DateTimeFormat(loc, { hour: '2-digit', minute: '2-digit', timeZone: timezone }).format(now)}</strong>
+      <span>{new Intl.DateTimeFormat(loc, { weekday: 'long', day: 'numeric', month: 'long', timeZone: timezone }).format(now)}</span>
     </div>
   );
 }

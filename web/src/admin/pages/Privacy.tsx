@@ -22,10 +22,10 @@ export function PrivacyPage() {
       <PageHead title={t.privacy.title} intro={editable ? t.privacy.intro : `${t.privacy.intro} ${t.privacy.readOnly}`} />
       <ErrorBox error={policies.error} />
       {policies.data && (
-        <div className="inline" role="tablist" style={{ marginBottom: 16 }}>
+        <div className="tabs" role="tablist">
           {policies.data.map((p) => (
             <button key={p.countryCode} type="button" role="tab" aria-selected={p.countryCode === current?.countryCode}
-              className={p.countryCode === current?.countryCode ? 'btn btn-primary btn-sm' : 'btn btn-ghost btn-sm'} onClick={() => setCc(p.countryCode)}>{p.name}</button>
+              className="tab" onClick={() => setCc(p.countryCode)}>{p.name}</button>
           ))}
         </div>
       )}
@@ -108,9 +108,9 @@ function Notices({ policy, editable }: { policy: Policy; editable: boolean }) {
     <form className="a-card" onSubmit={publish}>
       <h2>{t.privacy.notices}</h2>
       <p className="muted" style={{ marginTop: 0 }}>{t.privacy.noticeIntro}</p>
-      <div className="inline" style={{ marginBottom: 12 }}>
-        {policy.locales.map((l) => <button key={l} type="button" className={l === locale ? 'btn btn-primary btn-sm' : 'btn btn-ghost btn-sm'} onClick={() => setLocale(l)}>{l.toUpperCase()}</button>)}
-        {latest && <span className="muted">{t.privacy.version} {latest.version}, {fmtDateTime(latest.createdAt, intl)}</span>}
+      <div className="tabs" role="tablist" style={{ alignItems: 'center' }}>
+        {policy.locales.map((l) => <button key={l} type="button" role="tab" aria-selected={l === locale} className="tab" onClick={() => setLocale(l)}>{l.toUpperCase()}</button>)}
+        {latest && <span className="muted" style={{ marginLeft: 'auto', fontSize: 13 }}>{t.privacy.version} {latest.version} · {fmtDateTime(latest.createdAt, intl)}</span>}
       </div>
       <ErrorBox error={notices.error} />
       {draft && (

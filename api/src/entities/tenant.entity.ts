@@ -23,5 +23,8 @@ export class Tenant {
   @Column({ type: 'int', nullable: true }) maxUsers: number | null;
   /** White-label: PNG/JPEG data URL shown on tablet and login page. */
   @Column({ type: 'mediumtext', nullable: true }) logoDataUrl: string | null;
+  /** White-label colours (#RRGGBB). Null = product defaults. Text colour on top is derived for contrast. */
+  @Column({ type: 'varchar', length: 7, nullable: true }) primaryColor: string | null;
+  @Column({ type: 'varchar', length: 7, nullable: true }) secondaryColor: string | null;
   @CreateDateColumn({ type: 'datetime', precision: 3, default: () => 'CURRENT_TIMESTAMP(3)' }) createdAt: Date;
 }
