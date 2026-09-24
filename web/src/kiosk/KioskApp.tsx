@@ -3,10 +3,11 @@ import { ApiError, api, deviceToken } from '../lib/api';
 import { applyBrand } from '../lib/theme';
 import { CheckIn, CheckInResult } from './CheckIn';
 import { CheckOut } from './CheckOut';
+import { InviteScan, type Invite } from './InviteScan';
 import { LOCALE_NAMES, Locale, STRINGS } from './strings';
 import type { KioskConfig } from './types';
 
-type Screen = { name: 'welcome' } | { name: 'checkin' } | { name: 'checkout' } | { name: 'done'; result: CheckInResult } | { name: 'outdone' };
+type Screen = { name: 'welcome' } | { name: 'checkin'; invite?: Invite } | { name: 'invite' } | { name: 'checkout' } | { name: 'done'; result: CheckInResult } | { name: 'outdone' };
 
 const IDLE_MS = 90_000;        // abandoned form: wipe everything typed so far
 const DONE_MS = 20_000;        // confirmation screens return home by themselves
@@ -108,11 +109,19 @@ export function KioskApp() {
                 <span className="glyph" aria-hidden><Arrow dir="out" /></span><strong>{t.checkOut}</strong><span>{t.checkOutSub}</span>
               </button>
             </div>
+            <button type="button" className="k-invite-btn" onClick={() => setScreen({ name: 'invite' })} disabled={!cfg.notices[locale]}>
+              <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m3 7 9 6 9-6" /></svg>
+              <span><strong>{t.invite}</strong><small>{t.inviteSub}</small></span>
+            </button>
           </>
         )}
 
+        {screen.name === 'invite' && (
+          <InviteScan t={t} onCancel={goHome} onWithout={() => setScreen({ name: 'checkin' })} onFound={(invite) => setScreen({ name: 'checkin', invite })} />
+        )}
+
         {screen.name === 'checkin' && (
-          <CheckIn cfg={cfg} locale={locale} t={t} onCancel={goHome}
+          <CheckIn cfg={cfg} locale={locale} t={t} onCancel={goHome} invite={screen.invite}
             onReloadConfig={async () => { await loadConfig(); }}
             onDone={(result) => setScreen({ name: 'done', result })} />
         )}

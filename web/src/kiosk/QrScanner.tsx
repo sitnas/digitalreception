@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Strings } from './strings';
 
-/** Same prefix the API puts in the exit QR: any other QR code is ignored. */
-const EXIT_QR = /^DRX1:([A-Z0-9]{5})$/;
+/** Same prefixes the API puts in its QR codes: any other QR code is ignored. */
+export const EXIT_QR = /^DRX1:([A-Z0-9]{5})$/;
+export const INVITE_QR = /^DRI1:([A-Z0-9]{8})$/;
 const SCAN_EVERY_MS = 200;
 const MAX_SIDE = 640;
 
@@ -29,8 +30,13 @@ async function makeDecoder(): Promise<(c: HTMLCanvasElement) => Promise<string |
  * Live camera preview that reads the exit QR. Frames are decoded in the browser and never stored
  * or sent: only the recognised visit code leaves this component. The camera stops on unmount.
  */
-export function QrScanner({ onCode, onCancel, t }: { onCode: (code: string) => void; onCancel: () => void; t: Strings }) {
+export function QrScanner({ onCode, onCancel, t, accept = EXIT_QR, wrongText, cancelText }: {
+  onCode: (code: string) => void; onCancel: () => void; t: Strings; accept?: RegExp; wrongText?: string; cancelText?: string;
+}) {
   const video = useRef<HTMLVideoElement>(null);
+  // The latest callback, read when a code is found: a new function from a re-render must not restart the camera.
+  const onCodeRef = useRef(onCode);
+  onCodeRef.current = onCode;
   const [error, setError] = useState(false);
   const [wrong, setWrong] = useState(false);
 
@@ -56,8 +62,8 @@ export function QrScanner({ onCode, onCancel, t }: { onCode: (code: string) => v
             canvas.width = Math.round(v.videoWidth * scale); canvas.height = Math.round(v.videoHeight * scale);
             canvas.getContext('2d', { willReadFrequently: true })!.drawImage(v, 0, 0, canvas.width, canvas.height);
             const text = await decode(canvas).catch(() => null);
-            const m = text ? EXIT_QR.exec(text.trim()) : null;
-            if (m) { stopped = true; onCode(m[1]); return; }
+            const m = text ? accept.exec(text.trim()) : null;
+            if (m) { stopped = true; onCodeRef.current(m[1]); return; }
             if (text) setWrong(true);
           }
           timer = window.setTimeout(tick, SCAN_EVERY_MS);
@@ -69,7 +75,7 @@ export function QrScanner({ onCode, onCancel, t }: { onCode: (code: string) => v
     })();
 
     return () => { stopped = true; window.clearTimeout(timer); stream?.getTracks().forEach((tr) => tr.stop()); };
-  }, [onCode]);
+  }, [accept]);
 
   return (
     <div className="k-scan">
@@ -79,8 +85,8 @@ export function QrScanner({ onCode, onCancel, t }: { onCode: (code: string) => v
           <div className="k-scan-frame" aria-hidden />
         </div>
       )}
-      <p className="muted" style={{ margin: 0 }} role="status">{wrong ? t.scanWrong : t.scanHint}</p>
-      <button type="button" className="btn btn-ghost" onClick={onCancel}>{t.scanStop}</button>
+      <p className="muted" style={{ margin: 0 }} role="status">{wrong ? (wrongText ?? t.scanWrong) : t.scanHint}</p>
+      <button type="button" className="btn btn-ghost" onClick={onCancel}>{cancelText ?? t.scanStop}</button>
     </div>
   );
 }

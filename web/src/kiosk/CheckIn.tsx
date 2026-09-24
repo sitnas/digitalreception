@@ -3,6 +3,7 @@ import { ApiError, api } from '../lib/api';
 import { PhotoCapture, SignaturePad, Steps } from './parts';
 import type { Locale, Strings } from './strings';
 import type { KioskConfig, KioskHost } from './types';
+import type { Invite } from './InviteScan';
 
 const PURPOSES = ['MEETING', 'INTERVIEW', 'SUPPLIER', 'MAINTENANCE', 'DELIVERY', 'OTHER'] as const;
 const DOC_TYPES = ['ID_CARD', 'PASSPORT', 'DRIVING_LICENSE', 'OTHER'] as const;
@@ -14,16 +15,22 @@ type StepKey = 'details' | 'notice' | 'photos' | 'sign';
 
 export interface CheckInResult { code: string; qrSvg: string; label: string; emailQueued: boolean; badgeEmailQueued: boolean; hostNotified: boolean }
 
-interface Props { cfg: KioskConfig; locale: Locale; t: Strings; onDone: (r: CheckInResult) => void; onCancel: () => void; onReloadConfig: () => Promise<void> }
+interface Props { cfg: KioskConfig; locale: Locale; t: Strings; onDone: (r: CheckInResult) => void; onCancel: () => void; onReloadConfig: () => Promise<void>; invite?: Invite }
 
-export function CheckIn({ cfg, locale, t, onDone, onCancel, onReloadConfig }: Props) {
+export function CheckIn({ cfg, locale, t, onDone, onCancel, onReloadConfig, invite }: Props) {
   const { policy } = cfg;
   const hasDirectory = cfg.hosts.length > 0;
   // The document photo is taken together with the document data; the photos step is only for the laptop serial.
   const steps = useMemo<StepKey[]>(() => ['details', 'notice', ...(policy.assetPhotosRequired ? ['photos' as const] : []), 'sign'], [policy]);
   const labels = steps.map((s) => t.steps[['details', 'notice', 'photos', 'sign'].indexOf(s)]);
   const [step, setStep] = useState(0);
-  const [f, setF] = useState({ firstName: '', lastName: '', company: '', email: '', host: '', hostId: '', purpose: '', travelDistance: '', documentType: '', documentNumber: '' });
+  // An invitation fills what the staff already entered; the guest checks it and adds the rest.
+  const pre = invite?.data;
+  const [f, setF] = useState({
+    firstName: pre?.firstName ?? '', lastName: pre?.lastName ?? '', company: pre?.company ?? '', email: pre?.email ?? '', host: '',
+    hostId: pre && cfg.hosts.some((h) => h.id === pre.hostId) ? pre.hostId : '', purpose: pre?.purpose ?? '',
+    travelDistance: '', documentType: '', documentNumber: '',
+  });
   const [touched, setTouched] = useState(false);
   const [noticeRead, setNoticeRead] = useState(false);
   const [scrolledToEnd, setScrolledToEnd] = useState(false);
@@ -76,6 +83,7 @@ export function CheckIn({ cfg, locale, t, onDone, onCancel, onReloadConfig }: Pr
         privacyNoticeId: notice.id, privacyAccepted: true, signature,
         documentPhoto: policy.documentPhotoEnabled ? docPhoto : undefined,
         assetPhoto: policy.assetPhotosRequired ? assetPhoto : undefined,
+        invitationCode: invite?.code,
       });
       onDone({ code: res.code, qrSvg: res.qrSvg, label: `${f.firstName.trim()} ${f.lastName.trim().charAt(0)}.`, emailQueued: res.emailQueued, badgeEmailQueued: res.badgeEmailQueued, hostNotified: res.hostNotified });
     } catch (e) {
@@ -89,6 +97,8 @@ export function CheckIn({ cfg, locale, t, onDone, onCancel, onReloadConfig }: Pr
         await onReloadConfig();
         setF((cur) => ({ ...cur, hostId: '' })); setSignature(null); setStep(0);
         setError(t.errors.generic);
+      } else if (e instanceof ApiError && e.code?.startsWith('INVITATION_') && e.code in t.errors) {
+        setError(t.errors[e.code as keyof Strings['errors']]);
       } else setError(e instanceof ApiError ? t.errors.generic : t.errors.offline);
     } finally { setBusy(false); }
   };
@@ -101,6 +111,12 @@ export function CheckIn({ cfg, locale, t, onDone, onCancel, onReloadConfig }: Pr
       <Steps labels={labels} current={step} caption={t.stepOf.replace('{n}', String(step + 1)).replace('{total}', String(steps.length))} />
       {error && <p className="alert" role="alert">{error}</p>}
 
+      {key === 'details' && pre && (
+        <div className="k-invite-hello" role="status">
+          <strong>{t.inviteHello.replace('{name}', pre.firstName)}</strong>
+          <span>{t.inviteCheck}</span>
+        </div>
+      )}
       {key === 'details' && (
         <form className="k-form" onSubmit={(e) => { e.preventDefault(); next(); }} noValidate autoComplete="off">
           <div className="k-row">
