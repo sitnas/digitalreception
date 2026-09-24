@@ -18,7 +18,7 @@ export function CheckOut({ cfg, locale, t, onDone, onCancel }: { cfg: KioskConfi
   useEffect(() => {
     const term = q.trim();
     setSelected(null);
-    if (term.length < 2) { setResults(null); return; }
+    if (term.length < 3) { setResults(null); return; }
     const h = setTimeout(async () => {
       try { setResults(await api.kiosk.get<Match[]>(`/visits/open?q=${encodeURIComponent(term)}`)); setError(null); }
       catch (e) { setError(e instanceof ApiError ? t.errors.generic : t.errors.offline); }

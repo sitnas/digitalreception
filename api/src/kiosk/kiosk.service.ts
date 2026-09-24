@@ -12,6 +12,8 @@ import { CountryPolicy, Device, FileKind, Host, NoticeEmailStatus, PairingCode, 
 import { CheckInDto, CheckOutDto } from './kiosk.dto';
 
 const MAX_KIOSK_HOSTS = 2000;
+/** A check-out surname search must be this specific: broader prefixes return nothing (anti-enumeration). */
+const MAX_OPEN_MATCHES = 5;
 
 /** Fills runtime placeholders so the text always matches the configured policy. */
 /** The document request always includes its photo; the photo can also be requested on its own. */
@@ -181,8 +183,10 @@ export class KioskService {
   }
 
   /**
-   * Check-out lookup. Never lists everyone on site: the visitor types the code or at least
-   * the first two letters of the surname, and only "Surname N." is returned (the surname is what they typed).
+   * Check-out lookup. Never lists everyone on site: the visitor types the exit code, or enough of
+   * the surname to be specific. A surname prefix that matches more than MAX_OPEN_MATCHES people
+   * returns nothing, so the present list cannot be dumped by sweeping short prefixes; only
+   * "Surname N." is ever returned. The exact code is the primary, unambiguous path.
    */
   async findOpen(device: AuthDevice, q: string) {
     const { policy } = await this.siteAndPolicy(device);
@@ -193,9 +197,11 @@ export class KioskService {
     if (!matches.length) {
       const norm = (s: string) => s.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
       const open = await this.visits.find({ where: scope, order: { checkInAt: 'DESC' }, take: 500 });
-      matches = open.filter((v) => norm(tc.decrypt(v.lastNameEnc, 'visit.lastName') ?? '').startsWith(norm(query)));
+      const hits = open.filter((v) => norm(tc.decrypt(v.lastNameEnc, 'visit.lastName') ?? '').startsWith(norm(query)));
+      // Too broad a prefix reveals nobody: the visitor must type more of the surname (or use the code).
+      matches = hits.length > MAX_OPEN_MATCHES ? [] : hits;
     }
-    return matches.slice(0, 8).map((v) => {
+    return matches.slice(0, MAX_OPEN_MATCHES).map((v) => {
       const first = tc.decrypt(v.firstNameEnc, 'visit.firstName') ?? '';
       const last = tc.decrypt(v.lastNameEnc, 'visit.lastName') ?? '';
       return { id: v.id, label: `${last} ${first.charAt(0)}.`, checkInAt: v.checkInAt, assetPhotoRequired: policy.assetPhotosRequired };

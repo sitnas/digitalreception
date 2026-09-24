@@ -32,7 +32,7 @@ export class CheckInDto {
 }
 
 export class OpenVisitsQuery {
-  @Transform(trim) @IsString() @Length(2, 40) q: string;
+  @Transform(trim) @IsString() @Length(3, 40) q: string;
 }
 
 export class CheckOutDto {
