@@ -42,7 +42,7 @@ Riferimenti normativi dei modelli di informativa: GDPR e D.Lgs. 196/2003 (Italia
 
 **Tablet.** Associazione con codice monouso di 8 caratteri valido 15 minuti; nel database c'è solo l'hash SHA-256 del codice e del token. Ogni tablet è legato a una sola sede e si può disattivare in qualsiasi momento. Dopo 90 secondi di inattività il modulo si svuota; le schermate di conferma tornano all'inizio da sole. All'uscita il tablet mostra solo "Cognome I." (il cognome che il visitatore sta cercando e l'iniziale del nome) e solo dopo che il visitatore ha digitato il codice o almeno tre lettere del cognome. Un prefisso di cognome che corrisponde a più di cinque presenti non restituisce nulla: l'elenco dei presenti non è ricostruibile provando prefissi brevi.
 
-**Persone da visitare.** L'elenco è gestito dall'amministratore (tutte le sedi) e dai responsabili di sede (solo le proprie). Al tablet arrivano solo nome, cognome, reparto e ruolo delle persone collegate alla sua sede: email e telefono restano nella console.
+**Persone da visitare.** L'elenco è gestito dall'amministratore (tutte le sedi) e dai responsabili di sede (solo le proprie). Al tablet arrivano solo nome, cognome, reparto e ruolo delle persone collegate alla sua sede: email e telefono restano nella console. Se la persona ha un'email, all'ingresso del visitatore riceve un avviso con nome, azienda, motivo e ora di arrivo del visitatore, e nient'altro (niente documento, contatti o firma). L'avviso parte solo se la visita è ancora aperta e la persona è attiva.
 
 **Ruoli (minimo privilegio e separazione dei compiti).** L'Auditor ha accesso in sola lettura a tutte le sedi: vede i visitatori con documenti e immagini, esporta storico e registro accessi, ma non può registrare uscite, cancellare dati né modificare configurazioni. Ogni sua consultazione finisce nel registro accessi.
 
@@ -76,7 +76,7 @@ Riferimenti normativi dei modelli di informativa: GDPR e D.Lgs. 196/2003 (Italia
 4. Decidere se la foto del documento serve davvero in qualche paese: il numero del documento è di solito sufficiente.
 5. Nel modello SaaS: il fornitore è responsabile del trattamento (art. 28) per ogni cliente; serve un accordo di trattamento dati.
 6. Valutare se è necessaria una DPIA (verosimilmente no per un registro visitatori senza biometria, ma la decisione va documentata).
-7. Pubblicare una nuova versione delle informative già in uso che citi la distanza percorsa e l'invio del badge di uscita via email (i modelli per i nuovi paesi sono già aggiornati).
+7. Pubblicare una nuova versione delle informative già in uso che citi la distanza percorsa, l'avviso di arrivo alla persona di riferimento e l'invio del badge di uscita via email (i modelli per i nuovi paesi sono già aggiornati).
 
 ## Requisiti applicativi verso l'infrastruttura
 

@@ -10,6 +10,7 @@ import { HostsPage } from './pages/Hosts';
 import { OrganisationPage } from './pages/Organisation';
 import { PrivacyPage } from './pages/Privacy';
 import { SitesPage } from './pages/Sites';
+import { StatsPage } from './pages/Stats';
 import { TodayPage } from './pages/Today';
 import { UsersPage } from './pages/Users';
 import type { Me, Role } from './types';
@@ -28,6 +29,7 @@ type NavGroup = keyof typeof ADMIN_STRINGS.it.navGroups;
 const NAV: { to: string; key: keyof typeof ADMIN_STRINGS.it.nav; group: NavGroup; roles: Role[] }[] = [
   { to: 'today', key: 'today', group: 'visits', roles: ['SUPER_ADMIN', 'SITE_MANAGER', 'RECEPTIONIST', 'AUDITOR'] },
   { to: 'history', key: 'history', group: 'visits', roles: ['SUPER_ADMIN', 'SITE_MANAGER', 'RECEPTIONIST', 'AUDITOR'] },
+  { to: 'stats', key: 'stats', group: 'visits', roles: ['SUPER_ADMIN', 'SITE_MANAGER', 'AUDITOR'] },
   { to: 'sites', key: 'sites', group: 'setup', roles: ['SUPER_ADMIN'] },
   { to: 'devices', key: 'devices', group: 'setup', roles: ['SUPER_ADMIN', 'SITE_MANAGER'] },
   { to: 'hosts', key: 'hosts', group: 'setup', roles: ['SUPER_ADMIN', 'SITE_MANAGER'] },
@@ -204,6 +206,7 @@ function Shell({ branding, me, onLogout }: { branding: Branding; me: Me; onLogou
           <Route index element={<Navigate to={home} replace />} />
           {items.some((i) => i.to === 'today') && <Route path="today" element={<TodayPage />} />}
           {items.some((i) => i.to === 'history') && <Route path="history" element={<HistoryPage />} />}
+          {items.some((i) => i.to === 'stats') && <Route path="stats" element={<StatsPage />} />}
           {items.some((i) => i.to === 'sites') && <Route path="sites" element={<SitesPage />} />}
           {items.some((i) => i.to === 'devices') && <Route path="devices" element={<DevicesPage />} />}
           {items.some((i) => i.to === 'hosts') && <Route path="hosts" element={<HostsPage />} />}

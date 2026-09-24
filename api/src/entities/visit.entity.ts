@@ -14,6 +14,7 @@ import { StoredFile } from './stored-file.entity';
 @Index(['tenantId', 'checkInAt'])
 @Index(['noticeEmailStatus'])
 @Index('IDX_visits_badge_email_status', ['badgeEmailStatus'])
+@Index('IDX_visits_host_email_status', ['hostEmailStatus'])
 export class Visit {
   @PrimaryGeneratedColumn('uuid') id: string;
   @Column({ type: 'uuid' }) tenantId: string;
@@ -52,6 +53,9 @@ export class Visit {
   /** Exit badge (visit code) sent to the email given at check-in, through the same outbox. */
   @Column({ type: 'varchar', length: 16, default: NoticeEmailStatus.NOT_REQUESTED }) badgeEmailStatus: NoticeEmailStatus;
   @Column({ type: 'tinyint', default: 0 }) badgeEmailAttempts: number;
+  /** Arrival notice to the host picked from the directory (when the host has an email). */
+  @Column({ type: 'varchar', length: 16, default: NoticeEmailStatus.NOT_REQUESTED }) hostEmailStatus: NoticeEmailStatus;
+  @Column({ type: 'tinyint', default: 0 }) hostEmailAttempts: number;
 
   @Column({ type: 'datetime', precision: 3, nullable: true }) anonymizedAt: Date | null;
   @OneToMany(() => StoredFile, (f) => f.visit) files?: StoredFile[];

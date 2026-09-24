@@ -8,7 +8,7 @@ export interface VisitRow {
 }
 export interface VisitDetail extends VisitRow {
   email: string | null; documentType: string | null; documentNumber: string | null; checkOutBy: string | null; locale: string;
-  privacyNoticeVersion: number; privacyAcceptedAt: string; noticeEmailStatus: string; badgeEmailStatus: string; anonymizedAt: string | null;
+  privacyNoticeVersion: number; privacyAcceptedAt: string; noticeEmailStatus: string; badgeEmailStatus: string; hostEmailStatus: string; anonymizedAt: string | null;
   files: { id: string; kind: string; available: boolean; purgeAfter: string; viewable: boolean }[];
 }
 export interface Paged<T> { items: T[]; total: number; page: number; pageSize: number }
