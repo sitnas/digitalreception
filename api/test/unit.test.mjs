@@ -70,3 +70,15 @@ test('CSV cells are quoted and neutralise spreadsheet formulas', () => {
   for (const f of ['=1+1', '+SUM(A1)', '-2', '@cmd', '\tx']) assert.ok(csvCell(f).startsWith(`"'`), f);
   assert.equal(csvCell(null), '""');
 });
+
+test('exit QR decodes to the visit code with the tablet prefix, as PNG and SVG', async () => {
+  const { exitQrPng, exitQrSvg, EXIT_QR_PREFIX } = require('../dist/common/exit-qr.js');
+  const jsQR = require('jsqr');
+  const { PNG } = require('pngjs');
+  const png = PNG.sync.read(await exitQrPng('AB3CD'));
+  assert.equal(jsQR(new Uint8ClampedArray(png.data), png.width, png.height).data, `${EXIT_QR_PREFIX}AB3CD`);
+  assert.equal(EXIT_QR_PREFIX, 'DRX1:', 'the tablet scanner matches this prefix');
+  const svg = await exitQrSvg('AB3CD');
+  assert.match(svg, /^<svg[\s\S]*<\/svg>\s*$/);
+  assert.doesNotMatch(svg, /<script|on\w+=/i);
+});

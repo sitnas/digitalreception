@@ -137,6 +137,7 @@ describe('end-to-end', { skip: !enabled && 'E2E_DB_HOST not set' }, () => {
     const ok = await checkIn({});
     assert.equal(ok.status, 201, JSON.stringify(ok.data));
     assert.match(ok.data.code, /^[A-Z0-9]{5}$/);
+    assert.match(ok.data.qrSvg, /^<svg/, 'exit QR for the badge on screen');
     assert.equal(ok.data.hostNotified, false, 'no SMTP configured in tests');
     ctx.visit = (await admin.get(`/admin/visits?siteId=${ctx.milano.id}`)).data.items[0];
     const detail = (await admin.get(`/admin/visits/${ctx.visit.id}`)).data;

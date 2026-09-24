@@ -88,4 +88,6 @@ Espressi come necessità dell'applicazione; le scelte tecniche su come soddisfar
 4. **Un luogo sicuro per i segreti** (`MASTER_KEYS`, `JWT_SECRET`, password DB), separato dai backup del database: chi ha solo il backup non deve poter leggere i dati.
 5. **Backup** di database e immagini secondo la politica aziendale; le copie restano cifrate.
 6. **Un relay SMTP** con STARTTLS, se si vuole l'invio via email del badge di uscita e dell'informativa.
+
+**QR di uscita.** Il QR del badge contiene solo il codice di uscita (`DRX1:` seguito dal codice), non dati personali, e non dà alcun accesso in più rispetto al codice scritto sotto. Il tablet legge il QR nel browser: le immagini della fotocamera non vengono salvate né inviate al server, e la fotocamera si spegne appena il codice è letto o si torna indietro.
 7. **Rete:** i tablet devono raggiungere l'indirizzo della console via HTTPS; nessun'altra porta è necessaria.

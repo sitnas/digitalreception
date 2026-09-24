@@ -8,6 +8,7 @@ import { MailService } from '../common/mail.service';
 import { AppRequest, AuthDevice, AuthTenant } from '../common/request-context';
 import { TenantKeysService } from '../common/tenant-keys.service';
 import { addDays } from '../common/time.util';
+import { exitQrSvg } from '../common/exit-qr';
 import { CountryPolicy, Device, FileKind, Host, NoticeEmailStatus, PairingCode, PrivacyNotice, Site, Tenant, Visit, VisitStatus } from '../entities';
 import { CheckInDto, CheckOutDto } from './kiosk.dto';
 
@@ -177,7 +178,7 @@ export class KioskService {
       action: 'VISIT_CHECK_IN', entityType: 'visit', entityId: visit.id, siteId: site.id,
       details: { noticeVersion: notice.version, locale: dto.locale, documentPhoto: !!docPhoto, assetPhoto: !!assetPhoto, hostId, travelDistance: dto.travelDistance },
     });
-    return { code: visit.code, checkInAt: visit.checkInAt, emailQueued: wantsEmail, badgeEmailQueued: wantsBadge, hostNotified: wantsHostNotice };
+    return { code: visit.code, qrSvg: await exitQrSvg(visit.code), checkInAt: visit.checkInAt, emailQueued: wantsEmail, badgeEmailQueued: wantsBadge, hostNotified: wantsHostNotice };
   }
 
   private async uniqueCode(tenantId: string, siteId: string): Promise<string> {

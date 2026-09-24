@@ -12,7 +12,7 @@ const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 type StepKey = 'details' | 'notice' | 'photos' | 'sign';
 
-export interface CheckInResult { code: string; label: string; emailQueued: boolean; badgeEmailQueued: boolean; hostNotified: boolean }
+export interface CheckInResult { code: string; qrSvg: string; label: string; emailQueued: boolean; badgeEmailQueued: boolean; hostNotified: boolean }
 
 interface Props { cfg: KioskConfig; locale: Locale; t: Strings; onDone: (r: CheckInResult) => void; onCancel: () => void; onReloadConfig: () => Promise<void> }
 
@@ -66,7 +66,7 @@ export function CheckIn({ cfg, locale, t, onDone, onCancel, onReloadConfig }: Pr
     if (step < steps.length - 1) { setError(null); setStep(step + 1); window.scrollTo(0, 0); return; }
     setBusy(true); setError(null);
     try {
-      const res = await api.kiosk.post<{ code: string; emailQueued: boolean; badgeEmailQueued: boolean; hostNotified: boolean }>('/visits', {
+      const res = await api.kiosk.post<{ code: string; qrSvg: string; emailQueued: boolean; badgeEmailQueued: boolean; hostNotified: boolean }>('/visits', {
         locale, firstName: f.firstName, lastName: f.lastName, company: f.company || undefined, email: (cfg.emailAvailable && f.email.trim()) || undefined,
         sendNoticeEmail: cfg.emailAvailable && sendEmail && !!f.email.trim(),
         ...(hasDirectory ? { hostId: f.hostId } : { host: f.host }),
@@ -77,7 +77,7 @@ export function CheckIn({ cfg, locale, t, onDone, onCancel, onReloadConfig }: Pr
         documentPhoto: policy.documentPhotoEnabled ? docPhoto : undefined,
         assetPhoto: policy.assetPhotosRequired ? assetPhoto : undefined,
       });
-      onDone({ code: res.code, label: `${f.firstName.trim()} ${f.lastName.trim().charAt(0)}.`, emailQueued: res.emailQueued, badgeEmailQueued: res.badgeEmailQueued, hostNotified: res.hostNotified });
+      onDone({ code: res.code, qrSvg: res.qrSvg, label: `${f.firstName.trim()} ${f.lastName.trim().charAt(0)}.`, emailQueued: res.emailQueued, badgeEmailQueued: res.badgeEmailQueued, hostNotified: res.hostNotified });
     } catch (e) {
       if (e instanceof ApiError && e.code === 'NOTICE_OUTDATED') {
         await onReloadConfig();

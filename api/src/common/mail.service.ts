@@ -1,6 +1,9 @@
 import { Inject, Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
 import nodemailer, { Transporter } from 'nodemailer';
+import type Mail from 'nodemailer/lib/mailer';
+type Attachment = Mail.Attachment;
 import { APP_CONFIG, AppConfig } from './app-config';
+import { exitQrPng } from './exit-qr';
 
 /** Sends the privacy notice and the exit badge, through the configured SMTP relay (STARTTLS mandatory). */
 @Injectable()
@@ -62,10 +65,12 @@ export class MailService implements OnApplicationBootstrap {
 <div style="margin-top:4px;opacity:.8">${esc(s.host)}: ${esc(b.hostName)}</div>
 <div style="margin-top:20px;font-size:13px;text-transform:uppercase;letter-spacing:.08em;opacity:.8">${esc(s.code)}</div>
 <div style="font-size:44px;font-weight:700;letter-spacing:.2em;font-family:'Courier New',monospace">${esc(b.code)}</div>
+<div style="display:inline-block;margin-top:14px;background:#FFFFFF;border-radius:10px;padding:8px;line-height:0"><img src="cid:exit-qr" width="180" height="180" alt="QR ${esc(b.code)}" style="display:block"></div>
 <div style="margin-top:14px;opacity:.8">${esc(s.checkIn)}: ${esc(when)}</div>
 </div></div>
 <p style="margin-top:16px">${esc(s.hint)}</p></div>`;
-    return this.send(to, fromName, `${s.title} - ${b.siteName}`, text, html);
+    const qr = await exitQrPng(b.code);
+    return this.send(to, fromName, `${s.title} - ${b.siteName}`, text, html, [{ filename: `badge-${b.code}.png`, content: qr, cid: 'exit-qr', contentType: 'image/png' }]);
   }
 
   /** Tells the host that their visitor has checked in. Only what the host needs: name, company, time, reason. */
@@ -89,10 +94,10 @@ export class MailService implements OnApplicationBootstrap {
     return this.send(to, fromName, subject, text, html);
   }
 
-  private async send(to: string, fromName: string, subject: string, text: string, html: string): Promise<boolean> {
+  private async send(to: string, fromName: string, subject: string, text: string, html: string, attachments?: Attachment[]): Promise<boolean> {
     if (!this.transport) return false;
     try {
-      await this.transport.sendMail({ from: { name: fromName, address: this.cfg.mail.from }, to, subject, text, html });
+      await this.transport.sendMail({ from: { name: fromName, address: this.cfg.mail.from }, to, subject, text, html, attachments });
       return true;
     } catch (e) {
       this.log.warn(`Email failed: ${(e as Error).message}`); // recipient never logged
@@ -127,7 +132,7 @@ function readableOn(hex: string): string {
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
 const BADGE_STRINGS = {
-  it: { title: 'Il tuo badge di uscita', visitor: 'Visitatore', host: 'Referente', checkIn: 'Ingresso', code: 'Codice di uscita', hint: 'All’uscita tocca “Sto uscendo” sul tablet della reception e digita questo codice.' },
-  es: { title: 'Su credencial de salida', visitor: 'Visitante', host: 'Contacto', checkIn: 'Entrada', code: 'Código de salida', hint: 'Al salir, pulse «Estoy saliendo» en la tableta de recepción e introduzca este código.' },
-  en: { title: 'Your exit badge', visitor: 'Visitor', host: 'Host', checkIn: 'Check-in', code: 'Exit code', hint: 'When leaving, tap “I’m leaving” on the reception tablet and type this code.' },
+  it: { title: 'Il tuo badge di uscita', visitor: 'Visitatore', host: 'Referente', checkIn: 'Ingresso', code: 'Codice di uscita', hint: 'All’uscita tocca “Sto uscendo” sul tablet della reception e mostra questo QR alla fotocamera, oppure digita il codice.' },
+  es: { title: 'Su credencial de salida', visitor: 'Visitante', host: 'Contacto', checkIn: 'Entrada', code: 'Código de salida', hint: 'Al salir, pulse «Estoy saliendo» en la tableta de recepción y muestre este QR a la cámara, o introduzca el código.' },
+  en: { title: 'Your exit badge', visitor: 'Visitor', host: 'Host', checkIn: 'Check-in', code: 'Exit code', hint: 'When leaving, tap “I’m leaving” on the reception tablet and show this QR to the camera, or type the code.' },
 };
