@@ -60,6 +60,19 @@ cd web && npm ci && npm run dev
 
 In sviluppo `localhost` usa il tenant indicato in `DEFAULT_TENANT_SLUG`.
 
+## Test
+
+```bash
+# API: test unitari (cifratura, CSV) + end-to-end contro un MySQL/MariaDB vero
+cd api && E2E_DB_HOST=127.0.0.1 E2E_DB_USER=reception E2E_DB_PASSWORD=... npm test
+# senza E2E_DB_HOST i test end-to-end vengono saltati
+
+# Web: calcoli dei colori del brand (contrasto sempre leggibile)
+cd web && npm test
+```
+
+I test end-to-end avviano l'API vera, creano un tenant temporaneo e lo eliminano alla fine: coprono ruoli e isolamento, tablet (validazioni, ricerca in uscita non enumerabile), regole privacy, statistiche e cancellazione completa del tenant. La CI su GitHub (`.github/workflows/ci.yml`) li esegue a ogni pull request e a ogni push su `main`.
+
 ## Struttura
 
 ```
