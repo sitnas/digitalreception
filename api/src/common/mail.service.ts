@@ -1,10 +1,10 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
 import nodemailer, { Transporter } from 'nodemailer';
 import { APP_CONFIG, AppConfig } from './app-config';
 
 /** Sends the privacy notice and the exit badge, through the configured SMTP relay (STARTTLS mandatory). */
 @Injectable()
-export class MailService {
+export class MailService implements OnApplicationBootstrap {
   private readonly log = new Logger(MailService.name);
   private readonly transport: Transporter | null;
 
@@ -19,6 +19,26 @@ export class MailService {
   }
 
   get enabled(): boolean { return this.transport !== null; }
+  get from(): string { return this.cfg.mail.from; }
+
+  /** Says at startup whether email works, so a missing or wrong SMTP setup is visible in the logs. */
+  async onApplicationBootstrap() {
+    if (!this.transport) { this.log.warn('Email disabled: SMTP_HOST is not set. Privacy notices, exit badges and host arrival notices will not be sent.'); return; }
+    try { await this.transport.verify(); this.log.log(`SMTP ready (${this.cfg.mail.host}:${this.cfg.mail.port}).`); }
+    catch (e) { this.log.error(`SMTP check failed (${this.cfg.mail.host}:${this.cfg.mail.port}): ${(e as Error).message}`); }
+  }
+
+  /** Test message for the console: returns the SMTP error so the administrator can fix the setup. */
+  async sendTest(to: string, fromName: string): Promise<{ ok: boolean; error?: string }> {
+    if (!this.transport) return { ok: false, error: 'SMTP_HOST not set' };
+    const text = 'Email is configured correctly: visitors and hosts will receive their messages.\nL’invio email è configurato correttamente.';
+    try {
+      await this.transport.sendMail({ from: { name: fromName, address: this.cfg.mail.from }, to, subject: `${fromName} - test email`, text });
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: (e as Error).message.slice(0, 300) };
+    }
+  }
 
   async sendNotice(to: string, fromName: string, title: string, body: string, siteName: string): Promise<boolean> {
     return this.send(to, fromName, `${title} - ${siteName}`, body,

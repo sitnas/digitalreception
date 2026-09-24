@@ -1,9 +1,11 @@
 import { BadRequestException, Body, ConflictException, Controller, ForbiddenException, Get, Header, HttpCode, NotFoundException, Param, ParseUUIDPipe, Patch, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { Response } from 'express';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Between, In, IsNull, LessThan, Like, MoreThanOrEqual, Repository } from 'typeorm';
 import { AuditService } from '../common/audit.service';
 import { CryptoService } from '../common/crypto.service';
+import { MailService } from '../common/mail.service';
 import { AdminAuthGuard, CurrentUser, Roles, assertSiteAccess, visibleSiteIds } from '../common/guards';
 import { AppRequest, AuthUser } from '../common/request-context';
 import { isValidTimeZone } from '../common/time.util';
@@ -37,6 +39,7 @@ export class ManagementController {
     @InjectRepository(Host) private readonly hosts: Repository<Host>,
     private readonly crypto: CryptoService,
     private readonly audit: AuditService,
+    private readonly mail: MailService,
   ) {}
 
   private async limits(tenantId: string) {
@@ -53,7 +56,7 @@ export class ManagementController {
       this.devices.count({ where: { tenantId: user.tenantId, revokedAt: IsNull() } }),
       this.users.count({ where: { tenantId: user.tenantId, active: true } }),
     ]);
-    return { name: t.name, slug: t.slug, logo: t.logoDataUrl, primaryColor: t.primaryColor, secondaryColor: t.secondaryColor, usage: { sites, devices, users }, limits: { sites: t.maxSites, devices: t.maxDevices, users: t.maxUsers } };
+    return { name: t.name, slug: t.slug, logo: t.logoDataUrl, primaryColor: t.primaryColor, secondaryColor: t.secondaryColor, email: { enabled: this.mail.enabled, from: this.mail.enabled ? this.mail.from : null }, usage: { sites, devices, users }, limits: { sites: t.maxSites, devices: t.maxDevices, users: t.maxUsers } };
   }
 
   @Patch('organisation')
@@ -67,6 +70,18 @@ export class ManagementController {
     await this.tenants.update(user.tenantId, patch);
     await this.audit.fromRequest(req, { action: 'ORGANISATION_UPDATED', entityType: 'tenant', entityId: user.tenantId, details: { name: dto.name, logoChanged: dto.logoDataUrl !== undefined, primaryColor: dto.primaryColor, secondaryColor: dto.secondaryColor } });
     return { ok: true };
+  }
+
+  /** Sends a test message to the signed-in administrator. */
+  @Post('organisation/test-email')
+  @Roles(Role.SUPER_ADMIN)
+  @HttpCode(200)
+  @Throttle({ default: { limit: 3, ttl: 60_000 } })
+  async testEmail(@CurrentUser() user: AuthUser, @Req() req: AppRequest) {
+    const t = await this.tenants.findOneOrFail({ where: { id: user.tenantId }, select: { id: true, name: true } });
+    const res = await this.mail.sendTest(user.email, t.name);
+    await this.audit.fromRequest(req, { action: 'EMAIL_TEST', entityType: 'tenant', entityId: user.tenantId, details: { ok: res.ok } });
+    return { ...res, to: user.email };
   }
 
   // ---------------------------------------------------------------- sites

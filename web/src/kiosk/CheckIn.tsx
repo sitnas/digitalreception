@@ -67,8 +67,8 @@ export function CheckIn({ cfg, locale, t, onDone, onCancel, onReloadConfig }: Pr
     setBusy(true); setError(null);
     try {
       const res = await api.kiosk.post<{ code: string; emailQueued: boolean; badgeEmailQueued: boolean; hostNotified: boolean }>('/visits', {
-        locale, firstName: f.firstName, lastName: f.lastName, company: f.company || undefined, email: f.email.trim() || undefined,
-        sendNoticeEmail: sendEmail && !!f.email.trim(),
+        locale, firstName: f.firstName, lastName: f.lastName, company: f.company || undefined, email: (cfg.emailAvailable && f.email.trim()) || undefined,
+        sendNoticeEmail: cfg.emailAvailable && sendEmail && !!f.email.trim(),
         ...(hasDirectory ? { hostId: f.hostId } : { host: f.host }),
         purpose: f.purpose, travelDistance: f.travelDistance,
         documentType: policy.documentDataEnabled ? f.documentType : undefined,
@@ -149,7 +149,10 @@ export function CheckIn({ cfg, locale, t, onDone, onCancel, onReloadConfig }: Pr
               {touched && docPhotoMissing && <span className="error" role="alert">{t.required}</span>}
             </div>
           )}
-          <div className="field"><label htmlFor="em">{t.email}</label><input id="em" className="input" type="email" inputMode="email" value={f.email} onChange={set('email')} maxLength={190} aria-invalid={inv('email')} autoCapitalize="none" /><span className="hint">{t.emailHint}</span>{err('email')}</div>
+          {/* Without email delivery there is nothing to send: do not collect the address. */}
+          {cfg.emailAvailable && (
+            <div className="field"><label htmlFor="em">{t.email}</label><input id="em" className="input" type="email" inputMode="email" value={f.email} onChange={set('email')} maxLength={190} aria-invalid={inv('email')} autoCapitalize="none" /><span className="hint">{t.emailHint}</span>{err('email')}</div>
+          )}
           <button type="submit" hidden />
         </form>
       )}

@@ -81,6 +81,15 @@ describe('end-to-end', { skip: !enabled && 'E2E_DB_HOST not set' }, () => {
     assert.equal((await admin.get('/auth/me')).data.mustChangePassword, false);
   });
 
+  test('organisation reports email delivery; the test email explains why it fails', async () => {
+    const org = (await admin.get('/admin/organisation')).data;
+    assert.deepEqual(org.email, { enabled: false, from: null });
+    const r = await admin.post('/admin/organisation/test-email');
+    assert.equal(r.status, 200);
+    assert.equal(r.data.ok, false);
+    assert.match(r.data.error, /SMTP_HOST/);
+  });
+
   test('setup: sites, hosts, users, document policy', async () => {
     ctx.milano = (await admin.post('/admin/sites', { code: 'MI', name: 'Milano', countryCode: 'IT', timezone: 'Europe/Rome' })).data;
     ctx.roma = (await admin.post('/admin/sites', { code: 'RM', name: 'Roma', countryCode: 'IT', timezone: 'Europe/Rome' })).data;
