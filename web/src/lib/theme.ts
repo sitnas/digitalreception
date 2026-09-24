@@ -51,6 +51,8 @@ export function brandVars(colors: BrandColors): Record<string, string> {
   const onS = readableOn(s);
   // A thin line, focus ring or small text on white needs 3:1. Fall back to the secondary, then to ink.
   const strong = contrast(p, WHITE) >= 3 ? p : contrast(s, WHITE) >= 3 ? s : INK;
+  // Accent text on the secondary colour (menu section titles): the brand if it stands out, else plain text.
+  const brandOn2 = contrast(p, s) >= 3 ? p : onS;
   return {
     '--brand': p,
     '--brand-hover': onP === INK ? mix(p, '#000000', 0.08) : mix(p, WHITE, 0.12),
@@ -62,6 +64,7 @@ export function brandVars(colors: BrandColors): Record<string, string> {
     '--brand-2-line': mix(s, onS, 0.16),
     '--on-brand-2': onS,
     '--on-brand-2-muted': mix(onS, s, 0.32),
+    '--brand-on-2': brandOn2,
   };
 }
 

@@ -82,6 +82,16 @@ function Brand({ branding }: { branding: Branding }) {
   );
 }
 
+/** Line icons for the menu sections (24px grid, drawn with currentColor). */
+function GroupIcon({ group }: { group: NavGroup }) {
+  const paths: Record<NavGroup, React.ReactNode> = {
+    visits: <><circle cx="9" cy="8" r="3.5" /><path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5" /><path d="M16 4.8a3.5 3.5 0 0 1 0 6.4M18 14.8c1.9.7 3.1 2.4 3.5 5.2" /></>,
+    setup: <><path d="M4 7h10M18 7h2M4 17h2M10 17h10" /><circle cx="16" cy="7" r="2.2" /><circle cx="8" cy="17" r="2.2" /></>,
+    compliance: <><path d="M12 3l7.5 3v5.5c0 4.6-3.2 8.2-7.5 9.5-4.3-1.3-7.5-4.9-7.5-9.5V6L12 3z" /><path d="M8.8 12.2l2.2 2.2 4.3-4.6" /></>,
+  };
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{paths[group]}</svg>;
+}
+
 /** Two-panel sign-in: the organisation's colours and name on the left, the form on the right. */
 function AuthLayout({ branding, children }: { branding: Branding; children: React.ReactNode }) {
   const { t } = useI18n();
@@ -175,8 +185,8 @@ function Shell({ branding, me, onLogout }: { branding: Branding; me: Me; onLogou
           {(Object.keys(t.navGroups) as NavGroup[]).map((g) => {
             const group = items.filter((n) => n.group === g);
             return group.length > 0 && (
-              <div key={g} className="a-nav" role="group" aria-label={t.navGroups[g]}>
-                <span className="a-nav-group" aria-hidden>{t.navGroups[g]}</span>
+              <div key={g} className="a-nav a-nav-section" role="group" aria-label={t.navGroups[g]}>
+                <span className="a-nav-group" aria-hidden><GroupIcon group={g} />{t.navGroups[g]}</span>
                 {group.map((n) => <NavLink key={n.to} to={n.to}>{t.nav[n.key]}</NavLink>)}
               </div>
             );
