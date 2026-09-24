@@ -57,6 +57,8 @@ export function brandVars(colors: BrandColors): Record<string, string> {
     '--brand': p,
     '--brand-hover': onP === INK ? mix(p, '#000000', 0.08) : mix(p, WHITE, 0.12),
     '--brand-soft': mix(p, WHITE, 0.86),
+    // Same tint for dark surfaces: light text must stay readable on it.
+    '--brand-soft-dark': mix(p, '#1A1A19', 0.8),
     '--on-brand': onP,
     '--brand-strong': strong,
     '--brand-2': s,

@@ -22,6 +22,7 @@
   --brand: #FFD100;
   --brand-hover: #EBC000;
   --brand-soft: #FFF9DB;
+  --brand-soft-dark: #483F14;     /* tint for dark surfaces */
   --on-brand: #1A1A1A;
   --brand-strong: #111111;        /* brand colour safe for thin lines / small text on white */
   --brand-strong-dark: #FFD100;   /* same, on dark surfaces */
@@ -250,6 +251,7 @@ code.secret { font-size: 16px; padding: 6px 10px; letter-spacing: .04em; user-se
     --line: #2C2C2A; --line-strong: #3C3C39;
     --pos: #4CC38A; --pos-soft: #16301F; --warn: #E0A94A; --warn-soft: #33270F; --danger: #F2877B; --danger-soft: #3A1D1A;
     --brand-strong: var(--brand-strong-dark);
+    --brand-soft: var(--brand-soft-dark);
     --focus: 0 0 0 2px var(--surface), 0 0 0 4px var(--brand-strong-dark);
     color-scheme: dark;
   }
