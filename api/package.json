@@ -12,7 +12,8 @@
     "migration:run": "typeorm migration:run -d dist/database/data-source.js",
     "keys": "node -e \"const c=require('crypto');console.log('MASTER_KEYS=k1:'+c.randomBytes(32).toString('base64'));console.log('JWT_SECRET='+c.randomBytes(48).toString('base64'))\"",
     "tenant": "node dist/cli/tenants.js",
-    "jobs:run": "node dist/database/run-retention.js"
+    "jobs:run": "node dist/database/run-retention.js",
+    "test": "npm run build && node --test --test-concurrency=1 test/*.test.mjs"
   },
   "engines": {
     "node": ">=20"
