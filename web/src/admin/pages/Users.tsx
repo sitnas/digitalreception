@@ -214,7 +214,7 @@ function UserPanel({ panel, sites, meId, onClose, onChanged }: { panel: Panel; s
   );
 }
 
-function CopyButton({ text }: { text: string }) {
+export function CopyButton({ text }: { text: string }) {
   const { t } = useI18n();
   const [done, setDone] = useState(false);
   const copy = async () => {

@@ -120,6 +120,20 @@ export class MailService implements OnApplicationBootstrap {
     return this.send(to, fromName, subject, text, html, [{ filename: `invito-${m.code}.png`, content: qr, cid: 'invite-qr', contentType: 'image/png' }]);
   }
 
+  /** One-time code that activates the phone badge. */
+  async sendBadgeCode(to: string, fromName: string, m: { locale: string; code: string; firstName: string; minutes: number; primaryColor?: string | null }): Promise<boolean> {
+    const s = BADGE_CODE_STRINGS[m.locale as keyof typeof BADGE_CODE_STRINGS] ?? BADGE_CODE_STRINGS.en;
+    const hello = s.hello.replace('{name}', m.firstName);
+    const valid = s.valid.replace('{n}', String(m.minutes));
+    const text = [hello, '', `${s.code}: ${m.code}`, '', valid, s.ignore].join('\n');
+    const html = `<div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;line-height:1.5;color:#1A1A1A">
+<div style="border-left:4px solid ${m.primaryColor ?? DEFAULT_PRIMARY};padding:4px 0 4px 16px;margin-bottom:16px"><div style="font-size:13px;color:#5C5C58">${esc(fromName)}</div><div style="font-size:20px;font-weight:700">${esc(s.title)}</div></div>
+<p>${esc(hello)}</p>
+<p style="font-size:34px;font-weight:700;letter-spacing:.3em;font-family:'Courier New',monospace;margin:18px 0">${esc(m.code)}</p>
+<p>${esc(valid)}</p><p style="font-size:13px;color:#5C5C58">${esc(s.ignore)}</p></div>`;
+    return this.send(to, fromName, `${s.title}: ${m.code}`, text, html);
+  }
+
   private async send(to: string, fromName: string, subject: string, text: string, html: string, attachments?: Attachment[]): Promise<boolean> {
     if (!this.transport) return false;
     try {
@@ -137,6 +151,12 @@ export interface BadgeMail { locale: string; timezone: string; siteName: string;
 export interface InvitationMail { locale: string; timezone: string; siteName: string; visitorName: string; hostName: string; expectedAt: Date; code: string; primaryColor?: string | null; secondaryColor?: string | null }
 
 export interface HostArrivalMail { locale: string; timezone: string; siteName: string; visitorName: string; company: string | null; purpose: string; checkInAt: Date; primaryColor?: string | null }
+
+const BADGE_CODE_STRINGS = {
+  it: { title: 'Codice per il badge sul telefono', hello: 'Ciao {name}, ecco il codice per attivare il badge sul telefono.', code: 'Codice', valid: 'Vale {n} minuti e si può usare una volta sola.', ignore: 'Se non l’hai chiesto tu, ignora questa email: senza il codice nessuno può attivare il tuo badge.' },
+  es: { title: 'Código para la credencial en el teléfono', hello: 'Hola {name}, este es el código para activar la credencial en el teléfono.', code: 'Código', valid: 'Vale {n} minutos y se puede usar una sola vez.', ignore: 'Si no lo ha pedido usted, ignore este correo: sin el código nadie puede activar su credencial.' },
+  en: { title: 'Code for your phone badge', hello: 'Hi {name}, here is the code to activate the badge on your phone.', code: 'Code', valid: 'It is valid for {n} minutes and can be used once.', ignore: 'If you did not ask for it, ignore this email: without the code nobody can activate your badge.' },
+};
 
 const INVITE_STRINGS = {
   it: { subject: 'Il tuo invito', hello: 'Gentile {name}, sei atteso/a per una visita.', host: 'Ti aspetta', when: 'Quando', site: 'Sede', code: 'Codice invito',

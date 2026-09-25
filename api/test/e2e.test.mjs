@@ -221,6 +221,81 @@ describe('end-to-end', { skip: !enabled && 'E2E_DB_HOST not set' }, () => {
     assert.equal((await kiosk(laterCode)).status, 404, 'cancelled invitations are unknown to the tablet');
   });
 
+  test('employee access: integration API, reader pairing, NFC badge, rotating QR, schedules and log', async () => {
+    const { createHmac, createHash } = await import('node:crypto');
+    const api = (method, path, body, key) => fetch(`${BASE}/integration/v1${path}`, { method, headers: { 'Content-Type': 'application/json', ...(key ? { Authorization: `Bearer ${key}` } : {}) }, body: body && JSON.stringify(body) }).then(async (r) => ({ status: r.status, data: await r.json().catch(() => null) }));
+
+    const { key } = (await admin.post('/admin/access/api-keys', { name: 'HR system' })).data;
+    assert.match(key, /^drk_/);
+    assert.equal((await ctx.aud.post('/admin/access/api-keys', { name: 'x' })).status, 403, 'only the super admin creates keys');
+    assert.equal((await api('GET', '/doors')).status, 401);
+    assert.equal((await api('GET', '/doors', undefined, 'drk_' + 'x'.repeat(43))).status, 401);
+
+    const main = (await admin.post('/admin/access/doors', { siteId: ctx.milano.id, name: 'Ingresso principale', externalId: 'MI-MAIN' })).data;
+    assert.equal((await api('PUT', '/doors/MI-LAB', { siteCode: 'MI', name: 'Laboratorio' }, key)).data.created, true);
+    const lab = (await admin.get('/admin/access/doors')).data.find((d) => d.externalId === 'MI-LAB');
+
+    const romeDay = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].indexOf(new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Rome', weekday: 'short' }).format(new Date())) + 1;
+    const person = { firstName: 'Paolo', lastName: 'Bruni', email: 'paolo@e2e.test', badgeUid: '04:A2:1B:9C', permissions: [{ door: 'MI-MAIN' }, { door: 'MI-LAB', days: [(romeDay % 7) + 1], from: '00:00', to: '23:59' }] };
+    assert.equal((await api('PUT', '/employees/E001', { ...person, permissions: [{ door: 'NOPE' }] }, key)).data.message, 'UNKNOWN_DOOR');
+    assert.equal((await api('PUT', '/employees/E001', person, key)).data.created, true);
+    assert.equal((await api('PUT', '/employees/E001', person, key)).data.created, false, 'PUT is idempotent');
+    const clash = await api('PUT', '/employees/E002', { ...person, email: null, badgeUid: '04a21b9c' }, key);
+    assert.equal(clash.status, 409); assert.equal(clash.data.message, 'BADGE_IN_USE');
+
+    const pairReader = async (door) => {
+      const { code } = (await admin.post(`/admin/access/doors/${door.id}/reader-code`, { name: `Lettore ${door.name}` })).data;
+      assert.equal((await new Client().post('/kiosk/pair', { code })).status, 401, 'a reader code does not enrol a reception tablet');
+      return (await new Client().post('/reader/pair', { code })).data.readerToken;
+    };
+    const mainReader = await pairReader(main), labReader = await pairReader(lab);
+    const verify = (token, body) => new Client().post('/reader/verify', body, { bearer: token }).then((r) => r.data);
+
+    let v = await verify(mainReader, { nfc: '04a21b9c' });
+    assert.equal(v.result, 'GRANTED'); assert.equal(v.name, 'Paolo B.');
+    assert.equal((await verify(mainReader, { nfc: 'DEADBEEF' })).reason, 'UNKNOWN_CREDENTIAL');
+    assert.equal((await verify(labReader, { nfc: '04A21B9C' })).reason, 'OUTSIDE_SCHEDULE', 'the lab is allowed on another weekday only');
+
+    // Phone badge: the activation code normally arrives by email (no SMTP in tests), so set a known one.
+    const mysql = require('mysql2/promise');
+    const db = await mysql.createConnection({ host: env.DB_HOST, port: Number(env.DB_PORT), user: env.DB_USER, password: env.DB_PASSWORD, database: env.DB_NAME });
+    const emp = (await admin.get('/admin/access/employees')).data.find((e) => e.externalId === 'E001');
+    assert.equal(emp.badgeHint, '1B9C'); assert.equal(emp.phoneBadge, false); assert.equal(emp.permissions.length, 2);
+    assert.equal((await new Client().post('/badge/request', { email: 'nobody@e2e.test' })).data.ok, true, 'same answer for unknown addresses');
+    await db.query('UPDATE employees SET loginCodeHash = ?, loginCodeExpiresAt = DATE_ADD(UTC_TIMESTAMP(3), INTERVAL 5 MINUTE), loginCodeAttempts = 0 WHERE id = ?', [createHash('sha256').update(`${emp.id}|123456`).digest('hex'), emp.id]);
+    assert.equal((await new Client().post('/badge/activate', { email: 'paolo@e2e.test', code: '000000' })).data.message, 'CODE_INVALID');
+    const badge = (await new Client().post('/badge/activate', { email: 'PAOLO@e2e.test', code: '123456' })).data;
+    assert.equal(badge.firstName, 'Paolo'); assert.equal(badge.step, 30);
+    assert.equal((await new Client().post('/badge/activate', { email: 'paolo@e2e.test', code: '123456' })).data.message, 'CODE_INVALID', 'one use only');
+    const qr = (stepOffset = 0, secret = badge.secret) => {
+      const step = Math.floor(Date.now() / 1000 / 30) + stepOffset;
+      return `DRE1:${badge.employeeId}.${step}.${createHmac('sha256', Buffer.from(secret, 'base64')).update(`${badge.employeeId}.${step}`).digest('hex').slice(0, 16)}`;
+    };
+    assert.equal((await verify(mainReader, { qr: qr() })).result, 'GRANTED');
+    assert.equal((await verify(mainReader, { qr: qr(-5) })).reason, 'QR_EXPIRED', 'a screenshot stops working');
+    assert.equal((await verify(mainReader, { qr: qr(0, Buffer.alloc(32).toString('base64')) })).reason, 'QR_INVALID', 'forged signature');
+    assert.equal((await verify(mainReader, { qr: 'hello' })).reason, 'QR_INVALID');
+
+    assert.equal((await api('PUT', '/employees/E001', { ...person, active: false }, key)).status, 200);
+    assert.equal((await verify(mainReader, { nfc: '04A21B9C' })).reason, 'EMPLOYEE_INACTIVE');
+    await api('PUT', '/employees/E001', person, key);
+    assert.equal((await admin.post(`/admin/access/employees/${emp.id}/revoke-phone`)).status, 200);
+    assert.equal((await verify(mainReader, { qr: qr() })).reason, 'UNKNOWN_CREDENTIAL', 'revoked phone badge');
+
+    const from = new Date(Date.now() - 3_600_000).toISOString(), to = new Date(Date.now() + 60_000).toISOString();
+    const log = (await ctx.aud.get(`/admin/access/events?from=${from}&to=${to}`)).data;
+    assert.ok(log.length >= 9 && log.some((e) => e.employee === 'Bruni Paolo' && e.result === 'GRANTED'));
+    assert.equal((await ctx.rec.get(`/admin/access/events?from=${from}&to=${to}`)).status, 403, 'receptionists do not see the access log');
+    const pulled = (await api('GET', `/events?since=${from}`, undefined, key)).data;
+    assert.ok(pulled.some((e) => e.employee === 'E001' && e.door === 'MI-MAIN' && e.result === 'GRANTED'));
+
+    assert.equal((await api('DELETE', '/employees/E001', undefined, key)).status, 200);
+    const [[orphan]] = await db.query('SELECT COUNT(*) AS n FROM access_events WHERE employeeId = ?', [emp.id]);
+    await db.end();
+    assert.equal(Number(orphan.n), 0, 'deleting the employee unlinks the log');
+    assert.equal((await verify(mainReader, { nfc: '04A21B9C' })).reason, 'UNKNOWN_CREDENTIAL');
+  });
+
   test('deleting the tenant removes its host directory too', async () => {
     const mysql = require('mysql2/promise');
     const db = await mysql.createConnection({ host: env.DB_HOST, port: Number(env.DB_PORT), user: env.DB_USER, password: env.DB_PASSWORD, database: env.DB_NAME });
@@ -229,7 +304,8 @@ describe('end-to-end', { skip: !enabled && 'E2E_DB_HOST not set' }, () => {
     const [[h]] = await db.query('SELECT COUNT(*) AS n FROM hosts WHERE tenantId = ?', [t.id]);
     const [[v]] = await db.query('SELECT COUNT(*) AS n FROM visits WHERE tenantId = ?', [t.id]);
     const [[i]] = await db.query('SELECT COUNT(*) AS n FROM invitations WHERE tenantId = ?', [t.id]);
+    const [[d]] = await db.query('SELECT (SELECT COUNT(*) FROM doors WHERE tenantId = ?) + (SELECT COUNT(*) FROM access_events WHERE tenantId = ?) + (SELECT COUNT(*) FROM api_keys WHERE tenantId = ?) AS n', [t.id, t.id, t.id]);
     await db.end();
-    assert.equal(Number(h.n), 0); assert.equal(Number(v.n), 0); assert.equal(Number(i.n), 0);
+    assert.equal(Number(h.n), 0); assert.equal(Number(v.n), 0); assert.equal(Number(i.n), 0); assert.equal(Number(d.n), 0);
   });
 });

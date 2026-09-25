@@ -16,6 +16,7 @@ export interface AppConfig {
   storage:
     | { driver: 'local'; dir: string }
     | { driver: 's3'; bucket: string; region: string; endpoint?: string; accessKeyId?: string; secretAccessKey?: string; forcePathStyle: boolean; prefix: string };
+  access: { logRetentionDays: number };
   mail: { host?: string; port: number; secure: boolean; user?: string; pass?: string; from: string };
   jobs: { enabled: boolean };
 }
@@ -86,6 +87,8 @@ export function loadConfig(): AppConfig {
       lockMinutes: Number(process.env.LOCK_MINUTES ?? 15),
     },
     storage,
+    // Employee access log: kept short on purpose (worker monitoring rules, GDPR minimisation).
+    access: { logRetentionDays: Math.max(1, Number(process.env.ACCESS_LOG_RETENTION_DAYS ?? 90)) },
     mail: {
       host: process.env.SMTP_HOST || undefined,
       port: Number(process.env.SMTP_PORT ?? 587),

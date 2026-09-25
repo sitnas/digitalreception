@@ -8,7 +8,7 @@ import { TenantKeysService } from '../common/tenant-keys.service';
 import { presetFor } from '../database/country-presets';
 import { noticeTemplate } from '../database/notice-templates';
 import { typeormOptions } from '../database/typeorm-options';
-import { ActorType, AuditLog, CountryPolicy, Device, Host, Invitation, PairingCode, PrivacyNotice, Role, Site, StoredFile, Tenant, TenantStatus, User, Visit } from '../entities';
+import { AccessEvent, AccessRule, ApiKey, Door, DoorReader, Employee, ActorType, AuditLog, CountryPolicy, Device, Host, Invitation, PairingCode, PrivacyNotice, Role, Site, StoredFile, Tenant, TenantStatus, User, Visit } from '../entities';
 
 /**
  * Platform operations (provisioning of customer organisations). Deliberately a CLI and not a
@@ -115,7 +115,7 @@ async function main() {
           const userIds = (await em.find(User, { where: { tenantId: t.id }, select: { id: true } })).map((u) => u.id);
           if (userIds.length) await em.createQueryBuilder().delete().from('user_sites').where({ userId: In(userIds) }).execute();
           // Hosts after visits (visits reference them); host_sites rows go with their host (ON DELETE CASCADE).
-          for (const entity of [StoredFile, Invitation, Visit, Host, Device, PairingCode, User, PrivacyNotice, Site, CountryPolicy, AuditLog]) await em.delete(entity, { tenantId: t.id });
+          for (const entity of [AccessEvent, AccessRule, DoorReader, Employee, Door, ApiKey, StoredFile, Invitation, Visit, Host, Device, PairingCode, User, PrivacyNotice, Site, CountryPolicy, AuditLog]) await em.delete(entity, { tenantId: t.id });
           await em.delete(Tenant, { id: t.id });
         });
         await platformAudit(ds, 'TENANT_DELETED', { slug: t.slug });

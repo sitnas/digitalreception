@@ -7,6 +7,7 @@ import { AuditPage } from './pages/Audit';
 import { DevicesPage } from './pages/Devices';
 import { HistoryPage } from './pages/History';
 import { InvitationsPage } from './pages/Invitations';
+import { AccessLogPage, DoorsPage, EmployeesPage, IntegrationPage } from './pages/Access';
 import { HostsPage } from './pages/Hosts';
 import { OrganisationPage } from './pages/Organisation';
 import { PrivacyPage } from './pages/Privacy';
@@ -32,6 +33,10 @@ const NAV: { to: string; key: keyof typeof ADMIN_STRINGS.it.nav; group: NavGroup
   { to: 'invites', key: 'invites', group: 'visits', roles: ['SUPER_ADMIN', 'SITE_MANAGER', 'RECEPTIONIST', 'AUDITOR'] },
   { to: 'history', key: 'history', group: 'visits', roles: ['SUPER_ADMIN', 'SITE_MANAGER', 'RECEPTIONIST', 'AUDITOR'] },
   { to: 'stats', key: 'stats', group: 'visits', roles: ['SUPER_ADMIN', 'SITE_MANAGER', 'AUDITOR'] },
+  { to: 'employees', key: 'employees', group: 'access', roles: ['SUPER_ADMIN', 'SITE_MANAGER', 'AUDITOR'] },
+  { to: 'doors', key: 'doors', group: 'access', roles: ['SUPER_ADMIN', 'SITE_MANAGER', 'AUDITOR'] },
+  { to: 'access-log', key: 'accessLog', group: 'access', roles: ['SUPER_ADMIN', 'SITE_MANAGER', 'AUDITOR'] },
+  { to: 'integration', key: 'integration', group: 'access', roles: ['SUPER_ADMIN'] },
   { to: 'sites', key: 'sites', group: 'setup', roles: ['SUPER_ADMIN'] },
   { to: 'devices', key: 'devices', group: 'setup', roles: ['SUPER_ADMIN', 'SITE_MANAGER'] },
   { to: 'hosts', key: 'hosts', group: 'setup', roles: ['SUPER_ADMIN', 'SITE_MANAGER'] },
@@ -91,6 +96,7 @@ function GroupIcon({ group }: { group: NavGroup }) {
   const paths: Record<NavGroup, React.ReactNode> = {
     visits: <><circle cx="9" cy="8" r="3.5" /><path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5" /><path d="M16 4.8a3.5 3.5 0 0 1 0 6.4M18 14.8c1.9.7 3.1 2.4 3.5 5.2" /></>,
     setup: <><path d="M4 7h10M18 7h2M4 17h2M10 17h10" /><circle cx="16" cy="7" r="2.2" /><circle cx="8" cy="17" r="2.2" /></>,
+    access: <><rect x="5" y="3" width="14" height="18" rx="1.5" /><circle cx="15" cy="12.5" r="1.1" /><path d="M9 3v18" /></>,
     compliance: <><path d="M12 3l7.5 3v5.5c0 4.6-3.2 8.2-7.5 9.5-4.3-1.3-7.5-4.9-7.5-9.5V6L12 3z" /><path d="M8.8 12.2l2.2 2.2 4.3-4.6" /></>,
   };
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{paths[group]}</svg>;
@@ -208,6 +214,10 @@ function Shell({ branding, me, onLogout }: { branding: Branding; me: Me; onLogou
           <Route index element={<Navigate to={home} replace />} />
           {items.some((i) => i.to === 'today') && <Route path="today" element={<TodayPage />} />}
           {items.some((i) => i.to === 'invites') && <Route path="invites" element={<InvitationsPage />} />}
+          {items.some((i) => i.to === 'employees') && <Route path="employees" element={<EmployeesPage />} />}
+          {items.some((i) => i.to === 'doors') && <Route path="doors" element={<DoorsPage />} />}
+          {items.some((i) => i.to === 'access-log') && <Route path="access-log" element={<AccessLogPage />} />}
+          {items.some((i) => i.to === 'integration') && <Route path="integration" element={<IntegrationPage />} />}
           {items.some((i) => i.to === 'history') && <Route path="history" element={<HistoryPage />} />}
           {items.some((i) => i.to === 'stats') && <Route path="stats" element={<StatsPage />} />}
           {items.some((i) => i.to === 'sites') && <Route path="sites" element={<SitesPage />} />}
