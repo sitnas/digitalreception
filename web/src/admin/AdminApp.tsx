@@ -1,5 +1,5 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { NavLink, Navigate, Route, Routes } from 'react-router-dom';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { ApiError, api } from '../lib/api';
 import { applyBrand } from '../lib/theme';
 import { ADMIN_STRINGS, AdminLocale, I18nContext, useI18n } from './i18n';
@@ -91,6 +91,37 @@ function Brand({ branding }: { branding: Branding }) {
   );
 }
 
+/**
+ * On narrow screens every data table becomes a list of cards: each cell gets its column name as a
+ * label (from the table header), so nothing is hidden behind a horizontal scroll. Applies to every
+ * page, including tables rendered later; the CSS switches layout below 760px only.
+ */
+function useCardTables(root: React.RefObject<HTMLElement>) {
+  useEffect(() => {
+    const el = root.current;
+    if (!el) return;
+    let frame = 0;
+    const label = () => {
+      frame = 0;
+      for (const table of el.querySelectorAll<HTMLTableElement>('.table-wrap > table')) {
+        const heads = [...table.querySelectorAll('thead th')].map((th) => th.textContent?.trim() ?? '');
+        if (!heads.length) continue;
+        table.classList.add('table-cards');
+        for (const row of table.tBodies[0]?.rows ?? []) {
+          [...row.cells].forEach((cell, i) => {
+            if (heads[i]) cell.setAttribute('data-label', heads[i]);
+            else if (cell.querySelector('button, a')) cell.classList.add('row-action');
+          });
+        }
+      }
+    };
+    const obs = new MutationObserver(() => { if (!frame) frame = requestAnimationFrame(label); });
+    obs.observe(el, { childList: true, subtree: true });
+    label();
+    return () => { obs.disconnect(); if (frame) cancelAnimationFrame(frame); };
+  }, [root]);
+}
+
 /** Line icons for the menu sections (24px grid, drawn with currentColor). */
 function GroupIcon({ group }: { group: NavGroup }) {
   const paths: Record<NavGroup, React.ReactNode> = {
@@ -122,7 +153,7 @@ function LangSwitch() {
   return (
     <label className="inline" style={{ fontSize: 13 }}>
       <span className="muted">{t.language}</span>
-      <select className="input" style={{ height: 32, width: 'auto', fontSize: 13 }} value={locale} onChange={(e) => setLocale(e.target.value as AdminLocale)}>
+      <select className="input lang-select" value={locale} onChange={(e) => setLocale(e.target.value as AdminLocale)}>
         <option value="it">Italiano</option><option value="es">Español</option>
       </select>
     </label>
@@ -187,9 +218,37 @@ function Shell({ branding, me, onLogout }: { branding: Branding; me: Me; onLogou
   const items = NAV.filter((n) => n.roles.includes(me.role));
   const logout = async () => { try { await api.post('/auth/logout'); } finally { onLogout(); } };
   const home = items[0]?.to ?? 'today';
+  const { pathname } = useLocation();
+  const current = items.find((n) => pathname.startsWith(`/admin/${n.to}`));
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuBtn = useRef<HTMLButtonElement>(null);
+  const side = useRef<HTMLElement>(null);
+  const main = useRef<HTMLElement>(null);
+  useCardTables(main);
+
+  // Phones and tablets: the menu is an off-canvas panel. It closes on navigation, Escape or a tap
+  // outside; while open the page behind does not scroll and focus moves into the panel.
+  useEffect(() => { setMenuOpen(false); }, [pathname]);
+  useEffect(() => {
+    document.documentElement.classList.toggle('menu-open', menuOpen);
+    if (!menuOpen) return;
+    side.current?.querySelector<HTMLElement>('a.active, a')?.focus();
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { setMenuOpen(false); menuBtn.current?.focus(); } };
+    window.addEventListener('keydown', onKey);
+    return () => { window.removeEventListener('keydown', onKey); document.documentElement.classList.remove('menu-open'); };
+  }, [menuOpen]);
+
   return (
     <div className="admin">
-      <aside className="a-side">
+      <header className="a-topbar">
+        <button ref={menuBtn} type="button" className="a-menu-btn" aria-expanded={menuOpen} aria-controls="a-side" aria-label={menuOpen ? t.closeMenu : t.openMenu} onClick={() => setMenuOpen((o) => !o)}>
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>{menuOpen ? <path d="M6 6l12 12M18 6L6 18" /> : <path d="M4 7h16M4 12h16M4 17h16" />}</svg>
+        </button>
+        <span className="a-topbar-title">{current ? t.nav[current.key] : branding.name}</span>
+        <img src={branding.logo ?? '/icon.svg'} alt="" className={`a-topbar-logo${branding.logo ? ' logo' : ''}`} />
+      </header>
+      {menuOpen && <div className="a-scrim" onClick={() => setMenuOpen(false)} aria-hidden />}
+      <aside ref={side} id="a-side" className={`a-side${menuOpen ? ' open' : ''}`}>
         <Brand branding={branding} />
         <nav className="a-nav" aria-label="Menu">
           {(Object.keys(t.navGroups) as NavGroup[]).map((g) => {
@@ -209,7 +268,7 @@ function Shell({ branding, me, onLogout }: { branding: Branding; me: Me; onLogou
           <button type="button" className="btn-link" onClick={logout} style={{ justifySelf: 'start' }}>{t.logout}</button>
         </div>
       </aside>
-      <main className="a-main">
+      <main ref={main} className="a-main">
         <Routes>
           <Route index element={<Navigate to={home} replace />} />
           {items.some((i) => i.to === 'today') && <Route path="today" element={<TodayPage />} />}

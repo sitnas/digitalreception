@@ -4,6 +4,7 @@ export type AdminLocale = 'it' | 'es';
 
 const it = {
   appName: 'Reception',
+  openMenu: 'Apri il menu', closeMenu: 'Chiudi il menu',
   nav: { employees: 'Dipendenti', doors: 'Porte e lettori', accessLog: 'Passaggi', integration: 'Integrazione API', today: 'Oggi', invites: 'Inviti', history: 'Storico', stats: 'Statistiche', devices: 'Tablet', sites: 'Sedi', hosts: 'Persone da visitare', users: 'Utenti', privacy: 'Privacy', audit: 'Registro accessi', org: 'Organizzazione' },
   navGroups: { visits: 'Visite', access: 'Accessi dipendenti', setup: 'Configurazione', compliance: 'Privacy e controllo' },
   roles: { SUPER_ADMIN: 'Amministratore', SITE_MANAGER: 'Responsabile di sede', RECEPTIONIST: 'Receptionist', AUDITOR: 'Auditor' },
@@ -57,6 +58,7 @@ type Dict = typeof it;
 
 const es: Dict = {
   appName: 'Recepción',
+  openMenu: 'Abrir el menú', closeMenu: 'Cerrar el menú',
   nav: { employees: 'Empleados', doors: 'Puertas y lectores', accessLog: 'Pasos', integration: 'Integración API', today: 'Hoy', invites: 'Invitaciones', history: 'Historial', stats: 'Estadísticas', devices: 'Tabletas', sites: 'Sedes', hosts: 'Personas a visitar', users: 'Usuarios', privacy: 'Privacidad', audit: 'Registro de accesos', org: 'Organización' },
   navGroups: { visits: 'Visitas', access: 'Accesos de empleados', setup: 'Configuración', compliance: 'Privacidad y control' },
   roles: { SUPER_ADMIN: 'Administrador', SITE_MANAGER: 'Responsable de sede', RECEPTIONIST: 'Recepcionista', AUDITOR: 'Auditor' },
