@@ -452,3 +452,45 @@ code.secret { font-size: 16px; padding: 6px 10px; letter-spacing: .04em; user-se
 .k-invite-btn strong { font-size: 22px; }
 .k-invite-btn small { font-size: 16px; color: var(--ink-2); }
 .k-invite-hello { display: grid; gap: 4px; background: var(--brand-soft); border-left: 4px solid var(--brand-strong); border-radius: var(--r); padding: 14px 18px; margin-bottom: 18px; font-size: 18px; }
+
+/* ---------------------------------------------------------------- employee badge on the phone */
+.badge-app { min-height: 100dvh; display: grid; place-items: start center; padding: 24px 16px; background: var(--brand-2); }
+.badge-card { width: min(420px, 100%); background: var(--surface); color: var(--ink); border-radius: 20px; padding: 24px; box-shadow: 0 12px 40px rgba(0, 0, 0, .25); }
+.badge-card h1 { margin: 0; font-size: 26px; }
+.badge-code-input { font-size: 30px; letter-spacing: .4em; text-align: center; font-weight: 700; }
+.badge-live { display: grid; justify-items: center; gap: 12px; text-align: center; border-top: 10px solid var(--brand); }
+.badge-org { font-size: 14px; font-weight: 700; color: var(--ink-2); letter-spacing: .06em; text-transform: uppercase; }
+.badge-name { font-size: 26px; font-weight: 700; line-height: 1.15; }
+.badge-qr-box { width: min(300px, 78vw); aspect-ratio: 1; background: #FFFFFF; padding: 16px; border-radius: 16px; border: 1px solid var(--line); }
+.badge-qr-box img { width: 100%; height: 100%; display: block; }
+.badge-timer { width: min(300px, 78vw); height: 6px; border-radius: 3px; background: var(--surface-2); overflow: hidden; }
+.badge-timer-bar { display: block; height: 100%; background: var(--brand-strong); transition: width 1s linear; }
+
+/* ---------------------------------------------------------------- door reader */
+.reader { min-height: 100dvh; display: grid; grid-template-rows: auto 1fr; background: var(--ground); color: var(--ink); position: relative; }
+.reader-wait { margin: auto; padding: 40px; font-size: 20px; }
+.reader-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 18px 24px; background: var(--brand-2); color: var(--on-brand-2); }
+.reader-head div { display: grid; }
+.reader-head strong { font-size: 24px; }
+.reader-head span { font-size: 14px; opacity: .8; }
+.reader-head .btn { color: var(--on-brand-2); border-color: currentColor; background: transparent; }
+.reader-nfc { font-size: 14px; font-weight: 700; padding: 6px 12px; border-radius: 999px; background: var(--pos); color: #FFFFFF; }
+.reader-nfc.off { background: var(--ink-3); }
+.reader-main { display: grid; justify-items: center; align-content: start; gap: 12px; padding: 28px 16px; text-align: center; }
+.reader-main h1 { margin: 0; font-size: 34px; }
+.reader-main .muted { margin: 0 0 8px; font-size: 18px; }
+.reader-pair { max-width: 460px; margin: 0 auto; width: 100%; }
+.reader-verdict { position: fixed; inset: 0; display: grid; place-content: center; justify-items: center; gap: 10px; text-align: center; color: #FFFFFF; z-index: 10; animation: reader-in .15s ease-out; }
+.reader-verdict.ok { background: #13803B; }
+.reader-verdict.ko { background: #B3261E; }
+.reader-icon { width: 140px; height: 140px; border-radius: 50%; border: 8px solid currentColor; display: grid; place-items: center; font-size: 84px; font-weight: 700; line-height: 1; }
+.reader-title { font-size: 44px; font-weight: 700; }
+.reader-who { font-size: 30px; }
+.reader-why { font-size: 22px; opacity: .92; max-width: 22ch; }
+@keyframes reader-in { from { opacity: 0; transform: scale(.98); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .reader-verdict { animation: none; } .badge-timer-bar { transition: none; } }
+
+/* Integration API docs in the console */
+.api-table td { padding: 6px 12px 6px 0; vertical-align: top; }
+.api-table td:first-child { width: 70px; }
+.code-block { margin: 0; padding: 14px 16px; background: var(--brand-2); color: var(--on-brand-2); border-radius: var(--r); font-size: 13px; line-height: 1.5; overflow-x: auto; white-space: pre; }

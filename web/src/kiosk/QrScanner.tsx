@@ -31,7 +31,7 @@ async function makeDecoder(): Promise<(c: HTMLCanvasElement) => Promise<string |
  * or sent: only the recognised visit code leaves this component. The camera stops on unmount.
  */
 export function QrScanner({ onCode, onCancel, t, accept = EXIT_QR, wrongText, cancelText }: {
-  onCode: (code: string) => void; onCancel: () => void; t: Strings; accept?: RegExp; wrongText?: string; cancelText?: string;
+  onCode: (code: string) => void; onCancel?: () => void; t: Strings; accept?: RegExp; wrongText?: string; cancelText?: string;
 }) {
   const video = useRef<HTMLVideoElement>(null);
   // The latest callback, read when a code is found: a new function from a re-render must not restart the camera.
@@ -86,7 +86,7 @@ export function QrScanner({ onCode, onCancel, t, accept = EXIT_QR, wrongText, ca
         </div>
       )}
       <p className="muted" style={{ margin: 0 }} role="status">{wrong ? (wrongText ?? t.scanWrong) : t.scanHint}</p>
-      <button type="button" className="btn btn-ghost" onClick={onCancel}>{cancelText ?? t.scanStop}</button>
+      {onCancel && <button type="button" className="btn btn-ghost" onClick={onCancel}>{cancelText ?? t.scanStop}</button>}
     </div>
   );
 }

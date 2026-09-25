@@ -8,7 +8,7 @@ import { withDbLock } from '../common/db-lock';
 import { FilesService } from '../common/files.service';
 import { addDays, startOfLocalDay } from '../common/time.util';
 import { VisitLifecycleService } from '../common/visit-lifecycle.service';
-import { CountryPolicy, Invitation, Site, StoredFile, Visit, VisitStatus } from '../entities';
+import { AccessEvent, CountryPolicy, Invitation, Site, StoredFile, Visit, VisitStatus } from '../entities';
 import { INVITATION_KEEP_DAYS } from '../invitations/invitations.service';
 
 const BATCH = 500;
@@ -18,7 +18,8 @@ const BATCH = 500;
  *  1. images past their own retention are deleted;
  *  2. visits past the country retention are anonymised;
  *  3. visits still open from a previous local day are closed as AUTO_CLOSED;
- *  4. invitations are deleted INVITATION_KEEP_DAYS after their day (used, cancelled or not).
+ *  4. invitations are deleted INVITATION_KEEP_DAYS after their day (used, cancelled or not);
+ *  5. employee access events are deleted after cfg.access.logRetentionDays.
  * Runs on one replica at a time (DB lock), in bounded batches so it scales with data volume.
  */
 @Injectable()
@@ -84,6 +85,8 @@ export class RetentionService {
 
     const inv = await this.ds.getRepository(Invitation).delete({ validUntil: LessThan(addDays(now, -INVITATION_KEEP_DAYS)) });
     if (inv.affected) this.log.log(`Retention: ${inv.affected} past invitations deleted`);
+    const ev = await this.ds.getRepository(AccessEvent).delete({ at: LessThan(addDays(now, -this.cfg.access.logRetentionDays)) });
+    if (ev.affected) this.log.log(`Retention: ${ev.affected} access events deleted`);
 
     for (const [tenantId, s] of stats) {
       await this.audit.system(tenantId, { action: 'RETENTION_RUN', details: { ...s } });

@@ -21,6 +21,17 @@ Documento di riferimento per CISO, DPO e responsabili infrastruttura. Descrive c
 
 Conservazione predefinita delle visite: Italia 90 giorni, Spagna 30, Perù e Colombia 90, altri paesi 30. Alla scadenza la visita viene **anonimizzata**: restano sede, orari e motivo per le statistiche, spariscono tutti i riferimenti alla persona. Tutti i valori sono modificabili per paese dall'amministratore del cliente e vanno validati dal DPO.
 
+### Accessi dipendenti
+
+| Dato | Da dove arriva | Conservazione | Cifrato |
+|---|---|---|---|
+| Nome, cognome, email del dipendente | sistema esterno, tramite API | finché il sistema esterno non lo cancella | sì |
+| UID della tessera NFC | sistema esterno | come sopra | solo indice cifrato (HMAC) e ultime 4 cifre |
+| Segreto del badge sul telefono | generato all'attivazione | finché non viene disattivato o rigenerato | sì |
+| Passaggi (porta, ora, esito, tessera o telefono) | lettori | 90 giorni (`ACCESS_LOG_RETENTION_DAYS`) | no, ma collegati alla persona solo tramite un identificativo interno |
+
+La registrazione degli ingressi dei dipendenti rientra nell'art. 4 dello Statuto dei Lavoratori: prima dell'uso servono accordo sindacale o autorizzazione dell'Ispettorato del Lavoro, informativa ai dipendenti e DPIA. Dettagli in [ACCESSI-DIPENDENTI.md](ACCESSI-DIPENDENTI.md).
+
 ## Principi GDPR e come sono applicati
 
 | Principio | Implementazione |

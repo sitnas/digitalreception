@@ -1,6 +1,6 @@
 // Unit tests on the compiled code (run `npm run build` first; `npm test` does it).
 import assert from 'node:assert/strict';
-import { randomBytes } from 'node:crypto';
+import { createHmac, randomBytes } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { test } from 'node:test';
 
@@ -81,4 +81,28 @@ test('exit QR decodes to the visit code with the tablet prefix, as PNG and SVG',
   const svg = await exitQrSvg('AB3CD');
   assert.match(svg, /^<svg[\s\S]*<\/svg>\s*$/);
   assert.doesNotMatch(svg, /<script|on\w+=/i);
+});
+
+test('access rules: weekdays and time windows in the site time zone, also across midnight', () => {
+  const { ruleAllows } = require('../dist/access/access.service.js');
+  // 2026-09-24 is a Thursday (4). 08:30 UTC = 10:30 in Rome (summer time).
+  const at = new Date('2026-09-24T08:30:00Z');
+  assert.equal(ruleAllows({ days: null, fromTime: null, toTime: null }, at, 'Europe/Rome'), true);
+  assert.equal(ruleAllows({ days: '1,2,3,4,5', fromTime: '08:00', toTime: '19:00' }, at, 'Europe/Rome'), true);
+  assert.equal(ruleAllows({ days: '6,7', fromTime: null, toTime: null }, at, 'Europe/Rome'), false, 'weekend only');
+  assert.equal(ruleAllows({ days: null, fromTime: '11:00', toTime: '12:00' }, at, 'Europe/Rome'), false, 'too early at the site');
+  assert.equal(ruleAllows({ days: null, fromTime: '10:00', toTime: '11:00' }, at, 'Europe/Rome'), true);
+  assert.equal(ruleAllows({ days: null, fromTime: '10:00', toTime: '11:00' }, at, 'America/Lima'), false, 'same instant is 03:30 in Lima');
+  assert.equal(ruleAllows({ days: null, fromTime: '22:00', toTime: '06:00' }, new Date('2026-09-24T01:00:00Z'), 'Europe/Rome'), true, 'night shift at 03:00');
+  assert.equal(ruleAllows({ days: null, fromTime: '22:00', toTime: '06:00' }, at, 'Europe/Rome'), false);
+});
+
+test('phone badge QR signature matches the one computed by the browser', () => {
+  const { qrSignature, normaliseBadgeUid } = require('../dist/access/access.service.js');
+  const secret = Buffer.alloc(32, 7);
+  const sig = qrSignature(secret, 'emp-1', 123);
+  assert.match(sig, /^[0-9a-f]{16}$/);
+  assert.equal(sig, createHmac('sha256', secret).update('emp-1.123').digest('hex').slice(0, 16));
+  assert.notEqual(qrSignature(secret, 'emp-1', 124), sig, 'changes every step');
+  assert.equal(normaliseBadgeUid('04:a2-1b 9c'), '04A21B9C');
 });

@@ -24,6 +24,8 @@ export class PairingCode {
   @Column({ type: 'uuid' }) tenantId: string;
   @Column({ type: 'uuid' }) siteId: string;
   @Column({ length: 80 }) deviceName: string;
+  /** Set when the code enrols a door reader instead of a reception tablet. */
+  @Column({ type: 'uuid', nullable: true }) doorId: string | null;
   @Index({ unique: true }) @Column({ type: 'char', length: 64 }) codeHash: string;
   @Column({ type: 'datetime', precision: 3 }) expiresAt: Date;
   @Column({ type: 'datetime', precision: 3, nullable: true }) usedAt: Date | null;

@@ -45,7 +45,7 @@ export class KioskService {
   ) {}
 
   async pair(tenant: AuthTenant, code: string, req: AppRequest) {
-    const pc = await this.codes.findOne({ where: { tenantId: tenant.id, codeHash: this.crypto.sha256(code), usedAt: IsNull(), expiresAt: MoreThan(new Date()) } });
+    const pc = await this.codes.findOne({ where: { tenantId: tenant.id, codeHash: this.crypto.sha256(code), usedAt: IsNull(), expiresAt: MoreThan(new Date()), doorId: IsNull() } });
     if (!pc) {
       await this.audit.fromRequest(req, { action: 'DEVICE_PAIR_FAILED' });
       throw new UnauthorizedException('PAIRING_CODE_INVALID');
