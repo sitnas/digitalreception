@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Post, Req, UnauthorizedException, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Logger, Post, Req, UnauthorizedException, UseGuards } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { Throttle } from '@nestjs/throttler';
 import { Transform } from 'class-transformer';
@@ -83,13 +83,18 @@ export class ReaderController {
 /** "My badge" on the employee's phone: activation with a one-time code sent to the work email. */
 @Controller('badge')
 export class BadgeController {
+  private readonly log = new Logger('BadgeController');
+
   constructor(private readonly access: AccessService, private readonly audit: AuditService) {}
 
   @Post('request')
   @HttpCode(200)
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
-  async request(@CurrentTenant() tenant: AuthTenant, @Body() dto: BadgeRequestDto) {
-    await this.access.requestLoginCode(tenant.id, dto.email, dto.locale ?? 'it');
+  async request(@CurrentTenant() tenant: AuthTenant, @Body() dto: BadgeRequestDto, @Req() req: AppRequest) {
+    const r = await this.access.requestLoginCode(tenant.id, dto.email, dto.locale ?? 'it');
+    // The administrator sees why no email arrived (audit log, server log); the address is never logged.
+    await this.audit.fromRequest(req, { action: 'PHONE_BADGE_CODE_REQUESTED', entityType: r.employeeId ? 'employee' : undefined, entityId: r.employeeId, details: { result: r.result } });
+    if (r.result !== 'SENT') this.log.warn(`Phone badge code not sent: ${r.result}`);
     return { ok: true, step: QR_STEP_S }; // same answer whether the address is known or not
   }
 
