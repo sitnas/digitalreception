@@ -128,15 +128,17 @@ export class AccessService {
 
   // ------------------------------------------------------------ phone badge activation
 
-  /** Sends a one-time code to the work email. Always answers the same way, known address or not. */
-  async requestLoginCode(tenantId: string, email: string, locale: string) {
+  /** Sends a one-time code to the work email. The caller answers the same way whatever the result. */
+  async requestLoginCode(tenantId: string, email: string, locale: string): Promise<{ result: 'SENT' | 'UNKNOWN_EMAIL' | 'EMAIL_DISABLED' | 'SEND_FAILED'; employeeId?: string }> {
     const tc = await this.keys.forTenant(tenantId);
     const e = await this.employees.findOne({ where: { tenantId, emailIndex: tc.blindIndex(email.trim().toLowerCase(), 'employee.email')!, active: true } });
-    if (!e || !this.mail.enabled) return;
+    if (!e) return { result: 'UNKNOWN_EMAIL' };
+    if (!this.mail.enabled) return { result: 'EMAIL_DISABLED', employeeId: e.id };
     const code = String(randomInt(0, 1_000_000)).padStart(6, '0');
     await this.employees.update(e.id, { loginCodeHash: this.crypto.sha256(`${e.id}|${code}`), loginCodeExpiresAt: new Date(Date.now() + LOGIN_CODE_TTL_MIN * 60_000), loginCodeAttempts: 0 });
     const tenant = await this.tenants.findOneOrFail({ where: { id: tenantId }, select: { id: true, name: true, primaryColor: true } });
-    await this.mail.sendBadgeCode(email, tenant.name, { locale, code, firstName: tc.decrypt(e.firstNameEnc, 'employee.firstName') ?? '', minutes: LOGIN_CODE_TTL_MIN, primaryColor: tenant.primaryColor });
+    const ok = await this.mail.sendBadgeCode(email, tenant.name, { locale, code, firstName: tc.decrypt(e.firstNameEnc, 'employee.firstName') ?? '', minutes: LOGIN_CODE_TTL_MIN, primaryColor: tenant.primaryColor });
+    return { result: ok ? 'SENT' : 'SEND_FAILED', employeeId: e.id };
   }
 
   /** Checks the code and issues a new QR secret for this phone (any previous phone stops working). */

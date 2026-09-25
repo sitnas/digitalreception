@@ -54,7 +54,7 @@ export function EmployeesPage() {
             <tbody>
               {rows.map((e) => (
                 <tr key={e.id} style={e.active ? undefined : { opacity: 0.55 }}>
-                  <td><strong>{e.lastName} {e.firstName}</strong>{!e.active && <> <span className="pill">{t.access.inactive}</span></>}{e.email && <><br /><span className="muted">{e.email}</span></>}</td>
+                  <td><strong>{e.lastName} {e.firstName}</strong>{!e.active && <> <span className="pill">{t.access.inactive}</span></>}{e.email ? <><br /><span className="muted">{e.email}</span></> : <><br /><span className="error">{t.access.noEmail}</span></>}</td>
                   <td className="num">{e.externalId}</td>
                   <td>{e.badgeHint ? <>{t.access.card} ···{e.badgeHint}</> : null}{e.badgeHint && e.phoneBadge ? <br /> : null}{e.phoneBadge ? t.access.phone : null}{!e.badgeHint && !e.phoneBadge && <span className="muted">—</span>}</td>
                   <td className="wrap">{e.permissions.length ? e.permissions.map((p, i) => <div key={i}><strong>{p.door}</strong> <span className="muted">{p.site} · {rule(p)}</span></div>) : <span className="muted">{t.access.noDoors}</span>}</td>
