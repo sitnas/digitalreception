@@ -532,6 +532,7 @@ code.secret { font-size: 16px; padding: 6px 10px; letter-spacing: .04em; user-se
 .reader-main { display: grid; justify-items: center; align-content: start; gap: 12px; padding: 28px 16px; text-align: center; }
 .reader-main h1 { margin: 0; font-size: 34px; }
 .reader-main .muted { margin: 0 0 8px; font-size: 18px; }
+.reader-note { margin: 0; max-width: 520px; font-size: 15px; color: var(--ink-2); background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 10px 14px; }
 .reader-pair { max-width: 460px; margin: 0 auto; width: 100%; }
 .reader-verdict { position: fixed; inset: 0; display: grid; place-content: center; justify-items: center; gap: 10px; text-align: center; color: #FFFFFF; z-index: 10; animation: reader-in .15s ease-out; }
 .reader-verdict.ok { background: #13803B; }
