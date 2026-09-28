@@ -128,7 +128,7 @@ export function DoorsPage() {
                   <td>{d.siteName}</td>
                   <td className="wrap">{d.readers.length ? d.readers.map((r) => (
                     <div key={r.id} className="inline" style={{ gap: 8 }}>
-                      <span>{r.name} <span className="muted">· {r.lastSeenAt ? fmtDateTime(r.lastSeenAt, intl) : t.access.never}</span></span>
+                      <span>{r.name} <ReaderStatus lastSeenAt={r.lastSeenAt} /></span>
                       {canEdit && <button type="button" className="btn btn-ghost btn-sm" onClick={() => { if (window.confirm(t.access.revokeReaderConfirm.replace('{name}', r.name))) run(() => api.post(`/admin/access/readers/${r.id}/revoke`), t.access.readerRevoked); }}>{t.access.revokeReader}</button>}
                     </div>
                   )) : <span className="muted">{t.access.noReaders}</span>}</td>
@@ -260,5 +260,17 @@ export function IntegrationPage() {
         <pre className="code-block">{example}</pre>
       </section>
     </>
+  );
+}
+
+/** A fixed reader calls in every minute: after 3 minutes of silence it is shown as unreachable. */
+const OFFLINE_AFTER_MS = 3 * 60_000;
+function ReaderStatus({ lastSeenAt }: { lastSeenAt: string | null }) {
+  const { t, intl } = useI18n();
+  const online = !!lastSeenAt && Date.now() - new Date(lastSeenAt).getTime() < OFFLINE_AFTER_MS;
+  return (
+    <span className={`pill ${online ? 'OPEN' : 'ERASED'}`} title={lastSeenAt ? fmtDateTime(lastSeenAt, intl) : undefined} style={{ marginLeft: 6 }}>
+      {online ? t.access.online : lastSeenAt ? t.access.offlineSince.replace('{time}', fmtDateTime(lastSeenAt, intl)) : t.access.readerNever}
+    </span>
   );
 }

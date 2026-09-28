@@ -40,7 +40,7 @@ export class ReaderGuard implements CanActivate {
     const r = await this.readers.findOne({ where: { tokenHash: this.crypto.sha256(m[1]), tenantId: req.tenant.id, revokedAt: IsNull() } });
     if (!r) throw new UnauthorizedException('READER_NOT_AUTHORISED');
     req.reader = { id: r.id, tenantId: r.tenantId, siteId: r.siteId, doorId: r.doorId };
-    if (!r.lastSeenAt || Date.now() - r.lastSeenAt.getTime() > 5 * 60_000) await this.readers.update(r.id, { lastSeenAt: new Date() });
+    if (!r.lastSeenAt || Date.now() - r.lastSeenAt.getTime() > 50_000) await this.readers.update(r.id, { lastSeenAt: new Date() }); // heartbeat every minute
     return true;
   }
 }

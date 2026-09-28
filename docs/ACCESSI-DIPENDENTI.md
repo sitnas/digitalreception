@@ -35,6 +35,76 @@ L'app è progettata per ridurre i dati al minimo:
    - **Tessere NFC**: su Chrome per Android si tocca una volta "Attiva tessere NFC". In alternativa si collega un lettore NFC USB che funziona come tastiera.
 4. **Dipendenti.** Il sistema esterno li invia con l'API. Ognuno attiva il badge sul telefono dalla pagina `https://<indirizzo>/badge`: inserisce l'email di lavoro, riceve un codice di 6 cifre e lo digita. Serve l'invio email attivo (vedi Organizzazione).
 
+## Installare i lettori su dispositivi fisici
+
+### Tablet o telefono Android alla porta (con schermo)
+
+1. **Scegli il dispositivo.**
+   - Un tablet Android da 8–10", oppure un telefono, con **NFC** se si usano le tessere.
+   - La fotocamera frontale serve per il QR.
+   - Va alimentato **sempre dalla corrente**: un supporto a muro con cavo, all'altezza di 110–120 cm.
+2. **Abbinalo alla porta.**
+   - In console: **Porte e lettori → Associa lettore**.
+   - Sul dispositivo apri Chrome su `https://<indirizzo>/reader`, inserisci il codice e concedi fotocamera e NFC.
+3. **Installalo come app.** Dal menu di Chrome scegli **"Installa app"** o **"Aggiungi a schermata Home"**.
+   - L'icona "Lettore" si apre direttamente a tutto schermo sulla pagina del lettore, senza barra del browser.
+   - Mentre è aperta, lo schermo resta acceso.
+4. **Bloccalo sull'app**, così chi passa non può uscire:
+   - **semplice**: Impostazioni → Sicurezza → **Blocco app sullo schermo** (o "Fissa app"), poi fissa il Lettore;
+   - **professionale** (più dispositivi): un browser kiosk come **Fully Kiosk Browser**, oppure una gestione MDM (Android Enterprise, modalità "dedicated device"). Aprono il lettore all'accensione, impediscono di uscire e riavviano l'app se si chiude.
+5. **Impostazioni del dispositivo.**
+   - Spegnimento schermo "mai" o il massimo possibile.
+   - Aggiornamenti automatici di notte.
+   - Wi-Fi aziendale stabile.
+   - Luminosità alta per leggere bene il QR.
+
+**Da solo, il lettore:**
+- si collega al server ogni minuto;
+- si ricarica una volta al giorno, alle 3 di notte, per usare sempre l'ultima versione;
+- se perde la rete mostra "Nessuna connessione" e riprova da solo.
+
+In console, in **Porte e lettori**, ogni lettore appare **In linea** oppure **Non raggiungibile dalle…**: così ci si accorge subito se un dispositivo si spegne o perde il Wi-Fi.
+
+### Lettore senza schermo (Raspberry Pi, mini PC, controller)
+
+Un dispositivo senza schermo può fare da lettore chiamando direttamente l'API dei lettori. È l'hardware tipico, per esempio:
+- un **Raspberry Pi** con un lettore NFC USB e, in seguito, un relè per la serratura;
+- un controller di accesso che supporti richieste HTTPS.
+
+| Metodo | Percorso | Cosa fa |
+|---|---|---|
+| `POST` | `/api/reader/pair` | Corpo `{"code":"ABCD2345"}` (codice da "Associa lettore"). Risponde `{"readerToken":"…"}`, da conservare sul dispositivo. |
+| `POST` | `/api/reader/verify` | Con `Authorization: Bearer <readerToken>`. Corpo `{"nfc":"04A21B9C"}` oppure `{"qr":"DRE1:…"}`. Risponde `{"result":"GRANTED"\|"DENIED","reason":"…","name":"Mario R.","door":"…"}` e registra il passaggio. |
+| `GET` | `/api/reader/config` | Con lo stesso token: nome della porta e della sede. Chiamarlo ogni minuto fa da "segnale di vita" per lo stato In linea in console. |
+
+L'indirizzo è quello dell'organizzazione, lo stesso della console. Il token vale solo per quella porta: se il dispositivo viene rubato basta **Scollega** in console.
+
+Esempio minimo in Python: un lettore NFC USB "a tastiera" scrive l'UID e preme Invio, lo script lo verifica e (quando ci sarà il relè) apre la porta.
+
+```python
+import requests, time
+
+BASE = "https://<indirizzo>"
+TOKEN = open("/etc/lettore/token").read().strip()   # ottenuto una volta con /api/reader/pair
+H = {"Authorization": f"Bearer {TOKEN}"}
+
+while True:
+    uid = input().strip()                  # il lettore USB "digita" l'UID e preme Invio
+    if not uid:
+        continue
+    try:
+        r = requests.post(f"{BASE}/api/reader/verify", json={"nfc": uid}, headers=H, timeout=5).json()
+    except requests.RequestException:
+        print("Nessuna connessione"); continue
+    if r["result"] == "GRANTED":
+        print("Consentito", r.get("name"))
+        # relay.on(); time.sleep(3); relay.off()   # es. gpiozero.OutputDevice(17) per il relè
+    else:
+        print("Negato:", r["reason"])
+```
+
+Per il segnale di vita basta un secondo processo (o un cron) che chiami `GET /api/reader/config` ogni minuto.
+
 ## API per il sistema esterno
 
 Indirizzo base: `https://<indirizzo>/api/integration/v1`. Ogni richiesta porta l'intestazione `Authorization: Bearer drk_…`.

@@ -18,6 +18,39 @@ const token = {
 };
 const BADGE_QR = /^(DRE1:[0-9a-f-]{36}\.\d{1,12}\.[0-9a-f]{16})$/;
 const RESULT_MS = 3500;
+const HEARTBEAT_MS = 60_000;
+/** Fixed devices run for weeks: reload once a day (at night, when idle) to pick up new versions. */
+const DAILY_RELOAD_HOUR = 3;
+
+/**
+ * Settings for a device fixed at a door: installs as its own full-screen app (/reader manifest),
+ * keeps the screen on, and reloads once a day at night so it always runs the current version.
+ */
+function useUnattendedDevice() {
+  useEffect(() => {
+    const link = document.querySelector<HTMLLinkElement>('link[rel="manifest"]');
+    const previous = link?.getAttribute('href');
+    link?.setAttribute('href', '/manifest-reader.webmanifest');
+
+    let lock: { release: () => Promise<void> } | null = null;
+    const nav = navigator as Navigator & { wakeLock?: { request: (t: 'screen') => Promise<{ release: () => Promise<void> }> } };
+    const keepAwake = () => { if (document.visibilityState === 'visible') nav.wakeLock?.request('screen').then((l) => { lock = l; }).catch(() => undefined); };
+    keepAwake();
+    document.addEventListener('visibilitychange', keepAwake); // the lock is dropped when the page is hidden
+
+    const started = Date.now();
+    const daily = window.setInterval(() => {
+      if (Date.now() - started > 20 * 3_600_000 && new Date().getHours() === DAILY_RELOAD_HOUR && !document.querySelector('.reader-verdict')) window.location.reload();
+    }, 10 * 60_000);
+
+    return () => {
+      if (previous) link?.setAttribute('href', previous);
+      document.removeEventListener('visibilitychange', keepAwake);
+      lock?.release().catch(() => undefined);
+      window.clearInterval(daily);
+    };
+  }, []);
+}
 /** A QR string only changes every 30 s: the same one again is the same person still in front of the camera. */
 const SAME_QR_MS = 90_000;
 
@@ -54,7 +87,9 @@ export function ReaderApp() {
     catch (e) { if (e instanceof ApiError && e.status === 401) { token.clear(); setPaired(false); } else setOffline(true); }
   }, []);
   useEffect(() => { document.title = 'Lettore'; if (paired) load(); }, [paired, load]);
-  useEffect(() => { if (!paired) return; const h = setInterval(load, offline ? 15_000 : 5 * 60_000); return () => clearInterval(h); }, [paired, offline, load]);
+  // Heartbeat: the console shows a reader as offline when it stops calling in.
+  useEffect(() => { if (!paired) return; const h = setInterval(load, offline ? 15_000 : HEARTBEAT_MS); return () => clearInterval(h); }, [paired, offline, load]);
+  useUnattendedDevice();
 
   if (!paired) return <Pair onPaired={() => setPaired(true)} />;
   if (!cfg) return <div className="reader"><p className="reader-wait">{offline ? REASONS.OFFLINE : '…'}</p></div>;
