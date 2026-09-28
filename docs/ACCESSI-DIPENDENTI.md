@@ -48,11 +48,8 @@ Regole generali:
 | Metodo | Percorso | Cosa fa |
 |---|---|---|
 | `PUT` | `/doors/{id}` | Crea o aggiorna una porta. Corpo: `siteCode` (codice della sede in console), `name`, `active` (facoltativo). |
-| `GET` | `/doors` | Elenco delle porte. |
 | `PUT` | `/employees/{id}` | Crea o aggiorna un dipendente e i suoi permessi (vedi sotto). |
 | `DELETE` | `/employees/{id}` | Cancella il dipendente e i permessi; il registro perde il collegamento alla persona. |
-| `GET` | `/employees?page=1` | Elenco (500 per pagina) con stato, presenza di tessera e badge telefono. |
-| `GET` | `/events?since=2026-09-25T00:00:00Z&limit=500` | Passaggi successivi a `since`, in ordine di tempo. Per leggerli tutti si ripete la richiesta con l'`at` dell'ultimo ricevuto. |
 
 Corpo di `PUT /employees/{id}`:
 
@@ -87,13 +84,9 @@ Campi:
   - `400 UNKNOWN_SITE`;
   - `401 API_KEY_INVALID`.
 
-Esempio di passaggio restituito da `/events`:
+L'API **riceve soltanto**: non esistono chiamate per leggere dipendenti, porte o passaggi. Le risposte contengono solo il codice inviato e l'esito (`created`, `deleted`). I passaggi si consultano in console, alla voce Passaggi.
 
-```json
-{ "id": "…", "at": "2026-09-25T09:41:12.345Z", "door": "MI-MAIN", "employee": "E001", "method": "QR", "result": "GRANTED", "reason": "OK" }
-```
-
-Motivi di rifiuto (`reason`):
+Motivi di rifiuto mostrati dal lettore e in console (`reason`):
 
 | Codice | Significato |
 |---|---|

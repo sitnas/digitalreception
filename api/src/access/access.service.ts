@@ -90,7 +90,7 @@ export class AccessService {
       // One card, one person: otherwise the reader could not tell who is at the door.
       if (badgeIndex) {
         const owner = await em.findOne(Employee, { where: { tenantId, badgeIndex }, select: { id: true, externalId: true } });
-        if (owner && owner.externalId !== externalId) throw new ConflictException({ message: 'BADGE_IN_USE', employee: owner.externalId });
+        if (owner && owner.externalId !== externalId) throw new ConflictException('BADGE_IN_USE');
       }
       const e = existing ?? em.create(Employee, { tenantId, externalId, credentialSecretEnc: null, credentialIssuedAt: null, loginCodeHash: null, loginCodeExpiresAt: null, loginCodeAttempts: 0 });
       const email = dto.email?.trim().toLowerCase() || null;
@@ -215,14 +215,5 @@ export class AccessService {
     const last = employee && tc.decrypt(employee.lastNameEnc, 'employee.lastName');
     // The reader shows who it recognised only to the person standing there: first name and initial.
     return { result, reason: reason ?? 'OK', name: first && last ? `${first} ${last.charAt(0)}.` : null, door: door.name, at: now };
-  }
-
-  // ------------------------------------------------------------ reads
-
-  async eventsSince(tenantId: string, since: Date, limit: number) {
-    const rows = await this.events.find({ where: { tenantId, at: MoreThan(since) }, order: { at: 'ASC' }, take: limit });
-    const emp = new Map((await this.employees.find({ where: { tenantId, id: In([...new Set(rows.map((r) => r.employeeId).filter(Boolean))] as string[]) }, select: { id: true, externalId: true } })).map((e) => [e.id, e.externalId]));
-    const drs = new Map((await this.doors.find({ where: { tenantId, id: In([...new Set(rows.map((r) => r.doorId))]) }, select: { id: true, externalId: true } })).map((d) => [d.id, d.externalId]));
-    return rows.map((r) => ({ id: r.id, at: r.at, door: drs.get(r.doorId) ?? null, employee: r.employeeId ? emp.get(r.employeeId) ?? null : null, method: r.method, result: r.result, reason: r.reason }));
   }
 }

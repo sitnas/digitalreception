@@ -228,8 +228,8 @@ describe('end-to-end', { skip: !enabled && 'E2E_DB_HOST not set' }, () => {
     const { key } = (await admin.post('/admin/access/api-keys', { name: 'HR system' })).data;
     assert.match(key, /^drk_/);
     assert.equal((await ctx.aud.post('/admin/access/api-keys', { name: 'x' })).status, 403, 'only the super admin creates keys');
-    assert.equal((await api('GET', '/doors')).status, 401);
-    assert.equal((await api('GET', '/doors', undefined, 'drk_' + 'x'.repeat(43))).status, 401);
+    assert.equal((await api('PUT', '/doors/X', { siteCode: 'MI', name: 'X' })).status, 401);
+    assert.equal((await api('PUT', '/doors/X', { siteCode: 'MI', name: 'X' }, 'drk_' + 'x'.repeat(43))).status, 401);
 
     const main = (await admin.post('/admin/access/doors', { siteId: ctx.milano.id, name: 'Ingresso principale', externalId: 'MI-MAIN' })).data;
     assert.equal((await api('PUT', '/doors/MI-LAB', { siteCode: 'MI', name: 'Laboratorio' }, key)).data.created, true);
@@ -286,8 +286,8 @@ describe('end-to-end', { skip: !enabled && 'E2E_DB_HOST not set' }, () => {
     const log = (await ctx.aud.get(`/admin/access/events?from=${from}&to=${to}`)).data;
     assert.ok(log.length >= 9 && log.some((e) => e.employee === 'Bruni Paolo' && e.result === 'GRANTED'));
     assert.equal((await ctx.rec.get(`/admin/access/events?from=${from}&to=${to}`)).status, 403, 'receptionists do not see the access log');
-    const pulled = (await api('GET', `/events?since=${from}`, undefined, key)).data;
-    assert.ok(pulled.some((e) => e.employee === 'E001' && e.door === 'MI-MAIN' && e.result === 'GRANTED'));
+    // Inbound only: the integration API never returns stored data.
+    for (const path of ['/doors', '/employees', `/events?since=${from}`]) assert.equal((await api('GET', path, undefined, key)).status, 404, path);
 
     assert.equal((await api('DELETE', '/employees/E001', undefined, key)).status, 200);
     const [[orphan]] = await db.query('SELECT COUNT(*) AS n FROM access_events WHERE employeeId = ?', [emp.id]);

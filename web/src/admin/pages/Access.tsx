@@ -252,11 +252,8 @@ export function IntegrationPage() {
         <table className="api-table">
           <tbody>
             <tr><td><code>PUT</code></td><td><code>/doors/&#123;id&#125;</code></td><td>{t.access.docDoor}</td></tr>
-            <tr><td><code>GET</code></td><td><code>/doors</code></td><td>{t.access.docDoors}</td></tr>
             <tr><td><code>PUT</code></td><td><code>/employees/&#123;id&#125;</code></td><td>{t.access.docPut}</td></tr>
             <tr><td><code>DELETE</code></td><td><code>/employees/&#123;id&#125;</code></td><td>{t.access.docDelete}</td></tr>
-            <tr><td><code>GET</code></td><td><code>/employees?page=1</code></td><td>{t.access.docList}</td></tr>
-            <tr><td><code>GET</code></td><td><code>/events?since=ISO</code></td><td>{t.access.docEvents}</td></tr>
           </tbody>
         </table>
         <p style={{ margin: 0 }}>{t.access.baseUrl}: <code>{base}</code></p>
