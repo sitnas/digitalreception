@@ -125,6 +125,8 @@ Motivi di rifiuto (`reason`):
 
 **Per quelle tessere** si usa un **lettore NFC USB "a tastiera"** (costa pochi euro): legge l'UID di qualsiasi tessera e lo "digita" nella pagina del lettore. Funziona su tablet Android con cavo OTG e su qualsiasi computer.
 
+**Provare senza tessere né lettori.** Apri il lettore con `?simula=1` in fondo all'indirizzo (es. `https://<indirizzo>/reader?simula=1`): compare un pannello dove si scrive l'UID di una tessera e si preme "Avvicina tessera". Il lettore esegue la stessa verifica e registra il passaggio come una tessera vera. Senza `?simula=1` il pannello non compare, quindi i lettori alle porte non lo mostrano.
+
 **Il telefono come tessera.** Una pagina web non può far funzionare il telefono come una carta contactless: serve un'app nativa o un pass in Apple/Google Wallet. Per il telefono si usa il QR.
 
 
