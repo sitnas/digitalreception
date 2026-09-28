@@ -139,6 +139,10 @@ function ReaderScreen({ cfg }: { cfg: Config }) {
     return () => window.removeEventListener('keydown', onKey);
   }, [onUid]);
 
+  // Simulation (?simula=1): type a card UID instead of tapping a real card. Same verification and log.
+  const demo = new URLSearchParams(window.location.search).has('simula');
+  const [demoUid, setDemoUid] = useState('');
+
   const t = { ...STRINGS.it, scanTitle: 'Lettore QR', scanHint: 'Mostra il QR del badge sul telefono', scanWrong: 'Questo QR non è un badge dipendente', scanNoCamera: 'Fotocamera non disponibile: usa la tessera' };
 
   return (
@@ -153,7 +157,21 @@ function ReaderScreen({ cfg }: { cfg: Config }) {
         {!cfg.door.active && <p className="alert" role="alert">Porta disattivata dalla console</p>}
         <h1>Avvicina il badge</h1>
         <p className="muted">QR sul telefono alla fotocamera{nfc === 'on' ? ' oppure tessera sul retro del dispositivo' : ''}</p>
-        {nfcNote && <p className="reader-note" role="status">{nfcNote}</p>}
+        {nfcNote && !demo && <p className="reader-note" role="status">{nfcNote}</p>}
+        {demo && (
+          <form className="reader-demo" onSubmit={(e) => { e.preventDefault(); const uid = demoUid.replace(/[^0-9A-Fa-f]/g, ''); if (uid.length >= 4) { lastNfc.current = { uid: '', at: 0 }; onUid(uid); } }}>
+            <span className="reader-demo-tag">Simulazione</span>
+            <label htmlFor="demo-uid">Codice della tessera (UID)</label>
+            <div className="reader-demo-row">
+              <input id="demo-uid" className="input" value={demoUid} onChange={(e) => setDemoUid(e.target.value.toUpperCase())} placeholder="es. 04A21B9C" maxLength={40} autoComplete="off" autoCapitalize="characters" spellCheck={false} />
+              <button className="btn btn-primary" disabled={demoUid.replace(/[^0-9A-Fa-f]/g, '').length < 4}>
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden><path d="M8.5 8.5a5 5 0 0 1 0 7M12 6a8.5 8.5 0 0 1 0 12M15.5 3.5a12 12 0 0 1 0 17" /></svg>
+                Avvicina tessera
+              </button>
+            </div>
+            <span className="muted">Usa lo stesso codice inviato con l’API nel campo badgeUid del dipendente. Un codice sconosciuto dà “Badge non riconosciuto”.</span>
+          </form>
+        )}
         <div style={{ visibility: verdict ? 'hidden' : 'visible' }}>
           <QrScanner key={round} onCode={onQr} t={t} accept={BADGE_QR} />
         </div>

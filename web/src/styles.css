@@ -533,6 +533,13 @@ code.secret { font-size: 16px; padding: 6px 10px; letter-spacing: .04em; user-se
 .reader-main h1 { margin: 0; font-size: 34px; }
 .reader-main .muted { margin: 0 0 8px; font-size: 18px; }
 .reader-note { margin: 0; max-width: 520px; font-size: 15px; color: var(--ink-2); background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 10px 14px; }
+.reader-demo { display: grid; gap: 8px; width: min(520px, 100%); text-align: left; background: var(--surface); border: 1.5px dashed var(--brand-strong); border-radius: var(--r-lg); padding: 14px 16px; }
+.reader-demo label { font-weight: 700; font-size: 15px; }
+.reader-demo .muted { font-size: 13px; }
+.reader-demo-tag { justify-self: start; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; background: var(--brand); color: var(--on-brand); border-radius: 999px; padding: 3px 10px; }
+.reader-demo-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.reader-demo-row .input { flex: 1 1 180px; height: 48px; font-size: 18px; letter-spacing: .08em; }
+.reader-demo-row .btn { height: 48px; flex: 0 0 auto; }
 .reader-pair { max-width: 460px; margin: 0 auto; width: 100%; }
 .reader-verdict { position: fixed; inset: 0; display: grid; place-content: center; justify-items: center; gap: 10px; text-align: center; color: #FFFFFF; z-index: 10; animation: reader-in .15s ease-out; }
 .reader-verdict.ok { background: #13803B; }
