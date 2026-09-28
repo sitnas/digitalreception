@@ -117,5 +117,16 @@ Motivi di rifiuto (`reason`):
 
 ## Tessere NFC
 
+**Cosa serve per leggerle.**
+- **Chrome su Android**, con l'NFC attivo nelle impostazioni del telefono. La prima volta si tocca "Attiva tessere NFC" e si concede il permesso; poi il lettore lo attiva da solo a ogni apertura.
+- iPhone, computer e altri browser **non** leggono l'NFC da una pagina web: il lettore lo dice a schermo.
+
+**Quali tessere legge Chrome.** Solo le tessere in formato **NDEF** (NTAG, adesivi NFC, molte tessere programmabili). Molte tessere di accesso aziendali (MIFARE Classic, DESFire, HID) **non** lo sono. Chrome le rileva ma non passa il codice alla pagina, e il lettore mostra "Tessera rilevata ma non leggibile".
+
+**Per quelle tessere** si usa un **lettore NFC USB "a tastiera"** (costa pochi euro): legge l'UID di qualsiasi tessera e lo "digita" nella pagina del lettore. Funziona su tablet Android con cavo OTG e su qualsiasi computer.
+
+**Il telefono come tessera.** Una pagina web non può far funzionare il telefono come una carta contactless: serve un'app nativa o un pass in Apple/Google Wallet. Per il telefono si usa il QR.
+
+
 - **Cosa si legge**: il lettore legge l'**UID** della tessera. Nel database c'è solo un indice cifrato dell'UID (HMAC con la chiave dell'organizzazione) e le ultime 4 cifre per riconoscerla in console.
 - **Limite di sicurezza**: l'UID delle tessere economiche (es. MIFARE Classic) si può copiare. Per le porte critiche meglio il QR sul telefono o tessere con autenticazione crittografica (DESFire), da valutare con il fornitore delle tessere.

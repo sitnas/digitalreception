@@ -28,6 +28,7 @@ const REASONS: Record<string, string> = {
   UNKNOWN_CREDENTIAL: 'Badge non riconosciuto', QR_INVALID: 'QR non valido', QR_EXPIRED: 'QR scaduto: usa il badge sul telefono, non una foto',
   EMPLOYEE_INACTIVE: 'Badge disattivato', NOT_YET_VALID: 'Badge non ancora valido', EXPIRED: 'Badge scaduto', DOOR_INACTIVE: 'Porta disattivata',
   NO_PERMISSION: 'Nessun permesso per questa porta', OUTSIDE_SCHEDULE: 'Fuori dall’orario consentito', OFFLINE: 'Nessuna connessione: riprova',
+  NFC_UNREADABLE: 'Tessera rilevata ma non leggibile da questo lettore: usa il QR sul telefono',
 };
 
 async function call<R>(method: string, path: string, body?: unknown): Promise<R> {
@@ -39,6 +40,7 @@ async function call<R>(method: string, path: string, body?: unknown): Promise<R>
 }
 
 interface NfcReading { serialNumber: string }
+interface NfcPermissions { query: (d: { name: 'nfc' }) => Promise<{ state: string }> }
 interface NfcReader { scan: (o?: { signal?: AbortSignal }) => Promise<void>; onreading: ((e: NfcReading) => void) | null; onreadingerror: (() => void) | null }
 declare global { interface Window { NDEFReader?: new () => NfcReader } }
 
@@ -67,15 +69,21 @@ function ReaderScreen({ cfg }: { cfg: Config }) {
   const lastNfc = useRef({ uid: '', at: 0 });
   const lastQr = useRef({ qr: '', at: 0 });
 
+  const [nfcNote, setNfcNote] = useState<string | null>(() => (window.NDEFReader ? null : 'Questo browser non legge le tessere NFC: serve Chrome su Android, oppure un lettore NFC USB collegato al dispositivo.'));
+
+  const show = useCallback((v: Verdict) => {
+    setVerdict(v);
+    if (v.result === 'DENIED') navigator.vibrate?.([120, 80, 120]);
+    window.setTimeout(() => { setVerdict(null); setRound((r) => r + 1); busy.current = false; }, RESULT_MS);
+  }, []);
+
   const check = useCallback(async (body: { qr?: string; nfc?: string }) => {
     if (busy.current) return;
     busy.current = true;
     let v: Verdict;
     try { v = await call<Verdict>('POST', 'verify', body); } catch { v = { result: 'DENIED', reason: 'OFFLINE', name: null }; }
-    setVerdict(v);
-    if (v.result === 'DENIED') navigator.vibrate?.([120, 80, 120]);
-    window.setTimeout(() => { setVerdict(null); setRound((r) => r + 1); busy.current = false; }, RESULT_MS);
-  }, []);
+    show(v);
+  }, [show]);
 
   const onUid = useCallback((uid: string) => {
     const now = Date.now();
@@ -94,16 +102,28 @@ function ReaderScreen({ cfg }: { cfg: Config }) {
     check({ qr });
   }, [check]);
 
-  // Web NFC must be started by a tap (browser rule); after that every badge is read in the background.
-  const startNfc = async () => {
+  // Web NFC must be started by a tap the first time (browser rule); once allowed it starts by itself.
+  const startNfc = useCallback(async () => {
     try {
       const r = new window.NDEFReader!();
       r.onreading = (e) => { if (e.serialNumber) onUid(e.serialNumber); };
-      r.onreadingerror = () => undefined;
+      // Many access cards (MIFARE Classic, DESFire…) are not NDEF: the browser sees them but gives no UID.
+      r.onreadingerror = () => { if (!busy.current) { busy.current = true; show({ result: 'DENIED', reason: 'NFC_UNREADABLE', name: null }); } };
       await r.scan();
-      setNfc('on');
-    } catch { setNfc('error'); }
-  };
+      setNfc('on'); setNfcNote(null);
+    } catch (e) {
+      const name = (e as Error)?.name;
+      setNfc('error');
+      setNfcNote(name === 'NotAllowedError' ? 'Permesso NFC negato: consentilo dal lucchetto accanto all’indirizzo, poi ricarica la pagina.'
+        : name === 'NotReadableError' || name === 'NotSupportedError' ? 'NFC spento o assente: attivalo nelle impostazioni del telefono (Connessioni → NFC), poi ricarica.'
+        : 'NFC non disponibile su questo dispositivo.');
+    }
+  }, [onUid, show]);
+  useEffect(() => {
+    if (!window.NDEFReader) return;
+    (navigator as Navigator & { permissions?: NfcPermissions }).permissions?.query({ name: 'nfc' })
+      .then((p) => { if (p.state === 'granted') startNfc(); }).catch(() => undefined);
+  }, [startNfc]);
 
   // USB NFC readers act as a keyboard: hex UID followed by Enter.
   useEffect(() => {
@@ -132,7 +152,8 @@ function ReaderScreen({ cfg }: { cfg: Config }) {
       <main className="reader-main">
         {!cfg.door.active && <p className="alert" role="alert">Porta disattivata dalla console</p>}
         <h1>Avvicina il badge</h1>
-        <p className="muted">QR sul telefono alla fotocamera{nfc !== 'unsupported' ? ' oppure tessera sul retro' : ''}</p>
+        <p className="muted">QR sul telefono alla fotocamera{nfc === 'on' ? ' oppure tessera sul retro del dispositivo' : ''}</p>
+        {nfcNote && <p className="reader-note" role="status">{nfcNote}</p>}
         <div style={{ visibility: verdict ? 'hidden' : 'visible' }}>
           <QrScanner key={round} onCode={onQr} t={t} accept={BADGE_QR} />
         </div>
