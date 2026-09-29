@@ -64,3 +64,26 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - run: npm run build
       - run: npm test
+
+  mobile:
+    name: Mobile app (typecheck, tests, bundle)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npm run typecheck
+      - run: npm test
+      # JavaScript bundles for both platforms: catches wrong imports without building the native apps.
+      - run: npx expo export --platform android --platform ios --output-dir /tmp/mobile-export
+        env:
+          CI: '1'
+          EXPO_OFFLINE: '1'
