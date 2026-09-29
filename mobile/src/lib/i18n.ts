@@ -25,7 +25,7 @@ const STRINGS = {
     removeConfirm: 'Rimuovi',
     cancel: 'Annulla',
     clock: 'L’ora del telefono sembra sbagliata: attiva data e ora automatiche, altrimenti il lettore rifiuta il QR.',
-    errors: { CODE_INVALID: 'Codice non valido o scaduto. Chiedine uno nuovo.', generic: 'Operazione non riuscita. Riprova.', offline: 'Connessione non disponibile.' },
+    errors: { CODE_INVALID: 'Codice non valido o scaduto. Chiedine uno nuovo.', generic: 'Operazione non riuscita. Riprova.', offline: 'Connessione non disponibile.', tooMany: 'Troppi tentativi: aspetta un minuto e riprova.', invalidEmail: 'Email non valida: controlla che sia scritta per intero, senza spazi.', detail: 'Dettaglio per l’assistenza' },
   },
   es: {
     title: 'Mi credencial',
@@ -51,7 +51,7 @@ const STRINGS = {
     removeConfirm: 'Quitar',
     cancel: 'Cancelar',
     clock: 'La hora del teléfono parece incorrecta: active fecha y hora automáticas o el lector rechazará el QR.',
-    errors: { CODE_INVALID: 'Código no válido o caducado. Pida uno nuevo.', generic: 'No se pudo completar. Inténtelo de nuevo.', offline: 'Sin conexión.' },
+    errors: { CODE_INVALID: 'Código no válido o caducado. Pida uno nuevo.', generic: 'No se pudo completar. Inténtelo de nuevo.', offline: 'Sin conexión.', tooMany: 'Demasiados intentos: espere un minuto y vuelva a intentarlo.', invalidEmail: 'Correo no válido: compruebe que esté completo y sin espacios.', detail: 'Detalle para soporte' },
   },
   en: {
     title: 'My badge',
@@ -77,7 +77,7 @@ const STRINGS = {
     removeConfirm: 'Remove',
     cancel: 'Cancel',
     clock: 'The phone clock looks wrong: turn on automatic date and time, or the reader will refuse the QR.',
-    errors: { CODE_INVALID: 'Invalid or expired code. Ask for a new one.', generic: 'Something went wrong. Try again.', offline: 'No connection.' },
+    errors: { CODE_INVALID: 'Invalid or expired code. Ask for a new one.', generic: 'Something went wrong. Try again.', offline: 'No connection.', tooMany: 'Too many attempts: wait a minute and try again.', invalidEmail: 'Invalid email: check it is complete and has no spaces.', detail: 'Detail for support' },
   },
 } as const;
 

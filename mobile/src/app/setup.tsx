@@ -31,7 +31,18 @@ export default function Setup() {
 
   useEffect(() => { if (step === 'code') codeInput.current?.focus(); }, [step]);
 
-  const fail = (e: unknown) => setError(e instanceof ApiError ? (t.errors as Record<string, string>)[e.code] ?? t.errors.generic : t.errors.offline);
+  // A known reason in plain words; otherwise the generic message plus status and code, so that
+  // whoever helps the employee can tell what the server answered.
+  const fail = (e: unknown) => {
+    if (!(e instanceof ApiError)) { setError(t.errors.offline); return; }
+    const known = (t.errors as Record<string, string>)[e.code];
+    if (known) setError(known);
+    else if (e.status === 429) setError(t.errors.tooMany);
+    else if (e.status === 400 && /email/i.test(e.code)) setError(t.errors.invalidEmail);
+    else setError(`${t.errors.generic}\n${t.errors.detail}: ${e.status} ${e.code}`);
+  };
+  // Autofill and keyboards can add spaces or invisible characters around the address.
+  const cleanEmail = () => email.replace(/[\s\u200B-\u200D\uFEFF]/g, '');
   const run = async (fn: () => Promise<void>) => {
     setBusy(true); setError(null);
     try { await fn(); } finally { setBusy(false); }
@@ -44,11 +55,11 @@ export default function Setup() {
     catch (e) { setError(e instanceof ApiError ? t.orgUnreachable : t.errors.offline); }
   });
   const submitEmail = () => run(async () => {
-    try { await requestCode(org!.origin, email.trim(), lang); setSent(true); setStep('code'); } catch (e) { fail(e); }
+    try { await requestCode(org!.origin, cleanEmail(), lang); setSent(true); setStep('code'); } catch (e) { fail(e); }
   });
   const submitCode = () => run(async () => {
     try {
-      const res = await activate(org!.origin, email.trim(), code);
+      const res = await activate(org!.origin, cleanEmail(), code);
       const badge = { ...res, origin: org!.origin, primaryColor: org!.tenant.primaryColor };
       if (!isBadge(badge)) { setError(t.errors.generic); return; }
       await save(badge);
