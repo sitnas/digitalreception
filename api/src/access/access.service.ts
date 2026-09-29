@@ -129,15 +129,22 @@ export class AccessService {
   // ------------------------------------------------------------ phone badge activation
 
   /** Sends a one-time code to the work email. The caller answers the same way whatever the result. */
-  async requestLoginCode(tenantId: string, email: string, locale: string): Promise<{ result: 'SENT' | 'UNKNOWN_EMAIL' | 'EMAIL_DISABLED' | 'SEND_FAILED'; employeeId?: string }> {
+  async requestLoginCode(tenantId: string, email: string, locale: string): Promise<{ result: 'SENT' | 'UNKNOWN_EMAIL' | 'EMAIL_DISABLED' | 'SEND_FAILED' | 'LOCKED'; employeeId?: string }> {
     const tc = await this.keys.forTenant(tenantId);
     const e = await this.employees.findOne({ where: { tenantId, emailIndex: tc.blindIndex(email.trim().toLowerCase(), 'employee.email')!, active: true } });
     if (!e) return { result: 'UNKNOWN_EMAIL' };
     if (!this.mail.enabled) return { result: 'EMAIL_DISABLED', employeeId: e.id };
+    // The attempt budget belongs to a 10-minute window, not to a code: asking for a new code keeps
+    // the count and the window, so "new code + 5 guesses" cannot be repeated to brute-force it.
+    const now = Date.now();
+    const windowOpen = !!e.loginCodeExpiresAt && e.loginCodeExpiresAt.getTime() > now;
+    if (windowOpen && e.loginCodeAttempts >= LOGIN_CODE_MAX_ATTEMPTS) return { result: 'LOCKED', employeeId: e.id };
+    const expiresAt = windowOpen ? e.loginCodeExpiresAt! : new Date(now + LOGIN_CODE_TTL_MIN * 60_000);
     const code = String(randomInt(0, 1_000_000)).padStart(6, '0');
-    await this.employees.update(e.id, { loginCodeHash: this.crypto.sha256(`${e.id}|${code}`), loginCodeExpiresAt: new Date(Date.now() + LOGIN_CODE_TTL_MIN * 60_000), loginCodeAttempts: 0 });
+    await this.employees.update(e.id, { loginCodeHash: this.crypto.sha256(`${e.id}|${code}`), loginCodeExpiresAt: expiresAt, loginCodeAttempts: windowOpen ? e.loginCodeAttempts : 0 });
+    const minutes = Math.max(1, Math.ceil((expiresAt.getTime() - now) / 60_000));
     const tenant = await this.tenants.findOneOrFail({ where: { id: tenantId }, select: { id: true, name: true, primaryColor: true } });
-    const ok = await this.mail.sendBadgeCode(email, tenant.name, { locale, code, firstName: tc.decrypt(e.firstNameEnc, 'employee.firstName') ?? '', minutes: LOGIN_CODE_TTL_MIN, primaryColor: tenant.primaryColor });
+    const ok = await this.mail.sendBadgeCode(email, tenant.name, { locale, code, firstName: tc.decrypt(e.firstNameEnc, 'employee.firstName') ?? '', minutes, primaryColor: tenant.primaryColor });
     return { result: ok ? 'SENT' : 'SEND_FAILED', employeeId: e.id };
   }
 
@@ -145,12 +152,13 @@ export class AccessService {
   async activateBadge(tenantId: string, email: string, code: string) {
     const tc = await this.keys.forTenant(tenantId);
     const e = await this.employees.findOne({ where: { tenantId, emailIndex: tc.blindIndex(email.trim().toLowerCase(), 'employee.email')!, active: true, loginCodeExpiresAt: MoreThan(new Date()) } });
-    if (!e || !e.loginCodeHash || e.loginCodeAttempts >= LOGIN_CODE_MAX_ATTEMPTS) throw new BadRequestException('CODE_INVALID');
+    if (!e || !e.loginCodeHash) throw new BadRequestException('CODE_INVALID');
+    // Take one attempt first (conditional UPDATE): parallel guesses cannot go past the limit.
+    const took = await this.employees.createQueryBuilder().update(Employee).set({ loginCodeAttempts: () => 'loginCodeAttempts + 1' })
+      .where('id = :id AND loginCodeAttempts < :max', { id: e.id, max: LOGIN_CODE_MAX_ATTEMPTS }).execute();
+    if (!took.affected) throw new BadRequestException('CODE_INVALID');
     const ok = timingSafeEqual(Buffer.from(e.loginCodeHash), Buffer.from(this.crypto.sha256(`${e.id}|${code}`)));
-    if (!ok) {
-      await this.employees.increment({ id: e.id }, 'loginCodeAttempts', 1);
-      throw new BadRequestException('CODE_INVALID');
-    }
+    if (!ok) throw new BadRequestException('CODE_INVALID');
     const secret = randomBytes(32);
     await this.employees.update(e.id, { credentialSecretEnc: tc.encrypt(secret.toString('base64'), 'employee.credentialSecret'), credentialIssuedAt: new Date(), loginCodeHash: null, loginCodeExpiresAt: null, loginCodeAttempts: 0 });
     const tenant = await this.tenants.findOneOrFail({ where: { id: tenantId }, select: { id: true, name: true } });
@@ -181,7 +189,9 @@ export class AccessService {
           const step = Math.floor(now.getTime() / 1000 / QR_STEP_S);
           const claimed = Number(m[2]);
           const sigOk = timingSafeEqual(Buffer.from(qrSignature(secret, employee.id, claimed)), Buffer.from(m[3]));
-          if (!sigOk) reason = 'QR_INVALID';
+          // The employee id in a QR is readable by anyone: without a valid signature it proves nothing,
+          // so the reader must not show the name nor log the attempt against that person.
+          if (!sigOk) { reason = 'QR_INVALID'; employee = null; }
           else if (claimed > step + 1) reason = 'QR_INVALID';
           else if (claimed < step - 1) reason = step - claimed <= QR_EXPIRED_WINDOW ? 'QR_EXPIRED' : 'QR_INVALID';
         }

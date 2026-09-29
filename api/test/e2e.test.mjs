@@ -270,23 +270,36 @@ describe('end-to-end', { skip: !enabled && 'E2E_DB_HOST not set' }, () => {
     const badge = (await new Client().post('/badge/activate', { email: 'PAOLO@e2e.test', code: '123456' })).data;
     assert.equal(badge.firstName, 'Paolo'); assert.equal(badge.step, 30);
     assert.equal((await new Client().post('/badge/activate', { email: 'paolo@e2e.test', code: '123456' })).data.message, 'CODE_INVALID', 'one use only');
+    // Five wrong guesses use up the budget: even the right code is refused afterwards.
+    await db.query('UPDATE employees SET loginCodeHash = ?, loginCodeExpiresAt = DATE_ADD(UTC_TIMESTAMP(3), INTERVAL 5 MINUTE), loginCodeAttempts = 0 WHERE id = ?', [createHash('sha256').update(`${emp.id}|654321`).digest('hex'), emp.id]);
+    const guesses = await Promise.all(Array.from({ length: 5 }, (_, i) => new Client().post('/badge/activate', { email: 'paolo@e2e.test', code: String(100000 + i) })));
+    assert.ok(guesses.every((g) => g.data.message === 'CODE_INVALID'));
+    assert.equal((await new Client().post('/badge/activate', { email: 'paolo@e2e.test', code: '654321' })).data.message, 'CODE_INVALID', 'attempt budget used up');
     const qr = (stepOffset = 0, secret = badge.secret) => {
       const step = Math.floor(Date.now() / 1000 / 30) + stepOffset;
       return `DRE1:${badge.employeeId}.${step}.${createHmac('sha256', Buffer.from(secret, 'base64')).update(`${badge.employeeId}.${step}`).digest('hex').slice(0, 16)}`;
     };
     assert.equal((await verify(mainReader, { qr: qr() })).result, 'GRANTED');
     assert.equal((await verify(mainReader, { qr: qr(-5) })).reason, 'QR_EXPIRED', 'a screenshot stops working');
-    assert.equal((await verify(mainReader, { qr: qr(0, Buffer.alloc(32).toString('base64')) })).reason, 'QR_INVALID', 'forged signature');
+    const forged = await verify(mainReader, { qr: qr(0, Buffer.alloc(32).toString('base64')) });
+    assert.equal(forged.reason, 'QR_INVALID', 'forged signature');
+    assert.equal(forged.name, null, 'a forged QR does not show the name of the employee it names');
     assert.equal((await verify(mainReader, { qr: 'hello' })).reason, 'QR_INVALID');
 
     assert.equal((await api('PUT', '/employees/E001', { ...person, active: false }, key)).status, 200);
     assert.equal((await verify(mainReader, { nfc: '04A21B9C' })).reason, 'EMPLOYEE_INACTIVE');
     await api('PUT', '/employees/E001', person, key);
+    // A site manager of Rome cannot act on an employee who only opens doors in Milan.
+    await admin.post('/admin/users', { email: 'smroma@e2e.test', displayName: 'SM Roma', role: 'SITE_MANAGER', siteIds: [ctx.roma.id], temporaryPassword: 'Temporary-Pass-333' });
+    const smRoma = new Client('10.9.0.2');
+    await smRoma.signIn('smroma@e2e.test', 'Temporary-Pass-333', 'Sm-Roma-Password-1');
+    assert.equal((await smRoma.post(`/admin/access/employees/${emp.id}/revoke-phone`)).status, 404, 'other sites are out of reach');
     assert.equal((await admin.post(`/admin/access/employees/${emp.id}/revoke-phone`)).status, 200);
     assert.equal((await verify(mainReader, { qr: qr() })).reason, 'UNKNOWN_CREDENTIAL', 'revoked phone badge');
 
     const from = new Date(Date.now() - 3_600_000).toISOString(), to = new Date(Date.now() + 60_000).toISOString();
     const log = (await ctx.aud.get(`/admin/access/events?from=${from}&to=${to}`)).data;
+    assert.ok(log.filter((e) => e.reason === 'QR_INVALID').every((e) => e.employee === null), 'invalid QR codes are not logged against anyone');
     assert.ok(log.length >= 9 && log.some((e) => e.employee === 'Bruni Paolo' && e.result === 'GRANTED'));
     assert.equal((await ctx.rec.get(`/admin/access/events?from=${from}&to=${to}`)).status, 403, 'receptionists do not see the access log');
     // Inbound only: the integration API never returns stored data.
