@@ -139,7 +139,7 @@ export function KioskApp() {
                 <div className="who">{screen.result.label}</div>
                 <div className="code-label" style={{ marginTop: 22 }}>{t.doneCode}</div>
                 <div className="code">{screen.result.code}</div>
-                <div className="badge-qr"><img src={`data:image/svg+xml;utf8,${encodeURIComponent(screen.result.qrSvg)}`} alt={`QR ${screen.result.code}`} /></div>
+                <div className="badge-qr"><img src={`data:image/svg+xml;utf8,${encodeURIComponent(screen.result.qrSvg)}`} alt="" /></div>
                 <div className="site">{cfg.site.name}</div>
               </div>
             </div>

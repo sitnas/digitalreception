@@ -4,7 +4,7 @@ import { fmtDateTime } from '../../lib/format';
 import { useMe } from '../AdminApp';
 import { errorText, useI18n } from '../i18n';
 import type { Notice, Policy } from '../types';
-import { ErrorBox, PageHead, useAsync } from '../ui';
+import { ErrorBox, PageHead, onTabListKeyDown, useAsync } from '../ui';
 
 const LOCALES = ['it', 'es', 'en'] as const;
 
@@ -22,9 +22,9 @@ export function PrivacyPage() {
       <PageHead title={t.privacy.title} intro={editable ? t.privacy.intro : `${t.privacy.intro} ${t.privacy.readOnly}`} />
       <ErrorBox error={policies.error} />
       {policies.data && (
-        <div className="tabs" role="tablist">
+        <div className="tabs" role="tablist" onKeyDown={onTabListKeyDown}>
           {policies.data.map((p) => (
-            <button key={p.countryCode} type="button" role="tab" aria-selected={p.countryCode === current?.countryCode}
+            <button key={p.countryCode} type="button" role="tab" aria-selected={p.countryCode === current?.countryCode} tabIndex={p.countryCode === current?.countryCode ? 0 : -1}
               className="tab" onClick={() => setCc(p.countryCode)}>{p.name}</button>
           ))}
         </div>
@@ -112,8 +112,8 @@ function Notices({ policy, editable }: { policy: Policy; editable: boolean }) {
     <form className="a-card" onSubmit={publish}>
       <h2>{t.privacy.notices}</h2>
       <p className="muted" style={{ marginTop: 0 }}>{t.privacy.noticeIntro}</p>
-      <div className="tabs" role="tablist" style={{ alignItems: 'center' }}>
-        {policy.locales.map((l) => <button key={l} type="button" role="tab" aria-selected={l === locale} className="tab" onClick={() => setLocale(l)}>{l.toUpperCase()}</button>)}
+      <div className="tabs" role="tablist" style={{ alignItems: 'center' }} onKeyDown={onTabListKeyDown}>
+        {policy.locales.map((l) => <button key={l} type="button" role="tab" aria-selected={l === locale} tabIndex={l === locale ? 0 : -1} className="tab" onClick={() => setLocale(l)}>{l.toUpperCase()}</button>)}
         {latest && <span className="muted" style={{ marginLeft: 'auto', fontSize: 13 }}>{t.privacy.version} {latest.version} · {fmtDateTime(latest.createdAt, intl)}</span>}
       </div>
       <ErrorBox error={notices.error} />

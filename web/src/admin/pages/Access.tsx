@@ -164,8 +164,8 @@ export function AccessLogPage() {
         {sites.data && sites.data.length > 1 && <SiteSelect sites={sites.data} value={siteId} onChange={setSiteId} allowAll />}
         <div className="field">
           <span className="label">{t.access.result}</span>
-          <div className="segmented" role="tablist" aria-label={t.access.result}>
-            {(['', 'GRANTED', 'DENIED'] as const).map((r) => <button key={r || 'all'} type="button" role="tab" aria-selected={result === r} onClick={() => setResult(r)}>{r ? t.access.results[r] : t.access.all}</button>)}
+          <div className="segmented" role="group" aria-label={t.access.result}>
+            {(['', 'GRANTED', 'DENIED'] as const).map((r) => <button key={r || 'all'} type="button" aria-pressed={result === r} onClick={() => setResult(r)}>{r ? t.access.results[r] : t.access.all}</button>)}
           </div>
         </div>
       </div>

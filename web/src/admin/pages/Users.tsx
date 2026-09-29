@@ -43,9 +43,9 @@ export function UsersPage() {
       <ErrorBox error={users.error ?? sites.error} />
 
       <div className="toolbar">
-        <div className="segmented" role="tablist" aria-label={t.statusLabel}>
+        <div className="segmented" role="group" aria-label={t.statusLabel}>
           {(['active', 'inactive', 'all'] as Filter[]).map((f) => (
-            <button key={f} type="button" role="tab" aria-selected={filter === f} onClick={() => setFilter(f)}>
+            <button key={f} type="button" aria-pressed={filter === f} onClick={() => setFilter(f)}>
               {t.users.filters[f]} <span className="count">{counts[f]}</span>
             </button>
           ))}
@@ -59,7 +59,7 @@ export function UsersPage() {
             <thead><tr><th>{t.users.person}</th><th>{t.users.role}</th><th>{t.users.sites}</th><th>{t.statusLabel}</th><th>{t.mfa.col}</th><th>{t.users.lastLogin}</th><th><span className="sr-only">{t.users.edit}</span></th></tr></thead>
             <tbody>
               {rows.map((u) => (
-                <tr key={u.id} className="clickable" tabIndex={0} onClick={() => setPanel({ mode: 'edit', user: u })} onKeyDown={(e) => e.key === 'Enter' && setPanel({ mode: 'edit', user: u })}>
+                <tr key={u.id} className="clickable" onClick={() => setPanel({ mode: 'edit', user: u })}>
                   <td data-label={t.users.person}>
                     <span className="person">
                       <span className="avatar" aria-hidden>{initials(u.displayName)}</span>

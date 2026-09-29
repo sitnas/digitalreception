@@ -55,9 +55,9 @@ export function InvitationsPage() {
       <div className="a-filters">
         <div className="field">
           <span className="label">{t.invites.show}</span>
-          <div className="segmented" role="tablist" aria-label={t.invites.show}>
-            <button type="button" role="tab" aria-selected={scope === 'upcoming'} onClick={() => setScope('upcoming')}>{t.invites.upcoming}</button>
-            <button type="button" role="tab" aria-selected={scope === 'past'} onClick={() => setScope('past')}>{t.invites.past}</button>
+          <div className="segmented" role="group" aria-label={t.invites.show}>
+            <button type="button" aria-pressed={scope === 'upcoming'} onClick={() => setScope('upcoming')}>{t.invites.upcoming}</button>
+            <button type="button" aria-pressed={scope === 'past'} onClick={() => setScope('past')}>{t.invites.past}</button>
           </div>
         </div>
         {multiSite && <SiteSelect sites={activeSites} value={siteId} onChange={setSiteId} allowAll />}
