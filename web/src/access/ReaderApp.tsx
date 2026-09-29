@@ -191,8 +191,8 @@ function ReaderScreen({ cfg }: { cfg: Config }) {
       <header className="reader-head">
         <div><strong>{cfg.door.name}</strong><span>{cfg.site.name} · {cfg.organisation.name}</span></div>
         {nfc === 'off' && <button type="button" className="btn btn-ghost btn-sm" onClick={startNfc}>Attiva tessere NFC</button>}
-        {nfc === 'on' && <span className="reader-nfc">NFC attivo</span>}
-        {nfc === 'error' && <span className="reader-nfc off">NFC non disponibile</span>}
+        {nfc === 'on' && <span className="reader-nfc" role="status">NFC attivo</span>}
+        {nfc === 'error' && <span className="reader-nfc off" role="status">NFC non disponibile</span>}
       </header>
       <main className="reader-main">
         {!cfg.door.active && <p className="alert" role="alert">Porta disattivata dalla console</p>}

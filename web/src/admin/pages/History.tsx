@@ -57,8 +57,8 @@ export function HistoryPage() {
             <thead><tr><th>{t.checkIn}</th><th>{t.site}</th><th>{t.visitor}</th><th>{t.company}</th><th>{t.host}</th><th>{t.purpose}</th><th>{t.distance}</th><th>{t.checkOut}</th><th>{t.statusLabel}</th></tr></thead>
             <tbody>
               {list.data?.items.map((v) => (
-                <tr key={v.id} className="clickable" onClick={() => setOpen(v.id)} tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && setOpen(v.id)}>
-                  <td className="num">{fmtDateTime(v.checkInAt, intl, v.siteTimezone ?? undefined)}</td><td>{v.siteName}</td>
+                <tr key={v.id} className="clickable" onClick={() => setOpen(v.id)}>
+                  <td className="num"><button type="button" className="row-link" onClick={(e) => { e.stopPropagation(); setOpen(v.id); }}>{fmtDateTime(v.checkInAt, intl, v.siteTimezone ?? undefined)}</button></td><td>{v.siteName}</td>
                   <td>{v.anonymized ? <span className="muted">—</span> : `${v.firstName} ${v.lastName}`}</td>
                   <td>{v.company ?? '—'}</td><td>{v.host ?? '—'}</td><td>{t.purposes[v.purpose as keyof typeof t.purposes]}</td><td>{v.travelDistance ? t.distances[v.travelDistance as keyof typeof t.distances] : '—'}</td>
                   <td className="num">{fmtDateTime(v.checkOutAt, intl, v.siteTimezone ?? undefined)}</td><td><StatusPill status={v.status} /></td>

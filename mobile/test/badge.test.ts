@@ -49,3 +49,11 @@ test('only a well-formed activation answer is stored', () => {
   assert.equal(isBadge({ ...ok, employeeId: 'x' }), false);
   assert.equal(isBadge(null), false);
 });
+
+test('text on the organisation colour always reaches 4.5:1', async () => {
+  const { onColor, contrast } = await import('../src/lib/color.ts');
+  // The old rule (luminance > 0.4 → dark text) gave white on these mid tones: about 3:1.
+  for (const bg of ['#FFD100', '#2563EB', '#16A34A', '#F97316', '#0E7490', '#DB2777', '#7C3AED', '#888888', '#5F9EA0', '#111111', '#FFFFFF']) {
+    assert.ok(contrast(bg, onColor(bg)) >= 4.5, `${bg} with ${onColor(bg)}: ${contrast(bg, onColor(bg)).toFixed(2)}`);
+  }
+});

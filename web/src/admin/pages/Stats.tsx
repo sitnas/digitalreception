@@ -56,9 +56,9 @@ export function StatsPage() {
         {sites.data && sites.data.length > 1 && <SiteSelect sites={sites.data} value={siteId} onChange={setSiteId} allowAll />}
         <div className="field">
           <span className="label">{t.stats.period}</span>
-          <div className="segmented" role="tablist" aria-label={t.stats.period}>
+          <div className="segmented" role="group" aria-label={t.stats.period}>
             {PRESETS.map((p) => (
-              <button key={p} type="button" role="tab" aria-selected={preset === p} onClick={() => setPreset(p)}>
+              <button key={p} type="button" aria-pressed={preset === p} onClick={() => setPreset(p)}>
                 {p === 'custom' ? t.stats.custom : t.stats.lastDays.replace('{n}', String(p))}
               </button>
             ))}

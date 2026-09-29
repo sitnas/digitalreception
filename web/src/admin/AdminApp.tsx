@@ -350,7 +350,7 @@ function Shell({ branding, me, onLogout }: { branding: Branding; me: Me; onLogou
           <span>{t.roles[me.role]}</span>
           <LangSwitch />
           <NavLink to="account" className="btn-link a-me-link">{t.mfa.nav}</NavLink>
-          <button type="button" className="btn-link" onClick={logout} style={{ justifySelf: 'start' }}>{t.logout}</button>
+          <button type="button" className="btn-link" onClick={logout}>{t.logout}</button>
         </div>
       </aside>
       <main ref={main} className="a-main">

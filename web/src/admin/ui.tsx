@@ -2,6 +2,19 @@ import { ReactNode, useCallback, useEffect, useState } from 'react';
 import { useI18n } from './i18n';
 import type { Site, VisitStatus } from './types';
 
+/** Arrow keys, Home and End move between tabs of a tablist (one Tab stop for the whole list). */
+export function onTabListKeyDown(e: React.KeyboardEvent<HTMLElement>) {
+  const tabs = [...e.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]')];
+  const i = tabs.indexOf(document.activeElement as HTMLButtonElement);
+  if (i < 0) return;
+  const n = tabs.length;
+  const next = e.key === 'ArrowRight' ? (i + 1) % n : e.key === 'ArrowLeft' ? (i - 1 + n) % n : e.key === 'Home' ? 0 : e.key === 'End' ? n - 1 : -1;
+  if (next < 0) return;
+  e.preventDefault();
+  tabs[next].focus();
+  tabs[next].click();
+}
+
 export function PageHead({ title, intro, actions }: { title: string; intro?: string; actions?: ReactNode }) {
   return (
     <div className="a-head">
