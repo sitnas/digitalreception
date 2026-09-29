@@ -27,7 +27,7 @@ npm ci
 npx expo start --tunnel
 ```
 
-Inquadra il QR che compare nel terminale con la fotocamera (iPhone) o con Expo Go (Android). Come indirizzo dell’organizzazione usa quello **https** della console. Da Codespaces: la porta 5173 deve essere impostata come *Public* (tasto destro sulla porta → Port Visibility → Public), altrimenti il telefono riceve la pagina di accesso di GitHub.
+Inquadra il QR che compare nel terminale con la fotocamera (iPhone) o con Expo Go (Android). Come indirizzo dell’organizzazione usa quello **https** della console. Da Codespaces l’indirizzo è quello della porta **8080** (la console, `https://<codespace>-8080.app.github.dev`), da impostare come *Public* (tasto destro sulla porta → Port Visibility → Public), altrimenti il telefono riceve la pagina di accesso di GitHub. La porta 8081 è quella di Metro: la raggiunge già il tunnel di Expo, non va toccata. Per verificare, dal browser del telefono apri l’indirizzo con `/api/tenant` in fondo: deve comparire il nome dell’organizzazione.
 
 ## Pubblicarla
 
