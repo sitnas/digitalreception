@@ -26,5 +26,7 @@ export class Tenant {
   /** White-label colours (#RRGGBB). Null = product defaults. Text colour on top is derived for contrast. */
   @Column({ type: 'varchar', length: 7, nullable: true }) primaryColor: string | null;
   @Column({ type: 'varchar', length: 7, nullable: true }) secondaryColor: string | null;
+  /** Every console user must use two-step verification. */
+  @Column({ default: false }) mfaRequired: boolean;
   @CreateDateColumn({ type: 'datetime', precision: 3, default: () => 'CURRENT_TIMESTAMP(3)' }) createdAt: Date;
 }

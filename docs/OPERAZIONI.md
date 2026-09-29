@@ -28,6 +28,7 @@ In modalità `subdomain` serve un record DNS (o un wildcard `*.BASE_DOMAIN`) e u
 | `suspend --slug acme` / `activate` | blocca o riattiva l'accesso (entro 60 secondi su tutte le repliche); i dati restano e la conservazione continua |
 | `delete --slug acme --confirm acme` | cancellazione definitiva con distruzione delle chiavi |
 | `rewrap-keys` | dopo aver aggiunto una nuova chiave master |
+| `reset-mfa --slug acme --email it@acme.com` | azzera la verifica in due passaggi di un utente (es. l'unico amministratore ha perso telefono e codici di recupero); chiude le sue sessioni. Verificare prima l'identità della persona su un canale indipendente |
 
 Tutti i comandi scrivono un evento nel registro accessi di piattaforma.
 

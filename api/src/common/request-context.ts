@@ -2,7 +2,9 @@ import { Request } from 'express';
 import { Role, TenantStatus } from '../entities';
 
 export interface AuthTenant { id: string; slug: string; name: string; status: TenantStatus }
-export interface AuthUser { id: string; tenantId: string; email: string; displayName: string; role: Role; siteIds: string[]; mustChangePassword: boolean }
+export interface AuthUser { id: string; tenantId: string; email: string; displayName: string; role: Role; siteIds: string[]; mustChangePassword: boolean;
+  /** Two-step verification is on for this user / required by the organisation but not yet set up. */
+  mfaEnabled: boolean; mfaSetupRequired: boolean }
 export interface AuthDevice { id: string; tenantId: string; name: string; siteId: string }
 
 export interface AppRequest extends Request {

@@ -3,6 +3,7 @@ import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { ApiError, api } from '../lib/api';
 import { applyBrand } from '../lib/theme';
 import { ADMIN_STRINGS, AdminLocale, I18nContext, useI18n } from './i18n';
+import { AccountPage, MfaEnroll, RecoveryCodes } from './pages/Account';
 import { AuditPage } from './pages/Audit';
 import { DevicesPage } from './pages/Devices';
 import { HistoryPage } from './pages/History';
@@ -71,6 +72,7 @@ export function AdminApp() {
         me === null || !branding ? null :
         me === 'anon' ? <LoginScreen branding={branding} onLoggedIn={loadMe} /> :
         me.mustChangePassword ? <ChangePasswordScreen branding={branding} onDone={() => setMe('anon')} /> :
+        me.mfaSetupRequired ? <MfaSetupScreen branding={branding} onDone={loadMe} /> :
         <MeContext.Provider value={me}><Shell branding={branding} me={me} onLogout={() => setMe('anon')} /></MeContext.Provider>}
     </I18nContext.Provider>
   );
@@ -166,12 +168,51 @@ function LoginScreen({ branding, onLoggedIn }: { branding: Branding; onLoggedIn:
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Second step: the password was right, the server wants a code before opening a session.
+  const [mfaToken, setMfaToken] = useState<string | null>(null);
+  const [code, setCode] = useState('');
+  const [recovery, setRecovery] = useState(false);
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault(); setBusy(true); setError(null);
-    try { await api.post('/auth/login', { email, password }); setPassword(''); onLoggedIn(); }
-    catch (err) { setError(err instanceof ApiError && err.status === 401 ? t.login.invalid : err instanceof ApiError && err.status === 429 ? t.login.invalid : t.errors.generic); }
+    try {
+      const r = await api.post<{ mfaRequired?: boolean; mfaToken?: string }>('/auth/login', { email, password });
+      setPassword('');
+      if (r.mfaRequired && r.mfaToken) { setMfaToken(r.mfaToken); setCode(''); setRecovery(false); } else onLoggedIn();
+    }
+    catch (err) { setError(err instanceof ApiError && (err.status === 401 || err.status === 429) ? t.login.invalid : t.errors.generic); }
     finally { setBusy(false); }
   };
+  const verify = async (e: React.FormEvent) => {
+    e.preventDefault(); setBusy(true); setError(null);
+    try { await api.post('/auth/login/mfa', { mfaToken, code }); onLoggedIn(); }
+    catch (err) {
+      if (err instanceof ApiError && err.code === 'MFA_SESSION_EXPIRED') { setMfaToken(null); setError(t.mfa.expired); }
+      else setError(err instanceof ApiError && (err.status === 401 || err.status === 429) ? t.mfa.invalid : t.errors.generic);
+      setCode('');
+    }
+    finally { setBusy(false); }
+  };
+
+  if (mfaToken) return (
+    <AuthLayout branding={branding}>
+      <form onSubmit={verify}>
+        <h1>{t.mfa.loginTitle}</h1>
+        <p className="muted" style={{ margin: 0 }}>{recovery ? t.mfa.recoveryLoginIntro : t.mfa.loginIntro}</p>
+        <div className="field">
+          <label htmlFor="otp">{recovery ? t.mfa.recoveryLabel : t.mfa.code}</label>
+          {recovery
+            ? <input id="otp" key="rc" className="input mfa-code-input" autoComplete="off" autoCapitalize="characters" spellCheck={false} maxLength={11} placeholder="XXXXX-XXXXX" value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} required autoFocus />
+            : <input id="otp" key="totp" className="input mfa-code-input" inputMode="numeric" autoComplete="one-time-code" pattern="\d{6}" maxLength={6} placeholder="123456" value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} required autoFocus />}
+        </div>
+        {error && <p className="alert" role="alert">{error}</p>}
+        <button className="btn btn-primary" disabled={busy || (!recovery && code.length !== 6)}>{t.mfa.verify}</button>
+        <button type="button" className="btn-link" onClick={() => { setRecovery(!recovery); setCode(''); setError(null); }}>{recovery ? t.mfa.useApp : t.mfa.useRecovery}</button>
+        <button type="button" className="btn-link" onClick={() => { setMfaToken(null); setError(null); }}>{t.mfa.back}</button>
+      </form>
+    </AuthLayout>
+  );
+
   return (
     <AuthLayout branding={branding}>
       <form onSubmit={submit}>
@@ -182,6 +223,27 @@ function LoginScreen({ branding, onLoggedIn }: { branding: Branding; onLoggedIn:
         <button className="btn btn-primary" disabled={busy}>{t.login.submit}</button>
         <LangSwitch />
       </form>
+    </AuthLayout>
+  );
+}
+
+/** The organisation requires two-step verification and this user has not set it up yet. */
+function MfaSetupScreen({ branding, onDone }: { branding: Branding; onDone: () => void }) {
+  const { t } = useI18n();
+  const [codes, setCodes] = useState<string[] | null>(null);
+  const logout = async () => { try { await api.post('/auth/logout'); } finally { location.reload(); } };
+  return (
+    <AuthLayout branding={branding}>
+      <div className="stack login-wide">
+        {codes ? <RecoveryCodes codes={codes} onDone={onDone} /> : (
+          <>
+            <h1>{t.mfa.forcedTitle}</h1>
+            <p className="muted" style={{ margin: 0 }}>{t.mfa.forcedIntro}</p>
+            <MfaEnroll onEnabled={setCodes} />
+            <button type="button" className="btn-link" style={{ justifySelf: 'start' }} onClick={logout}>{t.logout}</button>
+          </>
+        )}
+      </div>
     </AuthLayout>
   );
 }
@@ -220,6 +282,7 @@ function Shell({ branding, me, onLogout }: { branding: Branding; me: Me; onLogou
   const home = items[0]?.to ?? 'today';
   const { pathname } = useLocation();
   const current = items.find((n) => pathname.startsWith(`/admin/${n.to}`));
+  const title = current ? t.nav[current.key] : pathname.startsWith('/admin/account') ? t.mfa.nav : branding.name;
   const [menuOpen, setMenuOpen] = useState(false);
   const menuBtn = useRef<HTMLButtonElement>(null);
   const side = useRef<HTMLElement>(null);
@@ -244,7 +307,7 @@ function Shell({ branding, me, onLogout }: { branding: Branding; me: Me; onLogou
         <button ref={menuBtn} type="button" className="a-menu-btn" aria-expanded={menuOpen} aria-controls="a-side" aria-label={menuOpen ? t.closeMenu : t.openMenu} onClick={() => setMenuOpen((o) => !o)}>
           <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>{menuOpen ? <path d="M6 6l12 12M18 6L6 18" /> : <path d="M4 7h16M4 12h16M4 17h16" />}</svg>
         </button>
-        <span className="a-topbar-title">{current ? t.nav[current.key] : branding.name}</span>
+        <span className="a-topbar-title">{title}</span>
         <img src={branding.logo ?? '/icon.svg'} alt="" className={`a-topbar-logo${branding.logo ? ' logo' : ''}`} />
       </header>
       {menuOpen && <div className="a-scrim" onClick={() => setMenuOpen(false)} aria-hidden />}
@@ -265,6 +328,7 @@ function Shell({ branding, me, onLogout }: { branding: Branding; me: Me; onLogou
           <strong>{me.displayName}</strong>
           <span>{t.roles[me.role]}</span>
           <LangSwitch />
+          <NavLink to="account" className="btn-link a-me-link">{t.mfa.nav}</NavLink>
           <button type="button" className="btn-link" onClick={logout} style={{ justifySelf: 'start' }}>{t.logout}</button>
         </div>
       </aside>
@@ -286,6 +350,7 @@ function Shell({ branding, me, onLogout }: { branding: Branding; me: Me; onLogou
           {items.some((i) => i.to === 'privacy') && <Route path="privacy" element={<PrivacyPage />} />}
           {items.some((i) => i.to === 'audit') && <Route path="audit" element={<AuditPage />} />}
           {items.some((i) => i.to === 'organisation') && <Route path="organisation" element={<OrganisationPage />} />}
+          <Route path="account" element={<AccountPage />} />
           <Route path="*" element={<Navigate to={home} replace />} />
         </Routes>
       </main>

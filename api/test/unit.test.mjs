@@ -106,3 +106,23 @@ test('phone badge QR signature matches the one computed by the browser', () => {
   assert.notEqual(qrSignature(secret, 'emp-1', 124), sig, 'changes every step');
   assert.equal(normaliseBadgeUid('04:a2-1b 9c'), '04A21B9C');
 });
+
+test('TOTP matches the RFC 6238 test vectors and refuses replays', () => {
+  const { base32Encode, base32Decode, totpCode, verifyTotp, hashRecoveryCode, newRecoveryCodes } = require('../dist/common/totp.js');
+  const secret = base32Encode(Buffer.from('12345678901234567890'));
+  assert.equal(secret, 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ');
+  assert.equal(base32Decode(secret).toString(), '12345678901234567890');
+  // RFC 6238 appendix B (SHA-1), last 6 of the 8 digits.
+  for (const [t, code] of [[59, '287082'], [1111111109, '081804'], [1111111111, '050471'], [1234567890, '005924'], [2000000000, '279037']]) {
+    assert.equal(totpCode(secret, Math.floor(t / 30)), code);
+  }
+  const at = 1234567890_000, step = Math.floor(at / 30000);
+  assert.equal(verifyTotp(secret, '005924', null, at), step);
+  assert.equal(verifyTotp(secret, '005924', step, at), null, 'same step twice');
+  assert.equal(verifyTotp(secret, totpCode(secret, step - 1), null, at), step - 1, 'one step of drift');
+  assert.equal(verifyTotp(secret, totpCode(secret, step - 2), null, at), null);
+  assert.equal(verifyTotp(secret, 'abcdef', null, at), null);
+  const codes = newRecoveryCodes();
+  assert.equal(new Set(codes).size, 10);
+  assert.equal(hashRecoveryCode(codes[0]), hashRecoveryCode(codes[0].toLowerCase().replace('-', '')));
+});

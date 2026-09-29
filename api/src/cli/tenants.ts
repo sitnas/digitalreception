@@ -20,6 +20,7 @@ import { AccessEvent, AccessRule, ApiKey, Door, DoorReader, Employee, ActorType,
  *   npm run tenant -- suspend --slug acme      |  activate --slug acme
  *   npm run tenant -- delete --slug acme --confirm acme     (crypto-shredding, irreversible)
  *   npm run tenant -- rewrap-keys                            (after adding a new MASTER_KEYS entry)
+ *   npm run tenant -- reset-mfa --slug acme --email it@acme.com   (last resort: the only administrator lost phone and recovery codes)
  */
 function args() {
   const [cmd, ...rest] = process.argv.slice(2);
@@ -136,8 +137,19 @@ async function main() {
         console.log(`${n} tenants re-wrapped with the active master key. Old master keys can be removed after all replicas restart.`);
         break;
       }
+      case 'reset-mfa': {
+        const t = await tenants.findOne({ where: { slug: opts.slug } });
+        if (!t) throw new Error('Tenant not found');
+        const users = ds.getRepository(User);
+        const u = await users.findOne({ where: { tenantId: t.id, email: (opts.email ?? '').trim().toLowerCase() } });
+        if (!u) throw new Error('User not found');
+        await users.update(u.id, { mfaEnabledAt: null, mfaSecretEnc: null, mfaLastStep: null, mfaRecoveryHashes: null, sessionVersion: u.sessionVersion + 1 });
+        await platformAudit(ds, 'USER_MFA_RESET', { slug: t.slug, userId: u.id });
+        console.log(`Two-step verification reset for ${u.email}: sessions revoked, set-up asked again at the next login${t.mfaRequired ? ' (required by the organisation)' : ''}.`);
+        break;
+      }
       default:
-        console.log('Commands: create | list | limits | suspend | activate | delete | rewrap-keys  (see header of src/cli/tenants.ts)');
+        console.log('Commands: create | list | limits | suspend | activate | delete | rewrap-keys | reset-mfa  (see header of src/cli/tenants.ts)');
         process.exitCode = 1;
     }
   } finally {

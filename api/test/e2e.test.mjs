@@ -25,15 +25,18 @@ const env = {
   MASTER_KEYS: `k1:${randomBytes(32).toString('base64')}`, JWT_SECRET: randomBytes(48).toString('base64'),
   DB_TYPE: 'mysql', DB_HOST: process.env.E2E_DB_HOST, DB_PORT: process.env.E2E_DB_PORT ?? '3306',
   DB_NAME: process.env.E2E_DB_NAME ?? 'reception', DB_USER: process.env.E2E_DB_USER ?? 'reception', DB_PASSWORD: process.env.E2E_DB_PASSWORD ?? 'reception',
-  STORAGE_DRIVER: 'local', FILES_DIR: mkdtempSync(join(tmpdir(), 'e2e-files-')), COOKIE_SECURE: 'false', TRUST_PROXY: '0',
+  STORAGE_DRIVER: 'local', FILES_DIR: mkdtempSync(join(tmpdir(), 'e2e-files-')), COOKIE_SECURE: 'false', TRUST_PROXY: '1',
   SMTP_HOST: '', JOBS_ENABLED: 'false',
 };
 
 /** Minimal client: keeps the session cookie and sends the CSRF header like the console does. */
 class Client {
   cookie = '';
+  /** `ip` (sent as X-Forwarded-For) gives a test its own rate-limit bucket for the sign-in endpoints. */
+  constructor(ip) { this.ip = ip; }
   async req(method, path, body, { bearer, csrf = true } = {}) {
     const headers = {};
+    if (this.ip) headers['X-Forwarded-For'] = this.ip;
     if (csrf && !bearer) headers['X-Requested-With'] = 'reception-admin';
     if (bearer) headers.Authorization = `Bearer ${bearer}`;
     if (this.cookie) headers.Cookie = this.cookie;
@@ -294,6 +297,83 @@ describe('end-to-end', { skip: !enabled && 'E2E_DB_HOST not set' }, () => {
     await db.end();
     assert.equal(Number(orphan.n), 0, 'deleting the employee unlinks the log');
     assert.equal((await verify(mainReader, { nfc: '04A21B9C' })).reason, 'UNKNOWN_CREDENTIAL');
+  });
+
+  test('two-step verification: enrolment, login with code or recovery code, no replay, organisation policy, reset', async () => {
+    const { totpCode, totpStep } = require('../dist/common/totp.js');
+    const MFA_IP = '10.9.0.1';
+    await admin.post('/admin/users', { email: 'mfa@e2e.test', displayName: 'Mfa User', role: 'AUDITOR', siteIds: [], temporaryPassword: 'Temporary-Pass-111' });
+    await admin.post('/admin/users', { email: 'nomfa@e2e.test', displayName: 'No Mfa', role: 'AUDITOR', siteIds: [], temporaryPassword: 'Temporary-Pass-222' });
+    const u = new Client(MFA_IP);
+    await u.signIn('mfa@e2e.test', 'Temporary-Pass-111', 'Mfa-User-Password-1');
+    assert.deepEqual((await u.get('/auth/mfa')).data, { enabled: false, enabledAt: null, required: false, recoveryCodesLeft: 0 });
+
+    // Enrolment: the secret works only after a correct first code.
+    assert.equal((await u.post('/auth/mfa/enable', { code: '123456' })).status, 409, 'enable before setup');
+    const setup = (await u.post('/auth/mfa/setup')).data;
+    assert.match(setup.otpauthUrl, /^otpauth:\/\/totp\/E2E%20S\.p\.A\.%3Amfa%40e2e\.test\?secret=[A-Z2-7]+&issuer=/);
+    assert.match(setup.qrSvg, /^<svg/);
+    const now = totpStep();
+    const wrong = String((Number(totpCode(setup.secret, now)) + 1) % 1e6).padStart(6, '0');
+    assert.equal((await u.post('/auth/mfa/enable', { code: wrong })).status, 401);
+    const enabled = await u.post('/auth/mfa/enable', { code: totpCode(setup.secret, now) });
+    assert.equal(enabled.status, 200);
+    assert.equal(enabled.data.recoveryCodes.length, 10);
+    assert.match(enabled.data.recoveryCodes[0], /^[A-Z2-9]{5}-[A-Z2-9]{5}$/);
+    assert.equal((await u.post('/auth/mfa/setup')).status, 409, 'already enabled');
+
+    // Login: the password alone gives no session, only a short ticket that is not a session cookie.
+    const c = new Client(MFA_IP);
+    const first = await c.post('/auth/login', { email: 'mfa@e2e.test', password: 'Mfa-User-Password-1' });
+    assert.equal(first.data.mfaRequired, true);
+    assert.equal(c.cookie, '');
+    assert.equal((await c.get('/auth/me')).status, 401);
+    c.cookie = `rs_session=${first.data.mfaToken}`;
+    assert.equal((await c.get('/auth/me')).status, 401, 'the ticket is not a session');
+    c.cookie = '';
+    // The code used for enrolment cannot be used again; the next one can, once.
+    assert.equal((await c.post('/auth/login/mfa', { mfaToken: first.data.mfaToken, code: totpCode(setup.secret, now) })).data.message, 'MFA_CODE_INVALID');
+    const next = totpCode(setup.secret, now + 1);
+    assert.equal((await c.post('/auth/login/mfa', { mfaToken: first.data.mfaToken, code: next })).status, 200);
+    assert.equal((await c.get('/auth/me')).data.mfaEnabled, true);
+    const again = new Client(MFA_IP);
+    const t2 = (await again.post('/auth/login', { email: 'mfa@e2e.test', password: 'Mfa-User-Password-1' })).data.mfaToken;
+    assert.equal((await again.post('/auth/login/mfa', { mfaToken: t2, code: next })).status, 401, 'replayed code');
+    // Recovery code: works once, lower-case and without the dash too.
+    const rc = enabled.data.recoveryCodes[0];
+    assert.equal((await again.post('/auth/login/mfa', { mfaToken: t2, code: rc.replace('-', '').toLowerCase() })).status, 200);
+    assert.equal((await again.get('/auth/mfa')).data.recoveryCodesLeft, 9);
+    const t3 = (await new Client(MFA_IP).post('/auth/login', { email: 'mfa@e2e.test', password: 'Mfa-User-Password-1' })).data.mfaToken;
+    assert.equal((await new Client(MFA_IP).post('/auth/login/mfa', { mfaToken: t3, code: rc })).status, 401, 'recovery code used twice');
+    assert.equal((await new Client(MFA_IP).post('/auth/login/mfa', { mfaToken: 'not-a-token', code: '123456' })).data.message, 'MFA_SESSION_EXPIRED');
+
+    // Organisation policy: only an administrator who already uses it can require it.
+    assert.equal((await admin.patch('/admin/organisation', { mfaRequired: true })).data.message, 'MFA_SELF_FIRST');
+    const aSetup = (await admin.post('/auth/mfa/setup')).data;
+    assert.equal((await admin.post('/auth/mfa/enable', { code: totpCode(aSetup.secret, totpStep()) })).status, 200);
+    assert.equal((await admin.patch('/admin/organisation', { mfaRequired: true })).status, 200);
+    assert.equal((await admin.get('/admin/organisation')).data.mfaRequired, true);
+    const n = new Client(MFA_IP);
+    await n.signIn('nomfa@e2e.test', 'Temporary-Pass-222', 'No-Mfa-Password-12');
+    assert.equal((await n.get('/auth/me')).data.mfaSetupRequired, true);
+    assert.equal((await n.get('/admin/visits')).data.message, 'MFA_SETUP_REQUIRED');
+    assert.equal((await n.get('/auth/mfa')).data.required, true);
+    assert.equal((await again.post('/auth/mfa/disable', { password: 'Mfa-User-Password-1', code: enabled.data.recoveryCodes[1] })).data.message, 'MFA_REQUIRED_BY_ORGANISATION');
+    assert.equal((await admin.patch('/admin/organisation', { mfaRequired: false })).status, 200);
+    assert.equal((await n.get('/auth/me')).data.mfaSetupRequired, false);
+
+    // Disabling needs password + code; an administrator can reset someone who lost the phone.
+    assert.equal((await again.post('/auth/mfa/disable', { password: 'wrong-password-xx', code: enabled.data.recoveryCodes[1] })).status, 401);
+    const users = (await admin.get('/admin/users')).data;
+    const mfaUser = users.find((x) => x.email === 'mfa@e2e.test');
+    assert.ok(mfaUser.mfaEnabledAt);
+    assert.equal(mfaUser.mfaSecretEnc, undefined);
+    const me = users.find((x) => x.email === 'admin@e2e.test');
+    assert.equal((await admin.post(`/admin/users/${me.id}/reset-mfa`)).data.message, 'CANNOT_RESET_OWN_MFA');
+    assert.equal((await admin.post(`/admin/users/${mfaUser.id}/reset-mfa`)).status, 200);
+    assert.equal((await again.get('/auth/me')).status, 401, 'sessions revoked');
+    const plain = new Client(MFA_IP);
+    assert.equal((await plain.post('/auth/login', { email: 'mfa@e2e.test', password: 'Mfa-User-Password-1' })).data.ok, true);
   });
 
   test('deleting the tenant removes its host directory too', async () => {
