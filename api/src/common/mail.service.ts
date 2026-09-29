@@ -159,7 +159,7 @@ const BADGE_CODE_STRINGS = {
 };
 
 const INVITE_STRINGS = {
-  it: { subject: 'Il tuo invito', hello: 'Gentile {name}, sei atteso/a per una visita.', host: 'Ti aspetta', when: 'Quando', site: 'Sede', code: 'Codice invito',
+  it: { subject: 'Il tuo invito', hello: 'Gentile {name}, ti aspettiamo per una visita.', host: 'Ti aspetta', when: 'Quando', site: 'Sede', code: 'Codice invito',
     how: 'All’arrivo tocca “Ho un invito” sul tablet della reception e mostra questo QR alla fotocamera: i tuoi dati saranno già compilati, dovrai solo leggere l’informativa privacy e firmare.',
     privacy: '{org} ha registrato nome, azienda ed email solo per preparare questa visita. I dati dell’invito vengono cancellati pochi giorni dopo la data prevista.' },
   es: { subject: 'Su invitación', hello: 'Estimado/a {name}, le esperamos para una visita.', host: 'Le espera', when: 'Cuándo', site: 'Sede', code: 'Código de invitación',
