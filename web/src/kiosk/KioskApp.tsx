@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError, api, deviceToken } from '../lib/api';
 import { applyBrand } from '../lib/theme';
+import { dateTimeFormat } from '../lib/format';
 import { CheckIn, CheckInResult } from './CheckIn';
 import { CheckOut } from './CheckOut';
 import { InviteScan, type Invite } from './InviteScan';
@@ -178,8 +179,8 @@ function Clock({ timezone, locale }: { timezone: string; locale: Locale }) {
   const loc = locale === 'en' ? 'en-GB' : locale;
   return (
     <div className="k-clock" aria-hidden>
-      <strong>{new Intl.DateTimeFormat(loc, { hour: '2-digit', minute: '2-digit', timeZone: timezone }).format(now)}</strong>
-      <span>{new Intl.DateTimeFormat(loc, { weekday: 'long', day: 'numeric', month: 'long', timeZone: timezone }).format(now)}</span>
+      <strong>{dateTimeFormat(loc, { hour: '2-digit', minute: '2-digit', timeZone: timezone }).format(now)}</strong>
+      <span>{dateTimeFormat(loc, { weekday: 'long', day: 'numeric', month: 'long', timeZone: timezone }).format(now)}</span>
     </div>
   );
 }

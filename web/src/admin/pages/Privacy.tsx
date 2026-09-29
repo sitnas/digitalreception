@@ -91,15 +91,19 @@ function Notices({ policy, editable }: { policy: Policy; editable: boolean }) {
   const notices = useAsync(() => api.get<Notice[]>(`/admin/notices?countryCode=${policy.countryCode}`), [policy.countryCode]);
   const [locale, setLocale] = useState(policy.defaultLocale);
   const latest = notices.data?.find((n) => n.locale === locale);
-  const [draft, setDraft] = useState<{ title: string; body: string } | null>(null);
+  // Unsaved edits per language (user intent); otherwise the text shows the published version.
+  // Switching language tab no longer throws away what was typed in the other one.
+  const [drafts, setDrafts] = useState<Record<string, { title: string; body: string }>>({});
+  const draft = notices.data ? drafts[locale] ?? (latest ? { title: latest.title, body: latest.body } : { title: '', body: '' }) : null;
+  const setDraft = (d: { title: string; body: string }) => setDrafts((all) => ({ ...all, [locale]: d }));
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  useEffect(() => { setDraft(latest ? { title: latest.title, body: latest.body } : { title: '', body: '' }); }, [latest]);
 
   const publish = async (e: React.FormEvent) => {
     e.preventDefault(); if (!draft) return; setMsg(null);
     try {
       const n = await api.post<Notice>('/admin/notices', { countryCode: policy.countryCode, locale, ...draft });
-      setMsg({ ok: true, text: `${t.privacy.published} ${n.version}.` }); notices.reload();
+      setMsg({ ok: true, text: `${t.privacy.published} ${n.version}.` });
+      setDrafts(({ [locale]: _published, ...rest }) => rest); notices.reload();
     } catch (err) { setMsg({ ok: false, text: errorText(t, err) }); }
   };
   const unchanged = !!latest && !!draft && draft.title === latest.title && draft.body === latest.body;

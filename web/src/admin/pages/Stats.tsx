@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { api, qs } from '../../lib/api';
-import { dayEnd, dayStart, todayIso } from '../../lib/format';
+import { dateTimeFormat, dayEnd, dayStart, numberFormat, todayIso } from '../../lib/format';
 import { BarList, ColumnChart, DataTable, Datum } from '../charts';
 import { useI18n } from '../i18n';
 import type { Site } from '../types';
@@ -29,12 +29,13 @@ export function StatsPage() {
   const stats = useAsync(() => api.get<Stats>(`/admin/stats${qs({ siteId, from: dayStart(range.from), to: dayEnd(range.to) })}`), [siteId, range.from, range.to]);
   const s = stats.data;
 
-  const n = (v: number) => new Intl.NumberFormat(intl, { maximumFractionDigits: 1 }).format(v);
+  const n = (v: number) => numberFormat(intl, { maximumFractionDigits: 1 }).format(v);
   const dur = (m: number | null) => (m === null ? '—' : m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')}`);
   const peakHour = s && s.total ? s.byHour.indexOf(Math.max(...s.byHour)) : null;
-  const dayFmt = new Intl.DateTimeFormat(intl, { day: 'numeric', month: 'short', timeZone: 'UTC' });
-  const dayLong = new Intl.DateTimeFormat(intl, { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
-  const weekdays = Array.from({ length: 7 }, (_, i) => new Intl.DateTimeFormat(intl, { weekday: 'short', timeZone: 'UTC' }).format(new Date(Date.UTC(2024, 0, 1 + i))));
+  const dayFmt = dateTimeFormat(intl, { day: 'numeric', month: 'short', timeZone: 'UTC' });
+  const dayLong = dateTimeFormat(intl, { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
+  const weekdayFmt = dateTimeFormat(intl, { weekday: 'short', timeZone: 'UTC' });
+  const weekdays = Array.from({ length: 7 }, (_, i) => weekdayFmt.format(new Date(Date.UTC(2024, 0, 1 + i))));
 
   const byDay: Datum[] = s?.byDay.map((d) => { const dt = new Date(`${d.date}T00:00:00Z`); return { key: d.date, label: dayFmt.format(dt), tip: dayLong.format(dt), value: d.count }; }) ?? [];
   const every = Math.max(1, Math.ceil(byDay.length / 8));

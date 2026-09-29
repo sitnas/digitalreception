@@ -120,13 +120,13 @@ function MfaPolicyCard({ required, onChanged, t }: { required: boolean; onChange
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
-  // Optimistic: the box moves at once and goes back if the server refuses.
-  const [value, setValue] = useState(required);
-  useEffect(() => setValue(required), [required]);
+  // Optimistic: the box moves at once (the user's choice), falls back to the server value otherwise.
+  const [choice, setChoice] = useState<boolean | undefined>(undefined);
+  const value = choice ?? required;
   const toggle = async (on: boolean) => {
-    setValue(on); setBusy(true); setError(null); setSaved(false);
+    setChoice(on); setBusy(true); setError(null); setSaved(false);
     try { await api.patch('/admin/organisation', { mfaRequired: on }); onChanged(); setSaved(true); }
-    catch (err) { setValue(!on); setError(errorText(t, err)); }
+    catch (err) { setChoice(undefined); setError(errorText(t, err)); }
     finally { setBusy(false); }
   };
   return (
@@ -169,8 +169,10 @@ function ColorField({ id, label, hint, presets, value, onChange, customLabel }: 
   id: string; label: string; hint: string; presets: string[]; value: string; onChange: (v: string) => void; customLabel: string;
 }) {
   const names: Record<string, string> = useI18n().t.org.colorNames;
-  const [text, setText] = useState(value);
-  useEffect(() => setText(value), [value]);
+  // What the user is typing, remembered only while the colour it was typed against is still current:
+  // a swatch click or "reset colours" in the parent simply shows the new value.
+  const [draft, setDraft] = useState<{ text: string; for: string } | undefined>(undefined);
+  const text = draft && draft.for === value ? draft.text : value;
   return (
     <div className="field">
       <span className="label" id={`${id}-l`}>{label}</span>
@@ -181,7 +183,7 @@ function ColorField({ id, label, hint, presets, value, onChange, customLabel }: 
         <span className="swatch-custom">
           <input type="color" aria-label={`${label} – ${customLabel}`} value={value} onChange={(e) => onChange(e.target.value.toUpperCase())} />
           <input id={id} className="input" value={text} maxLength={7} spellCheck={false} aria-label={`${label} (hex)`}
-            onChange={(e) => { const v = e.target.value.trim(); setText(v); if (isHex(v)) onChange(v.toUpperCase()); }} />
+            onChange={(e) => { const v = e.target.value.trim(); const next = isHex(v) ? v.toUpperCase() : value; setDraft({ text: v, for: next }); if (next !== value) onChange(next); }} />
         </span>
       </div>
       <span className="hint">{hint}</span>
