@@ -1,10 +1,11 @@
 import * as Brightness from 'expo-brightness';
 import { useKeepAwake } from 'expo-keep-awake';
 import { usePreventScreenCapture } from 'expo-screen-capture';
-import { useEffect, useMemo, useState } from 'react';
-import { Alert, AppState, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Alert, AppState, Platform, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { BadgeNfc } from '../../modules/badge-nfc';
 import { serverClockOffsetMs } from '../lib/api';
 import { qrPayload, stepAt, type Badge } from '../lib/badge';
 import { useBadge } from '../lib/badge-context';
@@ -31,6 +32,38 @@ function useFullBrightness() {
   }, []);
 }
 
+type NfcState = 'ready' | 'off' | 'dev-build' | 'none';
+
+/**
+ * Android: the phone also answers NFC readers as a card carrying the same code as the QR, but
+ * only while this screen is open and the app is in front (and, by system rule, the phone unlocked).
+ */
+function useNfcCard(value: string): [NfcState, () => void] {
+  const [state, setState] = useState<NfcState>('none');
+  const latest = useRef(value);
+  latest.current = value;
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    if (!BadgeNfc) { setState(__DEV__ ? 'dev-build' : 'none'); return; }
+    if (!BadgeNfc.isSupported()) return;
+    // Back in front (maybe after turning NFC on in the settings): answer again with the current code.
+    const refresh = () => {
+      const on = BadgeNfc!.isEnabled();
+      setState(on ? 'ready' : 'off');
+      BadgeNfc!.setPayload(on ? latest.current : null);
+    };
+    refresh();
+    const sub = AppState.addEventListener('change', (s) => {
+      if (s === 'active') refresh();
+      else BadgeNfc!.setPayload(null); // app in background: stop answering readers
+    });
+    return () => { sub.remove(); BadgeNfc!.setPayload(null); };
+  }, []);
+  // Same code as the QR, renewed every step.
+  useEffect(() => { if (state === 'ready') BadgeNfc?.setPayload(value); }, [state, value]);
+  return [state, () => BadgeNfc?.openSettings()];
+}
+
 export function BadgeScreen({ badge }: { badge: Badge }) {
   const theme = useTheme(badge.primaryColor);
   const { remove } = useBadge();
@@ -45,6 +78,7 @@ export function BadgeScreen({ badge }: { badge: Badge }) {
   // HMAC once per step, not once per second.
   const value = useMemo(() => qrPayload(badge, step), [badge, step]);
 
+  const [nfc, openNfcSettings] = useNfcCard(value);
   const [clockOff, setClockOff] = useState(false);
   useEffect(() => { serverClockOffsetMs(badge.origin).then((ms) => setClockOff(ms !== null && Math.abs(ms) > CLOCK_TOLERANCE_S * 1000)); }, [badge.origin]);
 
@@ -69,8 +103,16 @@ export function BadgeScreen({ badge }: { badge: Badge }) {
           </View>
           <Text style={[styles.small, { color: theme.ink2 }]}>{t.next.replace('{n}', String(left))}</Text>
           <Text style={[styles.hint, { color: theme.ink }]}>{t.hint}</Text>
+          {nfc === 'ready' ? <Text style={[styles.nfc, { color: theme.ink }]}>{t.nfcReady}</Text> : null}
+          {nfc === 'dev-build' ? <Text style={[styles.small, { color: theme.ink2, textAlign: 'center' }]}>{t.nfcDevBuild}</Text> : null}
           {clockOff ? <Text accessibilityRole="alert" style={[styles.warn, { color: theme.danger }]}>{t.clock}</Text> : null}
         </View>
+        {nfc === 'off' ? (
+          <View style={styles.nfcOff}>
+            <Text style={[styles.small, { color: theme.ink2, textAlign: 'center' }]}>{t.nfcOff}</Text>
+            <Button label={t.nfcOpen} kind="ghost" theme={theme} onPress={openNfcSettings} />
+          </View>
+        ) : null}
         <Button label={t.remove} kind="ghost" theme={theme} onPress={confirmRemove} />
       </ScrollView>
     </SafeAreaView>
@@ -89,4 +131,6 @@ const styles = StyleSheet.create({
   small: { fontSize: 14, fontVariant: ['tabular-nums'] },
   hint: { fontSize: 16, textAlign: 'center', lineHeight: 22 },
   warn: { fontSize: 14, fontWeight: '700', textAlign: 'center' },
+  nfc: { fontSize: 15, textAlign: 'center', fontWeight: '700' },
+  nfcOff: { gap: 8 },
 });
