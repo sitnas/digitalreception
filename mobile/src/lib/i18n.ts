@@ -4,8 +4,8 @@ const STRINGS = {
   it: {
     title: 'Il mio badge',
     orgTitle: 'La tua organizzazione',
-    orgIntro: 'Scrivi l’indirizzo della console della tua azienda, lo trovi nell’email di benvenuto o chiedilo all’ufficio del personale.',
-    orgLabel: 'Indirizzo',
+    orgIntro: 'Scrivi l’indirizzo della console della tua azienda (quello che apri nel browser per accedere): lo trovi nell’email di benvenuto o chiedilo all’ufficio del personale.',
+    orgLabel: 'Indirizzo', orgExample: 'es. https://azienda.esempio.it',
     orgNext: 'Continua',
     orgInvalid: 'Indirizzo non valido: deve iniziare con https:// oppure essere del tipo azienda.esempio.it.',
     orgUnreachable: 'Non trovo un’organizzazione a questo indirizzo. Controlla e riprova.',
@@ -30,8 +30,8 @@ const STRINGS = {
   es: {
     title: 'Mi credencial',
     orgTitle: 'Su organización',
-    orgIntro: 'Escriba la dirección de la consola de su empresa; está en el correo de bienvenida o puede pedirla a recursos humanos.',
-    orgLabel: 'Dirección',
+    orgIntro: 'Escriba la dirección de la consola de su empresa (la que abre en el navegador para acceder); está en el correo de bienvenida o puede pedirla a recursos humanos.',
+    orgLabel: 'Dirección', orgExample: 'p. ej. https://empresa.ejemplo.es',
     orgNext: 'Continuar',
     orgInvalid: 'Dirección no válida: debe empezar por https:// o ser del tipo empresa.ejemplo.es.',
     orgUnreachable: 'No encuentro una organización en esta dirección. Revísela e inténtelo de nuevo.',
@@ -56,8 +56,8 @@ const STRINGS = {
   en: {
     title: 'My badge',
     orgTitle: 'Your organisation',
-    orgIntro: 'Type the address of your company’s console; it is in your welcome email, or ask HR.',
-    orgLabel: 'Address',
+    orgIntro: 'Type the address of your company’s console (the one you open in the browser to sign in); it is in your welcome email, or ask HR.',
+    orgLabel: 'Address', orgExample: 'e.g. https://company.example.com',
     orgNext: 'Continue',
     orgInvalid: 'Invalid address: it must start with https:// or look like company.example.com.',
     orgUnreachable: 'No organisation found at this address. Check it and try again.',
