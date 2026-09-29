@@ -157,6 +157,12 @@ export class AccessAdminController {
   async revokePhone(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Req() req: AppRequest) {
     const e = await this.employees.findOne({ where: { id, tenantId: user.tenantId } });
     if (!e) throw new NotFoundException();
+    // Same visibility as the employee list: a site manager reaches only people who can open a door of their sites.
+    if (visibleSiteIds(user)) {
+      const doors = await this.visibleDoors(user);
+      const reachable = doors.length > 0 && (await this.rules.exist({ where: { tenantId: user.tenantId, employeeId: e.id, doorId: In(doors.map((d) => d.id)) } }));
+      if (!reachable) throw new NotFoundException();
+    }
     await this.employees.update(e.id, { credentialSecretEnc: null, credentialIssuedAt: null });
     await this.audit.fromRequest(req, { action: 'PHONE_BADGE_REVOKED', entityType: 'employee', entityId: e.id });
     return { ok: true };

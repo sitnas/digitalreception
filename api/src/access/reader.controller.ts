@@ -91,11 +91,16 @@ export class BadgeController {
   @HttpCode(200)
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   async request(@CurrentTenant() tenant: AuthTenant, @Body() dto: BadgeRequestDto, @Req() req: AppRequest) {
-    const r = await this.access.requestLoginCode(tenant.id, dto.email, dto.locale ?? 'it');
-    // The administrator sees why no email arrived (audit log, server log); the address is never logged.
-    await this.audit.fromRequest(req, { action: 'PHONE_BADGE_CODE_REQUESTED', entityType: r.employeeId ? 'employee' : undefined, entityId: r.employeeId, details: { result: r.result } });
-    if (r.result !== 'SENT') this.log.warn(`Phone badge code not sent: ${r.result}`);
-    return { ok: true, step: QR_STEP_S }; // same answer whether the address is known or not
+    // Lookup and sending run after the reply: waiting for the SMTP server only when the address is
+    // registered would reveal, by timing, which addresses exist. The administrator still sees why no
+    // email arrived (audit log, server log); the address is never logged.
+    void this.access.requestLoginCode(tenant.id, dto.email, dto.locale ?? 'it')
+      .then(async (r) => {
+        await this.audit.fromRequest(req, { action: 'PHONE_BADGE_CODE_REQUESTED', entityType: r.employeeId ? 'employee' : undefined, entityId: r.employeeId, details: { result: r.result } });
+        if (r.result !== 'SENT') this.log.warn(`Phone badge code not sent: ${r.result}`);
+      })
+      .catch((err) => this.log.error(`Phone badge code request failed: ${err instanceof Error ? err.message : err}`));
+    return { ok: true, step: QR_STEP_S }; // same answer, same time, whether the address is known or not
   }
 
   @Post('activate')
