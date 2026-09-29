@@ -131,4 +131,5 @@ export class UpdateOrganisationDto {
   /** #RRGGBB, or empty string to go back to the default. */
   @IsOptional() @IsString() @Matches(/^(#[0-9A-Fa-f]{6})?$/) primaryColor?: string;
   @IsOptional() @IsString() @Matches(/^(#[0-9A-Fa-f]{6})?$/) secondaryColor?: string;
+  @IsOptional() @IsBoolean() mfaRequired?: boolean;
 }

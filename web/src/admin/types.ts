@@ -1,6 +1,6 @@
 export type Role = 'SUPER_ADMIN' | 'SITE_MANAGER' | 'RECEPTIONIST' | 'AUDITOR';
 export type VisitStatus = 'OPEN' | 'CLOSED' | 'AUTO_CLOSED' | 'ERASED';
-export interface Me { id: string; tenantId: string; email: string; displayName: string; role: Role; siteIds: string[]; mustChangePassword: boolean }
+export interface Me { id: string; tenantId: string; email: string; displayName: string; role: Role; siteIds: string[]; mustChangePassword: boolean; mfaEnabled: boolean; mfaSetupRequired: boolean }
 export interface Site { id: string; code: string; name: string; countryCode: string; timezone: string; active: boolean }
 export interface VisitRow {
   id: string; code: string; status: VisitStatus; siteId: string; siteName: string | null; siteTimezone: string | null; checkInAt: string; checkOutAt: string | null;
@@ -14,7 +14,7 @@ export interface VisitDetail extends VisitRow {
 export interface Paged<T> { items: T[]; total: number; page: number; pageSize: number }
 export interface Device { id: string; siteId: string; site?: Site; name: string; createdAt: string; lastSeenAt: string | null; revokedAt: string | null }
 export interface HostRow { id: string; firstName: string; lastName: string; department: string | null; jobTitle: string | null; email: string | null; phone: string | null; sites: Site[]; active: boolean }
-export interface UserRow { id: string; email: string; displayName: string; role: Role; sites: Site[]; active: boolean; lastLoginAt: string | null }
+export interface UserRow { id: string; email: string; displayName: string; role: Role; sites: Site[]; active: boolean; lastLoginAt: string | null; mfaEnabledAt: string | null }
 export interface Policy {
   countryCode: string; name: string; defaultLocale: string; locales: string[]; visitRetentionDays: number; documentDataEnabled: boolean;
   documentPhotoEnabled: boolean; documentPhotoRetentionDays: number; assetPhotosRequired: boolean; assetPhotoRetentionDays: number;

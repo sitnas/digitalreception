@@ -581,3 +581,18 @@ code.secret { font-size: 16px; padding: 6px 10px; letter-spacing: .04em; user-se
   .k-result { font-size: 20px; padding: 14px 16px; }
   .k-progress-caption strong { font-size: 20px; }
 }
+
+/* ---------------------------------------------------------------- two-step verification */
+.mfa-steps { margin: 0; padding-left: 22px; display: grid; gap: 14px; }
+.mfa-steps li { padding-left: 4px; }
+.mfa-qr-row { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; margin-top: 10px; }
+.mfa-qr { width: 176px; height: 176px; padding: 10px; background: #fff; border: 1px solid var(--line); border-radius: 12px; }
+code.mfa-secret { font-size: 14px; overflow-wrap: anywhere; max-width: 100%; }
+.mfa-code-input { font-variant-numeric: tabular-nums; letter-spacing: .2em; font-size: 20px !important; max-width: 220px; }
+.recovery-codes { list-style: none; margin: 0; padding: 12px; display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px 16px; border: 1px dashed var(--line-strong); border-radius: 12px; }
+.recovery-codes code { font-size: 15px; letter-spacing: .04em; user-select: all; }
+.login-main .login-wide { width: min(520px, 100%); }
+.login-main .login-wide .btn-primary { justify-self: start; }
+.a-me .a-me-link { text-decoration: none; }
+.login-main form .btn-link { justify-self: start; text-align: left; }
+.recovery-codes + .inline + .btn-primary { justify-self: start; min-width: 200px; }

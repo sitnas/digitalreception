@@ -19,5 +19,12 @@ export class User {
   @Column({ type: 'int', default: 0 }) failedLogins: number;
   @Column({ type: 'datetime', precision: 3, nullable: true }) lockedUntil: Date | null;
   @Column({ type: 'datetime', precision: 3, nullable: true }) lastLoginAt: Date | null;
+  /** Two-step verification (TOTP). The secret is encrypted with the tenant key; set but not yet enabled while enrolling. */
+  @Column({ type: 'text', nullable: true, select: false }) mfaSecretEnc: string | null;
+  @Column({ type: 'datetime', precision: 3, nullable: true }) mfaEnabledAt: Date | null;
+  /** Last accepted time step: a code is valid once only. */
+  @Column({ type: 'bigint', nullable: true, select: false, transformer: { to: (v: number | null) => v, from: (v: string | null) => (v === null ? null : Number(v)) } }) mfaLastStep: number | null;
+  /** JSON array of SHA-256 hashes of the unused recovery codes. */
+  @Column({ type: 'text', nullable: true, select: false }) mfaRecoveryHashes: string | null;
   @CreateDateColumn({ type: 'datetime', precision: 3, default: () => 'CURRENT_TIMESTAMP(3)' }) createdAt: Date;
 }

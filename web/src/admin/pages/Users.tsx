@@ -56,7 +56,7 @@ export function UsersPage() {
       <div className="table-wrap">
         {users.data && rows.length === 0 ? <p className="empty">{term ? t.users.noResults : t.users.none}</p> : (
           <table className="table-cards">
-            <thead><tr><th>{t.users.person}</th><th>{t.users.role}</th><th>{t.users.sites}</th><th>{t.statusLabel}</th><th>{t.users.lastLogin}</th><th><span className="sr-only">{t.users.edit}</span></th></tr></thead>
+            <thead><tr><th>{t.users.person}</th><th>{t.users.role}</th><th>{t.users.sites}</th><th>{t.statusLabel}</th><th>{t.mfa.col}</th><th>{t.users.lastLogin}</th><th><span className="sr-only">{t.users.edit}</span></th></tr></thead>
             <tbody>
               {rows.map((u) => (
                 <tr key={u.id} className="clickable" tabIndex={0} onClick={() => setPanel({ mode: 'edit', user: u })} onKeyDown={(e) => e.key === 'Enter' && setPanel({ mode: 'edit', user: u })}>
@@ -69,6 +69,7 @@ export function UsersPage() {
                   <td data-label={t.users.role}>{t.roles[u.role]}</td>
                   <td data-label={t.users.sites} title={u.sites.map((s) => s.name).join(', ')}>{siteSummary(u)}</td>
                   <td data-label={t.statusLabel}><span className={u.active ? 'pill OPEN' : 'pill'}>{u.active ? t.users.active : t.users.inactive}</span></td>
+                  <td data-label={t.mfa.col}>{u.mfaEnabledAt ? <span className="pill OPEN">{t.mfa.on}</span> : <span className="muted">{t.mfa.off}</span>}</td>
                   <td data-label={t.users.lastLogin} className="num">{u.lastLoginAt ? fmtDateTime(u.lastLoginAt, intl) : <span className="muted">{t.users.never}</span>}</td>
                   <td className="row-action"><button type="button" className="btn btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); setPanel({ mode: 'edit', user: u }); }}>{t.users.edit}</button></td>
                 </tr>
@@ -125,6 +126,11 @@ function UserPanel({ panel, sites, meId, onClose, onChanged }: { panel: Panel; s
     if (!editing) return;
     const pwd = strongPassword();
     if (await run(() => api.post(`/admin/users/${editing.id}/reset-password`, { temporaryPassword: pwd }))) setNewPassword(pwd);
+  };
+  const [mfaReset, setMfaReset] = useState(false);
+  const resetMfa = async () => {
+    if (!editing) return;
+    if (await run(() => api.post(`/admin/users/${editing.id}/reset-mfa`))) setMfaReset(true);
   };
   const toggleActive = async () => {
     if (!editing) return;
@@ -199,6 +205,13 @@ function UserPanel({ panel, sites, meId, onClose, onChanged }: { panel: Panel; s
               <div className="stack" style={{ gap: 8 }} role="status">
                 <div className="inline"><code className="secret">{newPassword}</code><CopyButton text={newPassword} /></div>
                 <span className="hint">{t.users.tempPwdHint}</span>
+              </div>
+            )}
+            {editing.mfaEnabledAt && (
+              <div className="access-row">
+                <div><strong>{t.mfa.reset}</strong><p className="muted">{t.mfa.resetHelp}</p></div>
+                {mfaReset ? <span className="pill" role="status">{t.mfa.resetDone}</span>
+                  : <button type="button" className="btn btn-ghost btn-sm" onClick={resetMfa} disabled={busy}>{t.mfa.reset}</button>}
               </div>
             )}
             <div className="access-row">

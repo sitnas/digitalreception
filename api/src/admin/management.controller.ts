@@ -56,7 +56,7 @@ export class ManagementController {
       this.devices.count({ where: { tenantId: user.tenantId, revokedAt: IsNull() } }),
       this.users.count({ where: { tenantId: user.tenantId, active: true } }),
     ]);
-    return { name: t.name, slug: t.slug, logo: t.logoDataUrl, primaryColor: t.primaryColor, secondaryColor: t.secondaryColor, email: { enabled: this.mail.enabled, from: this.mail.enabled ? this.mail.from : null }, usage: { sites, devices, users }, limits: { sites: t.maxSites, devices: t.maxDevices, users: t.maxUsers } };
+    return { name: t.name, slug: t.slug, logo: t.logoDataUrl, primaryColor: t.primaryColor, secondaryColor: t.secondaryColor, mfaRequired: t.mfaRequired, email: { enabled: this.mail.enabled, from: this.mail.enabled ? this.mail.from : null }, usage: { sites, devices, users }, limits: { sites: t.maxSites, devices: t.maxDevices, users: t.maxUsers } };
   }
 
   @Patch('organisation')
@@ -67,8 +67,13 @@ export class ManagementController {
     if (dto.logoDataUrl !== undefined) patch.logoDataUrl = dto.logoDataUrl || null;
     if (dto.primaryColor !== undefined) patch.primaryColor = dto.primaryColor ? dto.primaryColor.toUpperCase() : null;
     if (dto.secondaryColor !== undefined) patch.secondaryColor = dto.secondaryColor ? dto.secondaryColor.toUpperCase() : null;
+    if (dto.mfaRequired !== undefined) {
+      // Whoever turns the requirement on must already use it: proves the setup works for this organisation.
+      if (dto.mfaRequired && !user.mfaEnabled) throw new ConflictException('MFA_SELF_FIRST');
+      patch.mfaRequired = dto.mfaRequired;
+    }
     await this.tenants.update(user.tenantId, patch);
-    await this.audit.fromRequest(req, { action: 'ORGANISATION_UPDATED', entityType: 'tenant', entityId: user.tenantId, details: { name: dto.name, logoChanged: dto.logoDataUrl !== undefined, primaryColor: dto.primaryColor, secondaryColor: dto.secondaryColor } });
+    await this.audit.fromRequest(req, { action: 'ORGANISATION_UPDATED', entityType: 'tenant', entityId: user.tenantId, details: { name: dto.name, logoChanged: dto.logoDataUrl !== undefined, primaryColor: dto.primaryColor, secondaryColor: dto.secondaryColor, mfaRequired: dto.mfaRequired } });
     return { ok: true };
   }
 
@@ -267,6 +272,21 @@ export class ManagementController {
       sessionVersion: user.sessionVersion + 1, failedLogins: 0, lockedUntil: null,
     });
     await this.audit.fromRequest(req, { action: 'USER_PASSWORD_RESET', entityType: 'user', entityId: id });
+    return { ok: true };
+  }
+
+  /** For a user who lost the phone and the recovery codes: they set it up again at the next login. */
+  @Post('users/:id/reset-mfa')
+  @HttpCode(200)
+  @Roles(Role.SUPER_ADMIN)
+  async resetMfa(@CurrentUser() me: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Req() req: AppRequest) {
+    if (id === me.id) throw new ForbiddenException('CANNOT_RESET_OWN_MFA');
+    const user = await this.users.findOne({ where: { id, tenantId: me.tenantId } });
+    if (!user) throw new NotFoundException();
+    await this.users.update({ id, tenantId: me.tenantId }, {
+      mfaEnabledAt: null, mfaSecretEnc: null, mfaLastStep: null, mfaRecoveryHashes: null, sessionVersion: user.sessionVersion + 1,
+    });
+    await this.audit.fromRequest(req, { action: 'USER_MFA_RESET', entityType: 'user', entityId: id });
     return { ok: true };
   }
 

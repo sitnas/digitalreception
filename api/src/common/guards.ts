@@ -3,7 +3,7 @@ import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository } from 'typeorm';
-import { Device, Role, User } from '../entities';
+import { Device, Role, Tenant, User } from '../entities';
 import { CryptoService } from './crypto.service';
 import { AppRequest, AuthDevice, AuthUser } from './request-context';
 
@@ -13,13 +13,14 @@ const ROLES_KEY = 'roles';
 const ALLOW_PWD_CHANGE_KEY = 'allowPendingPasswordChange';
 
 export const Roles = (...roles: Role[]) => SetMetadata(ROLES_KEY, roles);
-/** Endpoint reachable even when the user must still change the initial password. */
+/** Endpoint reachable even when the user must still change the initial password or set up two-step verification. */
 export const AllowPendingPasswordChange = () => SetMetadata(ALLOW_PWD_CHANGE_KEY, true);
 export const CurrentUser = createParamDecorator((_: unknown, ctx: ExecutionContext) => ctx.switchToHttp().getRequest<AppRequest>().user!);
 export const CurrentDevice = createParamDecorator((_: unknown, ctx: ExecutionContext) => ctx.switchToHttp().getRequest<AppRequest>().device!);
 export const CurrentTenant = createParamDecorator((_: unknown, ctx: ExecutionContext) => ctx.switchToHttp().getRequest<AppRequest>().tenant!);
 
-export interface SessionClaims { sub: string; tid: string; sv: number }
+/** `typ` is set only on short-lived non-session tokens (e.g. the login step before the 2FA code): never a session. */
+export interface SessionClaims { sub: string; tid: string; sv: number; typ?: string }
 
 /**
  * Admin console guard:
@@ -34,6 +35,7 @@ export class AdminAuthGuard implements CanActivate {
     private readonly jwt: JwtService,
     private readonly reflector: Reflector,
     @InjectRepository(User) private readonly users: Repository<User>,
+    @InjectRepository(Tenant) private readonly tenants: Repository<Tenant>,
   ) {}
 
   async canActivate(ctx: ExecutionContext): Promise<boolean> {
@@ -46,19 +48,23 @@ export class AdminAuthGuard implements CanActivate {
     let claims: SessionClaims;
     try { claims = await this.jwt.verifyAsync<SessionClaims>(token); } catch { throw new UnauthorizedException(); }
     // A session is valid only on the tenant that issued it.
-    if (!req.tenant || claims.tid !== req.tenant.id) throw new UnauthorizedException();
+    if (!req.tenant || claims.tid !== req.tenant.id || claims.typ) throw new UnauthorizedException();
 
     const user = await this.users.findOne({ where: { id: claims.sub, tenantId: req.tenant.id }, relations: { sites: true } });
     if (!user || !user.active || user.sessionVersion !== claims.sv) throw new UnauthorizedException();
+    // Read from the DB (not the 60 s tenant cache) so that turning the policy on applies at once.
+    const mfaSetupRequired = !user.mfaEnabledAt && (await this.tenants.exist({ where: { id: user.tenantId, mfaRequired: true } }));
 
     const authUser: AuthUser = {
       id: user.id, tenantId: user.tenantId, email: user.email, displayName: user.displayName, role: user.role,
       siteIds: user.sites.map((s) => s.id), mustChangePassword: user.mustChangePassword,
+      mfaEnabled: !!user.mfaEnabledAt, mfaSetupRequired,
     };
     req.user = authUser;
 
     const allowPending = this.reflector.getAllAndOverride<boolean>(ALLOW_PWD_CHANGE_KEY, [ctx.getHandler(), ctx.getClass()]);
     if (authUser.mustChangePassword && !allowPending) throw new ForbiddenException('PASSWORD_CHANGE_REQUIRED');
+    if (authUser.mfaSetupRequired && !allowPending) throw new ForbiddenException('MFA_SETUP_REQUIRED');
 
     const roles = this.reflector.getAllAndOverride<Role[]>(ROLES_KEY, [ctx.getHandler(), ctx.getClass()]);
     if (roles?.length && !roles.includes(authUser.role)) throw new ForbiddenException();

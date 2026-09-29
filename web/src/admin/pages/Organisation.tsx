@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 import { DEFAULT_PRIMARY, DEFAULT_SECONDARY, applyBrand, brandVars, contrast, isHex } from '../../lib/theme';
+import { useMe } from '../AdminApp';
 import { errorText, useI18n } from '../i18n';
 import { ErrorBox, PageHead, useAsync } from '../ui';
 
 interface Org {
   name: string; slug: string; logo: string | null; primaryColor: string | null; secondaryColor: string | null;
-  email: { enabled: boolean; from: string | null };
+  email: { enabled: boolean; from: string | null }; mfaRequired: boolean;
   usage: { sites: number; devices: number; users: number }; limits: { sites: number | null; devices: number | null; users: number | null };
 }
 
@@ -95,6 +96,7 @@ export function OrganisationPage() {
 
           <div className="stack">
           <EmailCard email={org.data.email} t={t} />
+          <MfaPolicyCard required={org.data.mfaRequired} onChanged={org.reload} t={t} />
           <aside className="a-card">
             <h2>{t.org.usage2}</h2>
             <table><tbody>
@@ -113,6 +115,25 @@ export function OrganisationPage() {
 }
 
 /** Whether the server can send email, with a test message: without SMTP no badge or notice ever leaves. */
+/** Organisation-wide requirement: applies from the next request of every user (checked on the server). */
+function MfaPolicyCard({ required, onChanged, t }: { required: boolean; onChanged: () => void; t: ReturnType<typeof useI18n>['t'] }) {
+  const me = useMe();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const toggle = async (on: boolean) => {
+    setBusy(true); setError(null);
+    try { await api.patch('/admin/organisation', { mfaRequired: on }); onChanged(); } catch (err) { setError(errorText(t, err)); } finally { setBusy(false); }
+  };
+  return (
+    <section className="a-card stack" aria-labelledby="mfa-h">
+      <h2 id="mfa-h" style={{ margin: 0 }}>{t.mfa.orgTitle}</h2>
+      <label className="toggle"><input type="checkbox" checked={required} disabled={busy || (!required && !me.mfaEnabled)} onChange={(e) => toggle(e.target.checked)} />{t.mfa.orgRequire}</label>
+      <p className="muted" style={{ margin: 0, fontSize: 13 }}>{t.mfa.orgHint}</p>
+      {error && <p className="alert" role="alert" style={{ margin: 0 }}>{error}</p>}
+    </section>
+  );
+}
+
 function EmailCard({ email, t }: { email: Org['email']; t: ReturnType<typeof useI18n>['t'] }) {
   const [busy, setBusy] = useState(false);
   const [res, setRes] = useState<{ ok: boolean; text: string } | null>(null);
