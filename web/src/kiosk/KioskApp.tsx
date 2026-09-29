@@ -208,10 +208,10 @@ function PairScreen({ onPaired }: { onPaired: () => void }) {
         <form className="k-form" onSubmit={submit}>
           <div className="field">
             <label htmlFor="pc">Codice di associazione</label>
-            <input id="pc" className="input" value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} maxLength={9} autoComplete="off" autoCapitalize="characters" spellCheck={false} style={{ letterSpacing: '.2em', fontWeight: 700 }} />
+            <input id="pc" name="pairing-code" className="input" translate="no" value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} maxLength={9} pattern="[A-Za-z0-9]{4}-?[A-Za-z0-9]{4}" required autoComplete="off" autoCapitalize="characters" spellCheck={false} style={{ letterSpacing: '.2em', fontWeight: 700 }} />
           </div>
           {error && <p className="alert" role="alert">{error}</p>}
-          <div><button className="btn btn-primary" disabled={busy || code.replace(/[^A-Z0-9]/g, '').length !== 8}>Associa</button></div>
+          <div><button className="btn btn-primary" disabled={busy} aria-busy={busy}>Associa</button></div>
         </form>
       </main><div />
     </div>

@@ -172,6 +172,8 @@ function LoginScreen({ branding, onLoggedIn }: { branding: Branding; onLoggedIn:
   const [mfaToken, setMfaToken] = useState<string | null>(null);
   const [code, setCode] = useState('');
   const [recovery, setRecovery] = useState(false);
+  const codeInput = useRef<HTMLInputElement>(null);
+  const pwInput = useRef<HTMLInputElement>(null);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault(); setBusy(true); setError(null);
@@ -180,7 +182,10 @@ function LoginScreen({ branding, onLoggedIn }: { branding: Branding; onLoggedIn:
       setPassword('');
       if (r.mfaRequired && r.mfaToken) { setMfaToken(r.mfaToken); setCode(''); setRecovery(false); } else onLoggedIn();
     }
-    catch (err) { setError(err instanceof ApiError && (err.status === 401 || err.status === 429) ? t.login.invalid : t.errors.generic); }
+    catch (err) {
+      setError(err instanceof ApiError && (err.status === 401 || err.status === 429) ? t.login.invalid : t.errors.generic);
+      pwInput.current?.select();
+    }
     finally { setBusy(false); }
   };
   const verify = async (e: React.FormEvent) => {
@@ -190,6 +195,7 @@ function LoginScreen({ branding, onLoggedIn }: { branding: Branding; onLoggedIn:
       if (err instanceof ApiError && err.code === 'MFA_SESSION_EXPIRED') { setMfaToken(null); setError(t.mfa.expired); }
       else setError(err instanceof ApiError && (err.status === 401 || err.status === 429) ? t.mfa.invalid : t.errors.generic);
       setCode('');
+      codeInput.current?.focus(); // the field stays the place to type, not the button that was pressed
     }
     finally { setBusy(false); }
   };
@@ -202,11 +208,15 @@ function LoginScreen({ branding, onLoggedIn }: { branding: Branding; onLoggedIn:
         <div className="field">
           <label htmlFor="otp">{recovery ? t.mfa.recoveryLabel : t.mfa.code}</label>
           {recovery
-            ? <input id="otp" key="rc" className="input mfa-code-input" autoComplete="off" autoCapitalize="characters" spellCheck={false} maxLength={11} placeholder="XXXXX-XXXXX" value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} required autoFocus />
-            : <input id="otp" key="totp" className="input mfa-code-input" inputMode="numeric" autoComplete="one-time-code" pattern="\d{6}" maxLength={6} placeholder="123456" value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} required autoFocus />}
+            ? <input ref={codeInput} id="otp" key="rc" name="recovery-code" className="input mfa-code-input" translate="no" autoComplete="off" autoCapitalize="characters" spellCheck={false}
+                maxLength={11} pattern="\s*[A-Za-z0-9]{5}-?[A-Za-z0-9]{5}\s*" placeholder="XXXXX-XXXXX" aria-invalid={!!error} aria-describedby={error ? 'login-err' : undefined}
+                value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} required autoFocus />
+            : <input ref={codeInput} id="otp" key="totp" name="code" className="input mfa-code-input" translate="no" inputMode="numeric" autoComplete="one-time-code" spellCheck={false}
+                pattern="\d{6}" title={t.mfa.codeHint} maxLength={6} placeholder="123456" aria-invalid={!!error} aria-describedby={error ? 'login-err' : undefined}
+                value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} required autoFocus />}
         </div>
-        {error && <p className="alert" role="alert">{error}</p>}
-        <button className="btn btn-primary" disabled={busy || (!recovery && code.length !== 6)}>{t.mfa.verify}</button>
+        {error && <p id="login-err" className="alert" role="alert">{error}</p>}
+        <button className="btn btn-primary" disabled={busy} aria-busy={busy}>{t.mfa.verify}</button>
         <button type="button" className="btn-link" onClick={() => { setRecovery(!recovery); setCode(''); setError(null); }}>{recovery ? t.mfa.useApp : t.mfa.useRecovery}</button>
         <button type="button" className="btn-link" onClick={() => { setMfaToken(null); setError(null); }}>{t.mfa.back}</button>
       </form>
@@ -217,10 +227,10 @@ function LoginScreen({ branding, onLoggedIn }: { branding: Branding; onLoggedIn:
     <AuthLayout branding={branding}>
       <form onSubmit={submit}>
         <h1>{t.login.title}</h1>
-        <div className="field"><label htmlFor="em">{t.login.email}</label><input id="em" className="input" type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} required /></div>
-        <div className="field"><label htmlFor="pw">{t.login.password}</label><input id="pw" className="input" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required /></div>
+        <div className="field"><label htmlFor="em">{t.login.email}</label><input id="em" name="email" className="input" type="email" autoComplete="username" spellCheck={false} value={email} onChange={(e) => setEmail(e.target.value)} required /></div>
+        <div className="field"><label htmlFor="pw">{t.login.password}</label><input ref={pwInput} id="pw" name="password" className="input" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required /></div>
         {error && <p className="alert" role="alert">{error}</p>}
-        <button className="btn btn-primary" disabled={busy}>{t.login.submit}</button>
+        <button className="btn btn-primary" disabled={busy} aria-busy={busy}>{t.login.submit}</button>
         <LangSwitch />
       </form>
     </AuthLayout>
@@ -251,25 +261,36 @@ function MfaSetupScreen({ branding, onDone }: { branding: Branding; onDone: () =
 function ChangePasswordScreen({ branding, onDone }: { branding: Branding; onDone: () => void }) {
   const { t } = useI18n();
   const [f, setF] = useState({ current: '', next: '', confirm: '' });
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<{ text: string; field: 'c' | 'r' | null } | null>(null);
   const [done, setDone] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const form = useRef<HTMLFormElement>(null);
+  // Errors sit under the field they concern, which also receives the focus.
+  const fail = (text: string, field: 'c' | 'r' | null) => {
+    setError({ text, field });
+    if (field) requestAnimationFrame(() => form.current?.querySelector<HTMLInputElement>(`#${field}`)?.select());
+  };
   const submit = async (e: React.FormEvent) => {
     e.preventDefault(); setError(null);
-    if (f.next !== f.confirm) { setError(t.pwd.mismatch); return; }
+    if (f.next !== f.confirm) { fail(t.pwd.mismatch, 'r'); return; }
+    setBusy(true);
     try { await api.post('/auth/password', { currentPassword: f.current, newPassword: f.next }); setDone(true); setTimeout(onDone, 1500); }
-    catch (err) { setError(err instanceof ApiError && err.status === 401 ? t.pwd.wrong : t.errors.generic); }
+    catch (err) { if (err instanceof ApiError && err.status === 401) fail(t.pwd.wrong, 'c'); else fail(t.errors.generic, null); }
+    finally { setBusy(false); }
   };
+  const errFor = (field: 'c' | 'r') => error?.field === field ? <span id={`${field}-err`} className="field-error" role="alert">{error.text}</span> : null;
+  const described = (field: 'c' | 'r', extra?: string) => [error?.field === field ? `${field}-err` : '', extra ?? ''].filter(Boolean).join(' ') || undefined;
   return (
     <AuthLayout branding={branding}>
-      <form onSubmit={submit}>
+      <form ref={form} onSubmit={submit}>
         <h1>{t.pwd.title}</h1>
         <p className="muted" style={{ margin: 0 }}>{t.pwd.intro}</p>
-        <div className="field"><label htmlFor="c">{t.pwd.current}</label><input id="c" className="input" type="password" autoComplete="current-password" value={f.current} onChange={(e) => setF({ ...f, current: e.target.value })} required /></div>
-        <div className="field"><label htmlFor="n">{t.pwd.next}</label><input id="n" className="input" type="password" autoComplete="new-password" minLength={12} value={f.next} onChange={(e) => setF({ ...f, next: e.target.value })} required /><span className="hint">{t.pwd.hint}</span></div>
-        <div className="field"><label htmlFor="r">{t.pwd.confirm}</label><input id="r" className="input" type="password" autoComplete="new-password" minLength={12} value={f.confirm} onChange={(e) => setF({ ...f, confirm: e.target.value })} required /></div>
-        {error && <p className="alert" role="alert">{error}</p>}
+        <div className="field"><label htmlFor="c">{t.pwd.current}</label><input id="c" name="current-password" className="input" type="password" autoComplete="current-password" aria-invalid={error?.field === 'c'} aria-describedby={described('c')} value={f.current} onChange={(e) => setF({ ...f, current: e.target.value })} required />{errFor('c')}</div>
+        <div className="field"><label htmlFor="n">{t.pwd.next}</label><input id="n" name="new-password" className="input" type="password" autoComplete="new-password" minLength={12} aria-describedby="n-hint" value={f.next} onChange={(e) => setF({ ...f, next: e.target.value })} required /><span id="n-hint" className="hint">{t.pwd.hint}</span></div>
+        <div className="field"><label htmlFor="r">{t.pwd.confirm}</label><input id="r" name="confirm-password" className="input" type="password" autoComplete="new-password" minLength={12} aria-invalid={error?.field === 'r'} aria-describedby={described('r')} value={f.confirm} onChange={(e) => setF({ ...f, confirm: e.target.value })} required />{errFor('r')}</div>
+        {error && !error.field && <p className="alert" role="alert">{error.text}</p>}
         {done && <p className="alert alert-info" role="status">{t.pwd.done}</p>}
-        <button className="btn btn-primary" disabled={done}>{t.pwd.submit}</button>
+        <button className="btn btn-primary" disabled={done || busy} aria-busy={busy}>{t.pwd.submit}</button>
       </form>
     </AuthLayout>
   );

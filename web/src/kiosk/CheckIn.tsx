@@ -206,7 +206,7 @@ export function CheckIn({ cfg, locale, t, onDone, onCancel, onReloadConfig, invi
 
       <div className="k-actions">
         <button type="button" className="btn btn-ghost" onClick={() => (step === 0 ? onCancel() : setStep(step - 1))} disabled={busy}>{step === 0 ? t.cancel : t.back}</button>
-        <button type="button" className="btn btn-primary" onClick={next} disabled={busy || (key !== 'details' && !canNext)}>
+        <button type="button" className="btn btn-primary" onClick={next} disabled={busy || (key !== 'details' && !canNext)} aria-busy={busy}>
           {busy ? t.sending : step === steps.length - 1 ? t.confirmCheckIn : t.next}
         </button>
       </div>

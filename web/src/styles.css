@@ -45,7 +45,13 @@ html, body, #root { height: 100%; }
 body { margin: 0; font-family: var(--font); color: var(--ink); background: var(--ground); -webkit-font-smoothing: antialiased; }
 button, input, select, textarea { font: inherit; color: inherit; }
 button { cursor: pointer; }
+/* No double-tap zoom delay on controls; the tap flash is replaced by the :active states below. */
+a, button, input, select, textarea, label, summary, [role='tab'] { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
 :focus-visible { outline: none; box-shadow: var(--focus); }
+h1, h2, h3 { text-wrap: balance; }
+p, li, .hint { text-wrap: pretty; }
+/* Codes, keys and amounts line up digit by digit. */
+code, .num, input[inputmode='numeric'] { font-variant-numeric: tabular-nums; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 code { font-size: .9em; background: var(--surface-2); border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; }
 
@@ -54,6 +60,13 @@ code { font-size: .9em; background: var(--surface-2); border: 1px solid var(--li
   border: 1px solid transparent; border-radius: var(--r); font-weight: 700; font-size: 14px; line-height: 1; white-space: nowrap;
   transition: background-color .12s, border-color .12s; }
 .btn:disabled { opacity: .45; cursor: not-allowed; }
+.btn:active:not(:disabled) { filter: brightness(.94); }
+.btn-link:active { opacity: .7; }
+.btn-link:hover { text-decoration-thickness: 3px; }
+/* Request in flight: a small spinner inside the button; the button keeps its size and label. */
+.btn[aria-busy='true'] { cursor: progress; opacity: .8; }
+.btn[aria-busy='true']::after { content: ''; width: 14px; height: 14px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: btn-spin .7s linear infinite; }
+@keyframes btn-spin { to { transform: rotate(360deg); } }
 .btn-primary { background: var(--brand); color: var(--on-brand); }
 .btn-primary:hover:not(:disabled) { background: var(--brand-hover); }
 .btn-ghost { background: var(--surface); border-color: var(--line-strong); color: var(--ink); }
@@ -588,7 +601,7 @@ code.secret { font-size: 16px; padding: 6px 10px; letter-spacing: .04em; user-se
 .mfa-qr-row { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; margin-top: 10px; }
 .mfa-qr { width: 176px; height: 176px; padding: 10px; background: #fff; border: 1px solid var(--line); border-radius: 12px; }
 code.mfa-secret { font-size: 14px; overflow-wrap: anywhere; max-width: 100%; }
-.mfa-code-input { font-variant-numeric: tabular-nums; letter-spacing: .2em; font-size: 20px !important; max-width: 220px; }
+.input.mfa-code-input, .login-main .input.mfa-code-input { letter-spacing: .2em; font-size: 20px; max-width: 220px; }
 .recovery-codes { list-style: none; margin: 0; padding: 12px; display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px 16px; border: 1px dashed var(--line-strong); border-radius: 12px; }
 .recovery-codes code { font-size: 15px; letter-spacing: .04em; user-select: all; }
 .login-main .login-wide { width: min(520px, 100%); }
@@ -596,3 +609,14 @@ code.mfa-secret { font-size: 14px; overflow-wrap: anywhere; max-width: 100%; }
 .a-me .a-me-link { text-decoration: none; }
 .login-main form .btn-link { justify-self: start; text-align: left; }
 .recovery-codes + .inline + .btn-primary { justify-self: start; min-width: 200px; }
+
+/* Reduced motion everywhere: keep state changes, drop movement (spinner turns into a steady ring). */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+}
+.a-card h2.a-card-title { margin: 0; }
+/* Headings focused by script (to announce a new section) do not need a ring. */
+[tabindex='-1']:focus { box-shadow: none; outline: none; }
+/* Inline field error, right under the control it refers to. */
+.field-error { color: var(--danger); font-size: 13px; font-weight: 700; }
+.input[aria-invalid='true'] { border-color: var(--danger); }

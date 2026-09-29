@@ -75,13 +75,13 @@ function Activate({ onDone }: { onDone: (b: Badge) => void }) {
       {error && <p className="alert" role="alert" style={{ margin: 0 }}>{error}</p>}
       {!sent ? (
         <form className="stack" onSubmit={request}>
-          <div className="field"><label htmlFor="be">{T.email}</label><input id="be" className="input" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} required /></div>
-          <button className="btn btn-primary" disabled={busy}>{busy ? '…' : T.send}</button>
+          <div className="field"><label htmlFor="be">{T.email}</label><input id="be" name="email" className="input" type="email" autoComplete="email" spellCheck={false} value={email} onChange={(e) => setEmail(e.target.value)} required /></div>
+          <button className="btn btn-primary" disabled={busy} aria-busy={busy}>{T.send}</button>
         </form>
       ) : (
         <form className="stack" onSubmit={activate}>
-          <div className="field"><label htmlFor="bc">{T.code}</label><input id="bc" className="input badge-code-input" inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} required /></div>
-          <button className="btn btn-primary" disabled={busy || code.length !== 6}>{busy ? '…' : T.activate}</button>
+          <div className="field"><label htmlFor="bc">{T.code}</label><input id="bc" name="code" className="input badge-code-input" translate="no" inputMode="numeric" autoComplete="one-time-code" pattern="\d{6}" maxLength={6} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} required /></div>
+          <button className="btn btn-primary" disabled={busy} aria-busy={busy}>{T.activate}</button>
           <button type="button" className="btn btn-ghost" onClick={() => { setSent(false); setCode(''); setError(null); }}>{T.back}</button>
         </form>
       )}

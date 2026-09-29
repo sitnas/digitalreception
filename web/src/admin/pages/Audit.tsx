@@ -48,7 +48,7 @@ export function AuditPage() {
               <tr key={r.id}>
                 <td className="num">{fmtDateTime(r.at, intl)}</td>
                 <td>{r.actorLabel ?? <span className="muted">{r.actorType.toLowerCase()}</span>}</td>
-                <td><code>{r.action}</code></td>
+                <td><code translate="no">{r.action}</code></td>
                 <td className="muted">{r.entityType ? `${r.entityType} ${r.entityId?.slice(0, 8) ?? ''}` : '—'}</td>
                 <td className="num muted">{r.ip ?? '—'}</td>
                 <td className="wrap muted" style={{ fontSize: 13, maxWidth: 420 }}>{r.details ? JSON.stringify(r.details) : ''}</td>

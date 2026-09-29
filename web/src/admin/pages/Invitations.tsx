@@ -103,7 +103,7 @@ export function InvitationsPage() {
             <p className="muted" style={{ margin: '2px 0 0' }}>{fmtDateTime(qr.row.expectedAt, intl, qr.row.timezone)} · {qr.row.hostName}</p>
             <div className="invite-qr">
               <img src={`data:image/svg+xml;utf8,${encodeURIComponent(qr.qrSvg)}`} alt={`QR ${qr.code}`} />
-              <code>{qr.code}</code>
+              <code translate="no">{qr.code}</code>
             </div>
             <p className="hint">{t.invites.qrHint}</p>
           </aside>
@@ -170,7 +170,7 @@ function InviteForm({ form, setForm, sites, onSaved }: { form: Form; setForm: (f
         </div>
       </div>
       <div className="inline">
-        <button className="btn btn-primary" disabled={busy || !form.siteId}>{busy ? '…' : t.invites.send}</button>
+        <button className="btn btn-primary" disabled={busy || !form.siteId} aria-busy={busy}>{t.invites.send}</button>
         <button type="button" className="btn btn-ghost" onClick={() => setForm(null)}>{t.hosts.cancel}</button>
       </div>
     </form>

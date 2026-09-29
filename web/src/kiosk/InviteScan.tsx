@@ -41,8 +41,8 @@ export function InviteScan({ t, onFound, onWithout, onCancel }: { t: Strings; on
           <form className="field" onSubmit={(e) => { e.preventDefault(); if (typed.replace(/[^A-Za-z0-9]/g, '').length === 8) lookup(typed); }}>
             <label htmlFor="ic">{t.inviteType}</label>
             <div className="inline">
-              <input id="ic" className="input" value={typed} onChange={(e) => setTyped(e.target.value)} placeholder={t.inviteCode} maxLength={12} autoCapitalize="characters" autoComplete="off" style={{ flex: 1, letterSpacing: '.12em' }} />
-              <button className="btn btn-ghost" disabled={busy || typed.replace(/[^A-Za-z0-9]/g, '').length !== 8}>{busy ? '…' : t.inviteFind}</button>
+              <input id="ic" name="invitation-code" className="input" translate="no" value={typed} onChange={(e) => setTyped(e.target.value)} placeholder={t.inviteCode} maxLength={12} pattern="\s*[A-Za-z0-9]{4}[\s-]?[A-Za-z0-9]{4}\s*" required autoCapitalize="characters" autoComplete="off" spellCheck={false} style={{ flex: 1, letterSpacing: '.12em' }} />
+              <button className="btn btn-ghost" disabled={busy} aria-busy={busy}>{t.inviteFind}</button>
             </div>
           </form>
         </>

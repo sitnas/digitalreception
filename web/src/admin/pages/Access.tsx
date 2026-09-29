@@ -41,7 +41,7 @@ export function EmployeesPage() {
       <ErrorBox error={list.error} />
       {msg && <p className={msg.ok ? 'alert alert-info' : 'alert'} role="status">{msg.text}</p>}
       <div className="a-card inline" style={{ justifyContent: 'space-between', marginBottom: 16 }}>
-        <span>{t.access.badgePage}: <code>{origin()}/badge</code></span>
+        <span>{t.access.badgePage}: <code translate="no">{origin()}/badge</code></span>
         <CopyButton text={`${origin()}/badge`} />
       </div>
       {list.data && list.data.length > 0 && (
@@ -221,7 +221,7 @@ export function IntegrationPage() {
         <div className="a-card stack" style={{ marginBottom: 16 }}>
           <h2 style={{ margin: 0 }}>{t.access.keyCreated}</h2>
           <p className="muted" style={{ margin: 0 }}>{t.access.keyOnce}</p>
-          <div className="inline"><code style={{ wordBreak: 'break-all' }}>{created}</code><CopyButton text={created} /></div>
+          <div className="inline"><code translate="no" style={{ wordBreak: 'break-all' }}>{created}</code><CopyButton text={created} /></div>
         </div>
       )}
       <form className="a-card inline" style={{ marginBottom: 16, alignItems: 'flex-end' }} onSubmit={create}>
@@ -236,7 +236,7 @@ export function IntegrationPage() {
               {(keys.data ?? []).map((k) => (
                 <tr key={k.id} style={k.revokedAt ? { opacity: 0.55 } : undefined}>
                   <td><strong>{k.name}</strong>{k.revokedAt && <> <span className="pill">{t.access.revokedKey}</span></>}</td>
-                  <td><code>{k.prefix}…</code></td>
+                  <td><code translate="no">{k.prefix}…</code></td>
                   <td className="num">{fmtDateTime(k.createdAt, intl)}</td>
                   <td className="num">{k.lastUsedAt ? fmtDateTime(k.lastUsedAt, intl) : t.access.never}</td>
                   <td>{!k.revokedAt && <button type="button" className="btn btn-ghost btn-sm" onClick={async () => { if (window.confirm(t.access.revokeKeyConfirm)) { await api.post(`/admin/access/api-keys/${k.id}/revoke`); keys.reload(); } }}>{t.access.revokeKey}</button>}</td>
@@ -251,13 +251,13 @@ export function IntegrationPage() {
         <p className="muted" style={{ margin: 0 }}>{t.access.docsIntro}</p>
         <table className="api-table">
           <tbody>
-            <tr><td><code>PUT</code></td><td><code>/doors/&#123;id&#125;</code></td><td>{t.access.docDoor}</td></tr>
-            <tr><td><code>PUT</code></td><td><code>/employees/&#123;id&#125;</code></td><td>{t.access.docPut}</td></tr>
-            <tr><td><code>DELETE</code></td><td><code>/employees/&#123;id&#125;</code></td><td>{t.access.docDelete}</td></tr>
+            <tr><td><code translate="no">PUT</code></td><td><code translate="no">/doors/&#123;id&#125;</code></td><td>{t.access.docDoor}</td></tr>
+            <tr><td><code translate="no">PUT</code></td><td><code translate="no">/employees/&#123;id&#125;</code></td><td>{t.access.docPut}</td></tr>
+            <tr><td><code translate="no">DELETE</code></td><td><code translate="no">/employees/&#123;id&#125;</code></td><td>{t.access.docDelete}</td></tr>
           </tbody>
         </table>
-        <p style={{ margin: 0 }}>{t.access.baseUrl}: <code>{base}</code></p>
-        <pre className="code-block">{example}</pre>
+        <p style={{ margin: 0 }}>{t.access.baseUrl}: <code translate="no">{base}</code></p>
+        <pre className="code-block" translate="no">{example}</pre>
       </section>
     </>
   );
