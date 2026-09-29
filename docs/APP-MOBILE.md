@@ -38,10 +38,20 @@ Le app si compilano nel cloud con **EAS** (non servono Xcode né Android Studio)
 3. Android di prova (APK da installare direttamente): `npx eas-cli@latest build --profile preview --platform android`.
 4. Store: `npx eas-cli@latest build --profile production --platform all`, poi `npx eas-cli@latest submit`. Servono un account Google Play Console (25 $ una tantum) e un Apple Developer Program (99 $/anno).
 
+## Telefono come tessera NFC (Android)
+
+Sui telefoni Android con NFC l'app risponde anche ai lettori NFC come una tessera: basta avvicinare il retro del telefono al lettore. Il codice trasmesso è lo stesso del QR (cambia ogni 30 secondi, firmato), quindi il server non cambia.
+
+- Funziona solo **con la schermata del badge aperta**, l'app in primo piano e il telefono **sbloccato**: in tasca o a schermo spento il telefono non risponde.
+- Se l'NFC è spento, l'app mostra il pulsante *Attiva NFC* che apre le impostazioni.
+- Lettori compatibili: la pagina `/reader` su un telefono o tablet Android con Chrome (Web NFC). I lettori USB "a tastiera" leggono solo il numero di serie delle tessere e **non** leggono il telefono: con quelli si usa il QR.
+- **Non funziona in Expo Go**, che non contiene il codice nativo: serve l'app installata. Per provarla: `npx eas-cli@latest build --profile preview --platform android` crea un APK da installare sul telefono.
+- Se sul telefono c'è un'altra app che emula tag NFC dello stesso tipo, Android può chiedere quale usare la prima volta.
+- **iPhone**: Apple consente di emulare tessere solo ad app con un'autorizzazione specifica (Wallet o programma dedicato, con accordo commerciale): sull'iPhone si usa il QR.
+
 ## Limiti
 
-- **Telefono come tessera NFC**: non ancora. Su Android è possibile in futuro (emulazione di tessera, HCE) con un modulo nativo dedicato; su iPhone Apple lo consente solo ad app autorizzate tramite Wallet. Il QR funziona su entrambi.
-- Il dipendente deve avere un’email nel sistema che manda i dati dei dipendenti (vedi `ACCESSI-DIPENDENTI.md`).
+- Il dipendente deve avere un'email nel sistema che manda i dati dei dipendenti (vedi `ACCESSI-DIPENDENTI.md`).
 
 ## Sviluppo
 

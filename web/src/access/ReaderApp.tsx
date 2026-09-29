@@ -3,6 +3,7 @@ import { QrScanner } from '../kiosk/QrScanner';
 import { STRINGS } from '../kiosk/strings';
 import { ApiError } from '../lib/api';
 import { applyBrand } from '../lib/theme';
+import { phoneBadgeCode, type NfcRecord } from './nfc-record';
 
 /**
  * Door reader (Android tablet or phone at the door). Reads the phone badge QR with the camera and
@@ -72,7 +73,7 @@ async function call<R>(method: string, path: string, body?: unknown): Promise<R>
   return data as R;
 }
 
-interface NfcReading { serialNumber: string }
+interface NfcReading { serialNumber: string; message?: { records: readonly NfcRecord[] } }
 interface NfcPermissions { query: (d: { name: 'nfc' }) => Promise<{ state: string }> }
 interface NfcReader { scan: (o?: { signal?: AbortSignal }) => Promise<void>; onreading: ((e: NfcReading) => void) | null; onreadingerror: (() => void) | null }
 declare global { interface Window { NDEFReader?: new () => NfcReader } }
@@ -141,7 +142,12 @@ function ReaderScreen({ cfg }: { cfg: Config }) {
   const startNfc = useCallback(async () => {
     try {
       const r = new window.NDEFReader!();
-      r.onreading = (e) => { if (e.serialNumber) onUid(e.serialNumber); };
+      r.onreading = (e) => {
+        // A phone with the badge app carries the same rotating code as its QR: check it as a QR.
+        const phone = phoneBadgeCode(e.message?.records);
+        if (phone) onQr(phone);
+        else if (e.serialNumber) onUid(e.serialNumber);
+      };
       // Many access cards (MIFARE Classic, DESFire…) are not NDEF: the browser sees them but gives no UID.
       r.onreadingerror = () => { if (!busy.current) { busy.current = true; show({ result: 'DENIED', reason: 'NFC_UNREADABLE', name: null }); } };
       await r.scan();
@@ -153,7 +159,7 @@ function ReaderScreen({ cfg }: { cfg: Config }) {
         : name === 'NotReadableError' || name === 'NotSupportedError' ? 'NFC spento o assente: attivalo nelle impostazioni del telefono (Connessioni → NFC), poi ricarica.'
         : 'NFC non disponibile su questo dispositivo.');
     }
-  }, [onUid, show]);
+  }, [onUid, onQr, show]);
   useEffect(() => {
     if (!window.NDEFReader) return;
     (navigator as Navigator & { permissions?: NfcPermissions }).permissions?.query({ name: 'nfc' })

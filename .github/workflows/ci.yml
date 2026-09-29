@@ -87,3 +87,12 @@ jobs:
         env:
           CI: '1'
           EXPO_OFFLINE: '1'
+      # NFC card emulation logic (Kotlin), run on the JVM without the Android SDK.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.14.3'
+      - run: gradle test --no-daemon -p modules/badge-nfc/jvm-test

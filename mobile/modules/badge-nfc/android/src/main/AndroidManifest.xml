@@ -1,0 +1,20 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <uses-permission android:name="android.permission.NFC" />
+  <!-- Optional: the app still installs on phones without NFC card emulation (QR only). -->
+  <uses-feature android:name="android.hardware.nfc.hce" android:required="false" />
+
+  <application>
+    <!-- The phone answers as an NFC Forum Type 4 tag holding the current badge code. -->
+    <service
+      android:name="expo.modules.badgenfc.BadgeHceService"
+      android:exported="true"
+      android:permission="android.permission.BIND_NFC_SERVICE">
+      <intent-filter>
+        <action android:name="android.nfc.cardemulation.action.HOST_APDU_SERVICE" />
+      </intent-filter>
+      <meta-data
+        android:name="android.nfc.cardemulation.host_apdu_service"
+        android:resource="@xml/badge_apduservice" />
+    </service>
+  </application>
+</manifest>
