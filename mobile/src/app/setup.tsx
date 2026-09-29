@@ -66,7 +66,7 @@ export default function Setup() {
           {step === 'org' ? (
             <View style={styles.form}>
               <Field label={t.orgLabel} theme={theme} error={error} value={orgInput} onChangeText={setOrgInput}
-                placeholder="azienda.esempio.it" autoCapitalize="none" autoCorrect={false} keyboardType="url" textContentType="URL"
+                placeholder={t.orgExample} autoCapitalize="none" autoCorrect={false} keyboardType="url" textContentType="URL"
                 returnKeyType="next" onSubmitEditing={submitOrg} />
               <Button label={t.orgNext} theme={theme} busy={busy} onPress={submitOrg} />
             </View>
