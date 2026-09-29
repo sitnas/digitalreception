@@ -82,7 +82,7 @@ export function CheckOut({ cfg, locale, t, onDone, onCancel }: { cfg: KioskConfi
       {needsPhoto && <PhotoCapture title={t.photoAssetTitle} hint={t.photoAssetHint} value={assetPhoto} onChange={setAssetPhoto} t={t} />}
       <div className="k-actions">
         <button type="button" className="btn btn-ghost" onClick={onCancel} disabled={busy}>{t.cancel}</button>
-        <button type="button" className="btn btn-primary" onClick={confirm} disabled={busy || !selected || (needsPhoto && !assetPhoto)}>{busy ? t.sending : t.outConfirm}</button>
+        <button type="button" className="btn btn-primary" onClick={confirm} disabled={busy || !selected || (needsPhoto && !assetPhoto)} aria-busy={busy}>{busy ? t.sending : t.outConfirm}</button>
       </div>
     </div>
   );

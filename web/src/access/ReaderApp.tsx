@@ -238,9 +238,9 @@ function Pair({ onPaired }: { onPaired: () => void }) {
       <h1>Associa questo lettore</h1>
       <p className="muted">Inserisci il codice di 8 caratteri generato in console (Porte e lettori → Associa lettore).</p>
       <form className="stack" onSubmit={submit}>
-        <input className="input" aria-label="Codice di associazione" value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} maxLength={9} autoComplete="off" autoCapitalize="characters" spellCheck={false} style={{ letterSpacing: '.2em', fontWeight: 700, fontSize: 24 }} />
+        <input className="input" name="pairing-code" translate="no" aria-label="Codice di associazione" value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} maxLength={9} pattern="[A-Za-z0-9]{4}-?[A-Za-z0-9]{4}" required autoComplete="off" autoCapitalize="characters" spellCheck={false} style={{ letterSpacing: '.2em', fontWeight: 700, fontSize: 24 }} />
         {error && <p className="alert" role="alert" style={{ margin: 0 }}>{error}</p>}
-        <button className="btn btn-primary" disabled={busy || code.replace(/[^A-Z0-9]/g, '').length !== 8}>Associa</button>
+        <button className="btn btn-primary" disabled={busy} aria-busy={busy}>Associa</button>
       </form>
     </main></div>
   );

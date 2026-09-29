@@ -105,7 +105,7 @@ export function OrganisationPage() {
               {row(t.org.users, org.data.usage.users, org.data.limits.users)}
             </tbody></table>
             <p className="muted" style={{ marginBottom: 0 }}>{t.org.planHint}</p>
-            <p className="muted" style={{ marginBottom: 0 }}>{t.org.address}: <code>{window.location.host}</code></p>
+            <p className="muted" style={{ marginBottom: 0 }}>{t.org.address}: <code translate="no">{window.location.host}</code></p>
           </aside>
           </div>
         </div>
@@ -114,26 +114,33 @@ export function OrganisationPage() {
   );
 }
 
-/** Whether the server can send email, with a test message: without SMTP no badge or notice ever leaves. */
 /** Organisation-wide requirement: applies from the next request of every user (checked on the server). */
 function MfaPolicyCard({ required, onChanged, t }: { required: boolean; onChanged: () => void; t: ReturnType<typeof useI18n>['t'] }) {
   const me = useMe();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+  // Optimistic: the box moves at once and goes back if the server refuses.
+  const [value, setValue] = useState(required);
+  useEffect(() => setValue(required), [required]);
   const toggle = async (on: boolean) => {
-    setBusy(true); setError(null);
-    try { await api.patch('/admin/organisation', { mfaRequired: on }); onChanged(); } catch (err) { setError(errorText(t, err)); } finally { setBusy(false); }
+    setValue(on); setBusy(true); setError(null); setSaved(false);
+    try { await api.patch('/admin/organisation', { mfaRequired: on }); onChanged(); setSaved(true); }
+    catch (err) { setValue(!on); setError(errorText(t, err)); }
+    finally { setBusy(false); }
   };
   return (
-    <section className="a-card stack" aria-labelledby="mfa-h">
+    <section className="a-card stack" aria-labelledby="mfa-h" aria-busy={busy}>
       <h2 id="mfa-h" style={{ margin: 0 }}>{t.mfa.orgTitle}</h2>
-      <label className="toggle"><input type="checkbox" checked={required} disabled={busy || (!required && !me.mfaEnabled)} onChange={(e) => toggle(e.target.checked)} />{t.mfa.orgRequire}</label>
-      <p className="muted" style={{ margin: 0, fontSize: 13 }}>{t.mfa.orgHint}</p>
+      <label className="toggle"><input type="checkbox" name="mfa-required" aria-describedby="mfa-hint" checked={value} disabled={busy || (!value && !me.mfaEnabled)} onChange={(e) => toggle(e.target.checked)} />{t.mfa.orgRequire}</label>
+      <p id="mfa-hint" className="muted" style={{ margin: 0, fontSize: 13 }}>{t.mfa.orgHint}</p>
+      <p role="status" aria-live="polite" className="hint" style={{ margin: 0 }}>{saved && !busy ? t.org.saved : ''}</p>
       {error && <p className="alert" role="alert" style={{ margin: 0 }}>{error}</p>}
     </section>
   );
 }
 
+/** Whether the server can send email, with a test message: without SMTP no badge or notice ever leaves. */
 function EmailCard({ email, t }: { email: Org['email']; t: ReturnType<typeof useI18n>['t'] }) {
   const [busy, setBusy] = useState(false);
   const [res, setRes] = useState<{ ok: boolean; text: string } | null>(null);
@@ -150,9 +157,9 @@ function EmailCard({ email, t }: { email: Org['email']; t: ReturnType<typeof use
       <h2 id="email-h" style={{ margin: 0 }}>{t.org.email}</h2>
       <span className={`pill ${email.enabled ? 'OPEN' : 'AUTO_CLOSED'}`}>{email.enabled ? t.org.emailOn : t.org.emailOff}</span>
       {email.enabled
-        ? <p className="muted" style={{ margin: 0 }}>{t.org.emailFrom}: <code>{email.from}</code></p>
+        ? <p className="muted" style={{ margin: 0 }}>{t.org.emailFrom}: <code translate="no">{email.from}</code></p>
         : <p className="muted" style={{ margin: 0 }}>{t.org.emailOffHint}</p>}
-      {email.enabled && <button type="button" className="btn btn-ghost btn-sm" style={{ justifySelf: 'start' }} onClick={test} disabled={busy}>{busy ? t.org.emailSending : t.org.emailTest}</button>}
+      {email.enabled && <button type="button" className="btn btn-ghost btn-sm" style={{ justifySelf: 'start' }} onClick={test} disabled={busy} aria-busy={busy}>{busy ? t.org.emailSending : t.org.emailTest}</button>}
       {res && <p className={res.ok ? 'alert alert-info' : 'alert'} role="status" style={{ margin: 0, overflowWrap: 'anywhere' }}>{res.text}</p>}
     </section>
   );

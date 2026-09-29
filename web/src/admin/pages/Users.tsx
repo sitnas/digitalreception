@@ -122,19 +122,28 @@ function UserPanel({ panel, sites, meId, onClose, onChanged }: { panel: Panel; s
       : api.post('/admin/users', { ...f, siteIds }));
     if (ok) { if (editing) setSaved(true); else onClose(); }
   };
+  // Actions that close the user's sessions ask for a second click first; `pending` shows which one is in flight.
+  const [confirming, setConfirming] = useState<'password' | 'mfa' | null>(null);
+  const [pending, setPending] = useState<'password' | 'mfa' | 'active' | null>(null);
   const resetPassword = async () => {
     if (!editing) return;
     const pwd = strongPassword();
+    setPending('password');
     if (await run(() => api.post(`/admin/users/${editing.id}/reset-password`, { temporaryPassword: pwd }))) setNewPassword(pwd);
+    setPending(null); setConfirming(null);
   };
   const [mfaReset, setMfaReset] = useState(false);
   const resetMfa = async () => {
     if (!editing) return;
+    setPending('mfa');
     if (await run(() => api.post(`/admin/users/${editing.id}/reset-mfa`))) setMfaReset(true);
+    setPending(null); setConfirming(null);
   };
   const toggleActive = async () => {
     if (!editing) return;
+    setPending('active');
     if (await run(() => api.patch(`/admin/users/${editing.id}`, { active: !editing.active }))) onClose();
+    setPending(null);
   };
 
   return (
@@ -191,7 +200,7 @@ function UserPanel({ panel, sites, meId, onClose, onChanged }: { panel: Panel; s
 
           {error && <p className="alert" role="alert" style={{ margin: 0 }}>{error}</p>}
           {saved && <p className="alert alert-info" role="status" style={{ margin: 0 }}>{t.users.saved}</p>}
-          <div className="inline"><button className="btn btn-primary" disabled={busy}>{editing ? t.users.save : t.users.create}</button><button type="button" className="btn btn-ghost" onClick={onClose}>{t.users.cancel}</button></div>
+          <div className="inline"><button className="btn btn-primary" disabled={busy} aria-busy={busy && !pending}>{editing ? t.users.save : t.users.create}</button><button type="button" className="btn btn-ghost" onClick={onClose}>{t.users.cancel}</button></div>
         </form>
 
         {editing && !self && (
@@ -199,11 +208,13 @@ function UserPanel({ panel, sites, meId, onClose, onChanged }: { panel: Panel; s
             <h3>{t.users.access}</h3>
             <div className="access-row">
               <div><strong>{t.users.resetPwd}</strong><p className="muted">{t.users.resetHelp}</p></div>
-              <button type="button" className="btn btn-ghost btn-sm" onClick={resetPassword} disabled={busy}>{t.users.resetPwd}</button>
+              {confirming === 'password'
+                ? <button type="button" className="btn btn-danger btn-sm" onClick={resetPassword} disabled={busy} aria-busy={pending === 'password'}>{t.users.confirmReset}</button>
+                : <button type="button" className="btn btn-ghost btn-sm" onClick={() => setConfirming('password')} disabled={busy}>{t.users.resetPwd}</button>}
             </div>
             {newPassword && (
               <div className="stack" style={{ gap: 8 }} role="status">
-                <div className="inline"><code className="secret">{newPassword}</code><CopyButton text={newPassword} /></div>
+                <div className="inline"><code translate="no" className="secret">{newPassword}</code><CopyButton text={newPassword} /></div>
                 <span className="hint">{t.users.tempPwdHint}</span>
               </div>
             )}
@@ -211,13 +222,15 @@ function UserPanel({ panel, sites, meId, onClose, onChanged }: { panel: Panel; s
               <div className="access-row">
                 <div><strong>{t.mfa.reset}</strong><p className="muted">{t.mfa.resetHelp}</p></div>
                 {mfaReset ? <span className="pill" role="status">{t.mfa.resetDone}</span>
-                  : <button type="button" className="btn btn-ghost btn-sm" onClick={resetMfa} disabled={busy}>{t.mfa.reset}</button>}
+                  : confirming === 'mfa'
+                    ? <button type="button" className="btn btn-danger btn-sm" onClick={resetMfa} disabled={busy} aria-busy={pending === 'mfa'}>{t.mfa.resetConfirm}</button>
+                    : <button type="button" className="btn btn-ghost btn-sm" onClick={() => setConfirming('mfa')} disabled={busy}>{t.mfa.reset}</button>}
               </div>
             )}
             <div className="access-row">
               <div><strong>{editing.active ? t.users.deactivate : t.users.activate}</strong><p className="muted">{editing.active ? t.users.deactivateHelp : t.users.activateHelp}</p></div>
               {confirmToggle || !editing.active
-                ? <button type="button" className={editing.active ? 'btn btn-danger btn-sm' : 'btn btn-ghost btn-sm'} onClick={toggleActive} disabled={busy}>{editing.active ? t.users.confirmDeactivate : t.users.activate}</button>
+                ? <button type="button" className={editing.active ? 'btn btn-danger btn-sm' : 'btn btn-ghost btn-sm'} onClick={toggleActive} disabled={busy} aria-busy={pending === 'active'}>{editing.active ? t.users.confirmDeactivate : t.users.activate}</button>
                 : <button type="button" className="btn btn-ghost btn-sm is-danger" onClick={() => setConfirmToggle(true)}>{t.users.deactivate}</button>}
             </div>
           </section>
