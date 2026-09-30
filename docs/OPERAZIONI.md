@@ -29,6 +29,7 @@ In modalità `subdomain` serve un record DNS (o un wildcard `*.BASE_DOMAIN`) e u
 | `delete --slug acme --confirm acme` | cancellazione definitiva con distruzione delle chiavi |
 | `rewrap-keys` | dopo aver aggiunto una nuova chiave master |
 | `reset-mfa --slug acme --email it@acme.com` | azzera la verifica in due passaggi di un utente (es. l'unico amministratore ha perso telefono e codici di recupero); chiude le sue sessioni. Verificare prima l'identità della persona su un canale indipendente |
+| `reset-password --slug acme --email it@acme.com` | assegna una password temporanea (mostrata una volta, da cambiare al primo accesso), sblocca l'account dopo troppi tentativi e chiude le sessioni. La verifica in due passaggi resta attiva. Stesse cautele sull'identità |
 
 Tutti i comandi scrivono un evento nel registro accessi di piattaforma.
 
