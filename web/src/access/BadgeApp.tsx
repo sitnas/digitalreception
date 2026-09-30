@@ -65,7 +65,11 @@ function Activate({ onDone }: { onDone: (b: Badge) => void }) {
   };
   const activate = async (e: React.FormEvent) => {
     e.preventDefault(); setBusy(true); setError(null);
-    try { onDone(await post<Badge>('activate', { email: email.trim(), code })); } catch (err) { fail(err); } finally { setBusy(false); }
+    try {
+      // The app token (invitations) is for the phone app only: the web page never keeps it.
+      const { appToken: _unused, ...badge } = await post<Badge & { appToken?: string }>('activate', { email: email.trim(), code });
+      onDone(badge);
+    } catch (err) { fail(err); } finally { setBusy(false); }
   };
 
   return (

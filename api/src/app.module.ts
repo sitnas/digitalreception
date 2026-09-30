@@ -8,7 +8,8 @@ import { ManagementController } from './admin/management.controller';
 import { StatsController } from './admin/stats.controller';
 import { InvitationsController } from './invitations/invitations.controller';
 import { AccessAdminController } from './access/access-admin.controller';
-import { ApiKeyGuard, ReaderGuard } from './access/access.guards';
+import { ApiKeyGuard, EmployeeAppGuard, ReaderGuard } from './access/access.guards';
+import { EmployeeAppController } from './access/employee-app.controller';
 import { AccessService } from './access/access.service';
 import { IntegrationController } from './access/integration.controller';
 import { BadgeController, ReaderController } from './access/reader.controller';
@@ -48,12 +49,12 @@ const JWT = { algorithm: 'HS256' as const, issuer: 'reception-api', audience: 'r
     ThrottlerModule.forRoot([{ name: 'default', ttl: 60_000, limit: 120 }]),
     ScheduleModule.forRoot(),
   ],
-  controllers: [HealthController, TenantController, AuthController, SsoController, KioskController, VisitsController, ManagementController, StatsController, InvitationsController, IntegrationController, ReaderController, BadgeController, AccessAdminController],
+  controllers: [HealthController, TenantController, AuthController, SsoController, KioskController, VisitsController, ManagementController, StatsController, InvitationsController, IntegrationController, ReaderController, BadgeController, AccessAdminController, EmployeeAppController],
   providers: [
     { provide: APP_CONFIG, useValue: config as AppConfig },
     { provide: STORAGE, useFactory: () => createStorage(config) },
     { provide: APP_GUARD, useClass: ThrottlerGuard },
-    CryptoService, TenantKeysService, InvitationsService, AccessService, ApiKeyGuard, ReaderGuard, AuditService, FilesService, MailService, VisitLifecycleService,
+    CryptoService, TenantKeysService, InvitationsService, AccessService, ApiKeyGuard, ReaderGuard, EmployeeAppGuard, AuditService, FilesService, MailService, VisitLifecycleService,
     SessionService, AdminAuthGuard, DeviceGuard, KioskService, VisitsService, RetentionService, MailOutboxService,
   ],
 })

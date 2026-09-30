@@ -33,7 +33,37 @@ export function Field({ label, theme, error, inputRef, ...input }: { label: stri
   );
 }
 
+/** Title row of a secondary screen, with the way back. */
+export function ScreenHeader({ title, onBack, backLabel, theme, right }: { title: string; onBack: () => void; backLabel: string; theme: Theme; right?: React.ReactNode }) {
+  return (
+    <View style={styles.header}>
+      <Pressable accessibilityRole="button" accessibilityLabel={backLabel} onPress={onBack} hitSlop={12} style={({ pressed }) => [styles.back, { opacity: pressed ? 0.6 : 1 }]}>
+        <Text style={[styles.backText, { color: theme.ink }]}>‹ {backLabel}</Text>
+      </Pressable>
+      <Text accessibilityRole="header" numberOfLines={1} style={[styles.headerTitle, { color: theme.ink }]}>{title}</Text>
+      <View style={styles.headerRight}>{right}</View>
+    </View>
+  );
+}
+
+/** One of a few mutually exclusive choices (day, site, reason). */
+export function Chip({ label, selected, onPress, theme }: { label: string; selected: boolean; onPress: () => void; theme: Theme }) {
+  return (
+    <Pressable accessibilityRole="radio" accessibilityState={{ selected }} accessibilityLabel={label} onPress={onPress}
+      style={({ pressed }) => [styles.chip, { borderColor: selected ? theme.primary : theme.line, backgroundColor: selected ? theme.primary : theme.surface, opacity: pressed ? 0.8 : 1 }]}>
+      <Text style={[styles.chipText, { color: selected ? theme.onPrimary : theme.ink }]}>{label}</Text>
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
+  header: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 10, minHeight: 52 },
+  back: { minWidth: 72, minHeight: 44, justifyContent: 'center' },
+  backText: { fontSize: 16, fontWeight: '700' },
+  headerTitle: { flex: 1, fontSize: 18, fontWeight: '800', textAlign: 'center' },
+  headerRight: { minWidth: 72, alignItems: 'flex-end' },
+  chip: { minHeight: 44, paddingHorizontal: 14, borderRadius: 22, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  chipText: { fontSize: 15, fontWeight: '700' },
   btn: { minHeight: 52, borderRadius: 12, borderWidth: 1, paddingHorizontal: 18, alignItems: 'center', justifyContent: 'center' },
   btnText: { fontSize: 16, fontWeight: '700' },
   field: { gap: 6 },

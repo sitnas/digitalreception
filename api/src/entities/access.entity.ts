@@ -22,6 +22,9 @@ export class Employee {
   @Column({ type: 'text' }) lastNameEnc: string;
   @Column({ type: 'text', nullable: true }) emailEnc: string | null;
   @Column({ type: 'char', length: 64, nullable: true }) emailIndex: string | null;
+  /** Optional, sent by the external system: shown when the employee is also a person who can be visited. */
+  @Column({ type: 'text', nullable: true }) departmentEnc: string | null;
+  @Column({ type: 'text', nullable: true }) jobTitleEnc: string | null;
   /** Blind index of the NFC badge UID (lookup only) and its last 4 characters (to recognise it). */
   @Column({ type: 'char', length: 64, nullable: true }) badgeIndex: string | null;
   @Column({ type: 'varchar', length: 8, nullable: true }) badgeHint: string | null;
@@ -31,6 +34,8 @@ export class Employee {
   /** Secret shared with the employee's phone to sign the rotating QR. Null = no phone badge. */
   @Column({ type: 'text', nullable: true }) credentialSecretEnc: string | null;
   @Column({ type: 'datetime', precision: 3, nullable: true }) credentialIssuedAt: Date | null;
+  /** SHA-256 of the token the phone app uses for the employee's own requests (invitations). Issued with the badge. */
+  @Index('IDX_employees_app_token', { unique: true }) @Column({ type: 'char', length: 64, nullable: true, select: false }) appTokenHash: string | null;
   /** One-time code sent by email to activate the phone badge. */
   @Column({ type: 'char', length: 64, nullable: true }) loginCodeHash: string | null;
   @Column({ type: 'datetime', precision: 3, nullable: true }) loginCodeExpiresAt: Date | null;

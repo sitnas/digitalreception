@@ -4,7 +4,7 @@ import { EntityManager, In, LessThan, MoreThanOrEqual, Repository } from 'typeor
 import { CryptoService } from '../common/crypto.service';
 import { inviteQrPayload, qrSvg } from '../common/exit-qr';
 import { MailService } from '../common/mail.service';
-import { AuthDevice, AuthUser } from '../common/request-context';
+import { AuthDevice } from '../common/request-context';
 import { TenantKeysService } from '../common/tenant-keys.service';
 import { addDays, localDateToUtc, startOfLocalDay } from '../common/time.util';
 import { CountryPolicy, Host, Invitation, InvitationStatus, NoticeEmailStatus, Site, VisitPurpose } from '../entities';
@@ -13,6 +13,9 @@ export const INVITE_CODE_LENGTH = 8;
 const MAX_DAYS_AHEAD = 90;
 /** Invitations disappear this many days after their day: enough to see "who did not come". */
 export const INVITATION_KEEP_DAYS = 7;
+
+/** Who creates or manages an invitation: a console user, or the visited employee from the phone app. */
+export interface InviteActor { tenantId: string; userId?: string | null; employeeId?: string | null }
 
 export interface InvitationInput {
   siteId: string; hostId: string; date: string; time: string; firstName: string; lastName: string;
@@ -41,7 +44,7 @@ export class InvitationsService {
   }
 
   /** People of a site who can be invited for: names only, contact details stay in the directory. */
-  async hostsOf(user: AuthUser, siteId: string) {
+  async hostsOf(user: { tenantId: string }, siteId: string) {
     const hosts = await this.hosts.createQueryBuilder('h')
       .innerJoin('h.sites', 's', 's.id = :siteId', { siteId })
       .where('h.tenantId = :tid AND h.active = :active', { tid: user.tenantId, active: true })
@@ -49,7 +52,8 @@ export class InvitationsService {
     return hosts.map((h) => ({ id: h.id, firstName: h.firstName, lastName: h.lastName, department: h.department }));
   }
 
-  async create(user: AuthUser, dto: InvitationInput) {
+  async create(actor: InviteActor, dto: InvitationInput) {
+    const user = { tenantId: actor.tenantId };
     const site = await this.sites.findOne({ where: { id: dto.siteId, tenantId: user.tenantId, active: true } });
     if (!site) throw new NotFoundException('SITE_NOT_FOUND');
     const host = await this.hosts.createQueryBuilder('h')
@@ -82,7 +86,7 @@ export class InvitationsService {
           codeHash: this.crypto.sha256(code), codeEnc: tc.encrypt(code, 'invitation.code')!,
           status: InvitationStatus.PENDING, visitId: null, usedAt: null,
           emailStatus: this.mail.enabled ? NoticeEmailStatus.PENDING : NoticeEmailStatus.SKIPPED, emailAttempts: 0,
-          createdByUserId: user.id,
+          createdByUserId: actor.userId ?? null, createdByEmployeeId: actor.employeeId ?? null,
         }));
       } catch (e) {
         if (!/Duplicate entry/i.test((e as Error).message)) throw e; // code collision: try another
@@ -91,13 +95,14 @@ export class InvitationsService {
     throw new ConflictException('Could not allocate an invite code');
   }
 
-  /** Upcoming (today and later) or past invitations of the sites the user can see. */
-  async list(user: AuthUser, siteIds: string[] | undefined, scope: 'upcoming' | 'past') {
+  /** Upcoming (today and later) or past invitations of the sites the user can see, or of one person (phone app). */
+  async list(user: { tenantId: string }, siteIds: string[] | undefined, scope: 'upcoming' | 'past', hostId?: string) {
     const now = new Date();
     const rows = await this.invitations.find({
       where: {
         tenantId: user.tenantId,
         ...(siteIds ? { siteId: In(siteIds.length ? siteIds : ['00000000-0000-0000-0000-000000000000']) } : {}),
+        ...(hostId ? { hostId } : {}),
         validUntil: scope === 'upcoming' ? MoreThanOrEqual(now) : LessThan(now),
       },
       order: { expectedAt: scope === 'upcoming' ? 'ASC' : 'DESC' },
@@ -116,11 +121,11 @@ export class InvitationsService {
       firstName: tc.decrypt(r.firstNameEnc, 'invitation.firstName'), lastName: tc.decrypt(r.lastNameEnc, 'invitation.lastName'),
       company: tc.decrypt(r.companyEnc, 'invitation.company'), email: tc.decrypt(r.emailEnc, 'invitation.email'),
       status: r.status === InvitationStatus.PENDING && r.validUntil < now ? 'EXPIRED' : r.status,
-      emailStatus: r.emailStatus, visitId: r.visitId, usedAt: r.usedAt,
+      emailStatus: r.emailStatus, visitId: r.visitId, usedAt: r.usedAt, fromApp: !!r.createdByEmployeeId,
     }));
   }
 
-  private async own(user: AuthUser, id: string) {
+  private async own(user: { tenantId: string }, id: string) {
     const inv = await this.invitations.findOne({ where: { id, tenantId: user.tenantId } });
     if (!inv) throw new NotFoundException();
     return inv;
@@ -131,16 +136,16 @@ export class InvitationsService {
     if (inv.validUntil < new Date()) throw new ConflictException('INVITATION_EXPIRED');
   }
 
-  async get(user: AuthUser, id: string) { return this.own(user, id); }
+  async get(user: { tenantId: string }, id: string) { return this.own(user, id); }
 
-  async cancel(user: AuthUser, id: string) {
+  async cancel(user: { tenantId: string }, id: string) {
     const inv = await this.own(user, id);
     this.assertOpen(inv);
     await this.invitations.update({ id: inv.id, status: InvitationStatus.PENDING }, { status: InvitationStatus.CANCELLED });
     return inv;
   }
 
-  async resend(user: AuthUser, id: string) {
+  async resend(user: { tenantId: string }, id: string) {
     const inv = await this.own(user, id);
     this.assertOpen(inv);
     if (!this.mail.enabled) throw new ConflictException('EMAIL_DISABLED');
@@ -149,7 +154,7 @@ export class InvitationsService {
   }
 
   /** QR to show or print in the console, for guests who did not receive the email. */
-  async qr(user: AuthUser, id: string) {
+  async qr(user: { tenantId: string }, id: string) {
     const inv = await this.own(user, id);
     this.assertOpen(inv);
     const code = (await this.keys.forTenant(user.tenantId)).decrypt(inv.codeEnc, 'invitation.code')!;

@@ -1,19 +1,25 @@
 # App mobile “Il mio badge”
 
-App nativa per Android e iPhone (React Native + Expo, cartella `mobile/`) che sostituisce la pagina web `/badge` per i dipendenti. Usa le stesse API del server: nessuna modifica lato server.
+App nativa per Android e iPhone (React Native + Expo, cartella `mobile/`) che sostituisce la pagina web `/badge` per i dipendenti. Usa le stesse API della pagina web, più quelle degli inviti (`/api/me`).
 
 ## Cosa fa
 
 1. **Organizzazione**: il dipendente scrive l’indirizzo della console (es. `acme.esempio.it`). L’app accetta solo `https://` e verifica che all’indirizzo risponda davvero un server digitalreception (mostra nome e colori dell’organizzazione).
 2. **Attivazione**: email di lavoro → codice di 6 cifre via email → badge attivo. Attivarlo su un nuovo telefono disattiva quello precedente.
 3. **Badge**: QR che cambia ogni 30 secondi, calcolato sul telefono anche senza rete, identico a quello della pagina web; i lettori delle porte non cambiano.
+4. **I miei inviti**: solo per chi in console è tra le *persone da visitare*, collegato al proprio dipendente.
+   - Si crea un invito indicando ospite, sede, giorno, ora e motivo.
+   - L'ospite riceve l'email con il QR, e dall'app si possono condividere codice e istruzioni.
+   - Si vedono gli ospiti attesi e si annullano gli inviti.
+   - Dettagli in [ACCESSI-DIPENDENTI.md](ACCESSI-DIPENDENTI.md#persone-da-visitare-e-inviti-dal-telefono).
 
 Un link `drbadge://setup?org=acme.esempio.it` apre l’app con l’indirizzo già compilato (utile in un QR nell’email di benvenuto).
 
 ## Sicurezza
 
 - Il segreto del badge sta solo nel portachiavi del sistema (iOS Keychain, Android Keystore), leggibile a telefono sbloccato, **mai** incluso nei backup né trasferibile su un altro telefono.
-- Mentre il badge è aperto: schermo sempre acceso, luminosità al massimo (poi torna com’era), screenshot bloccati su Android e registrazione schermo su iOS.
+- Mentre il badge è la schermata in primo piano: schermo sempre acceso, luminosità al massimo (poi torna com’era), screenshot bloccati su Android e registrazione schermo su iOS. Nelle schermate degli inviti tutto torna normale e il telefono smette di rispondere come tessera NFC.
+- Gli inviti usano un token a parte, dato all’attivazione e revocato con il telefono. Il segreto del QR non lascia mai il telefono.
 - Se l’orologio del telefono differisce di oltre 20 secondi da quello del server, l’app avvisa: il lettore rifiuterebbe il QR.
 - L’app non chiede permessi (niente fotocamera, posizione, contatti).
 

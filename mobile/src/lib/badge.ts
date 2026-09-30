@@ -20,6 +20,8 @@ export interface Badge {
   firstName: string;
   lastName: string;
   primaryColor: string | null;
+  /** Token for the app's own requests (invitations). Missing on badges activated before this existed. */
+  appToken?: string | null;
 }
 
 const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
@@ -73,5 +75,6 @@ export function normaliseOrigin(input: string, allowLocalHttp = false): string |
 export function isBadge(v: unknown): v is Badge {
   const b = v as Badge;
   return !!b && typeof b.origin === 'string' && /^[0-9a-f-]{36}$/.test(b.employeeId) && typeof b.secret === 'string'
-    && base64ToBytes(b.secret).length === 32 && Number.isInteger(b.step) && b.step > 0 && typeof b.organisation === 'string';
+    && base64ToBytes(b.secret).length === 32 && Number.isInteger(b.step) && b.step > 0 && typeof b.organisation === 'string'
+    && (b.appToken === undefined || b.appToken === null || /^dra_[A-Za-z0-9_-]{30,}$/.test(b.appToken));
 }

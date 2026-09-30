@@ -10,6 +10,8 @@ const PURPOSES = ['MEETING', 'INTERVIEW', 'SUPPLIER', 'MAINTENANCE', 'DELIVERY',
 type Status = 'PENDING' | 'USED' | 'CANCELLED' | 'EXPIRED';
 interface Row {
   id: string; siteId: string; siteName: string; timezone: string; hostName: string; expectedAt: string; purpose: string;
+  /** Created by the visited employee from the phone app. */
+  fromApp: boolean;
   firstName: string; lastName: string; company: string | null; email: string; status: Status; emailStatus: string;
 }
 interface HostOption { id: string; firstName: string; lastName: string; department: string | null }
@@ -72,7 +74,7 @@ export function InvitationsPage() {
                 <tr key={r.id} style={r.status === 'CANCELLED' || r.status === 'EXPIRED' ? { opacity: 0.6 } : undefined}>
                   <td className="num">{fmtDateTime(r.expectedAt, intl, r.timezone)}</td>
                   <td><strong>{r.lastName} {r.firstName}</strong>{r.company && <><br /><span className="muted">{r.company}</span></>}</td>
-                  <td>{r.hostName}</td>
+                  <td>{r.hostName}{r.fromApp && <div className="host-tags"><span className="tag">{t.invites.fromApp}</span></div>}</td>
                   {multiSite && <td>{r.siteName}</td>}
                   <td><span className={`pill ${r.status === 'PENDING' ? 'OPEN' : r.status === 'USED' ? '' : 'AUTO_CLOSED'}`}>{t.invites.statuses[r.status]}</span></td>
                   <td className="muted">{t.invites.emailStatuses[r.emailStatus as keyof typeof t.invites.emailStatuses] ?? r.emailStatus}</td>

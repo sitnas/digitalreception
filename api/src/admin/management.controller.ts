@@ -11,7 +11,8 @@ import { AdminAuthGuard, CurrentUser, Roles, assertSiteAccess, visibleSiteIds } 
 import { AppRequest, AuthUser } from '../common/request-context';
 import { isValidTimeZone } from '../common/time.util';
 import { noticeTemplate } from '../database/notice-templates';
-import { AuditLog, CountryPolicy, Device, Host, PairingCode, PrivacyNotice, Role, Site, Tenant, User } from '../entities';
+import { AccessRule, AuditLog, CountryPolicy, Device, Door, Employee, Host, PairingCode, PrivacyNotice, Role, Site, Tenant, User } from '../entities';
+import { TenantKeysService } from '../common/tenant-keys.service';
 import {
   AuditExportQueryDto, AuditQueryDto, CreateHostDto, CreateNoticeDto, CreatePolicyDto, CreateSiteDto, CreateUserDto, PairingCodeDto, ResetPasswordDto,
   UpdateHostDto, UpdateOrganisationDto, UpdatePolicyDto, UpdateSiteDto, UpdateUserDto,
@@ -42,7 +43,24 @@ export class ManagementController {
     private readonly audit: AuditService,
     private readonly mail: MailService,
     @Inject(APP_CONFIG) private readonly cfg: AppConfig,
+    @InjectRepository(Employee) private readonly employees: Repository<Employee>,
+    @InjectRepository(Door) private readonly doors: Repository<Door>,
+    @InjectRepository(AccessRule) private readonly rules: Repository<AccessRule>,
+    private readonly keys: TenantKeysService,
   ) {}
+
+  /**
+   * Employees a SITE_MANAGER may pick: those allowed through a door of their sites, the same rule
+   * as the employee list. null = no restriction (SUPER_ADMIN).
+   */
+  private async reachableEmployees(user: AuthUser): Promise<Set<string> | null> {
+    const ids = visibleSiteIds(user);
+    if (!ids) return null;
+    const doors = ids.length ? await this.doors.find({ where: { tenantId: user.tenantId, siteId: In(ids) }, select: { id: true } }) : [];
+    if (!doors.length) return new Set();
+    const rules = await this.rules.find({ where: { tenantId: user.tenantId, doorId: In(doors.map((d) => d.id)) }, select: { id: true, employeeId: true } });
+    return new Set(rules.map((r) => r.employeeId));
+  }
 
   /** An active SUPER_ADMIN who may still sign in with the password: the way back in if the directory is unreachable. */
   private hasEmergencyAdmin(tenantId: string, exceptUserId?: string) {
@@ -205,7 +223,48 @@ export class ManagementController {
   async listHosts(@CurrentUser() user: AuthUser) {
     const all = await this.hosts.find({ where: { tenantId: user.tenantId }, relations: { sites: true }, order: { lastName: 'ASC', firstName: 'ASC' } });
     const ids = visibleSiteIds(user);
-    return ids ? all.filter((h) => h.sites.some((s) => ids.includes(s.id))) : all;
+    const rows = ids ? all.filter((h) => h.sites.some((s) => ids.includes(s.id))) : all;
+    // Linked employees who activated the phone app can already invite their guests from it.
+    const linked = rows.map((h) => h.employeeId).filter((x): x is string => !!x);
+    const withApp = new Set(linked.length ? (await this.employees.createQueryBuilder('e').select('e.id', 'id')
+      .where('e.tenantId = :tid AND e.id IN (:...ids) AND e.appTokenHash IS NOT NULL AND e.active = 1', { tid: user.tenantId, ids: linked }).getRawMany<{ id: string }>()).map((r) => r.id) : []);
+    return rows.map((h) => ({ ...h, appInvites: !!h.employeeId && withApp.has(h.employeeId) }));
+  }
+
+  /** Employees to pick from when adding a person to visit (names decrypted here, never stored in clear). */
+  @Get('hosts/employees')
+  @Roles(Role.SUPER_ADMIN, Role.SITE_MANAGER)
+  async hostCandidates(@CurrentUser() user: AuthUser, @Req() req: AppRequest) {
+    const [all, hosts] = await Promise.all([
+      this.employees.find({ where: { tenantId: user.tenantId, active: true }, select: { id: true, externalId: true, firstNameEnc: true, lastNameEnc: true, emailEnc: true, departmentEnc: true, jobTitleEnc: true } }),
+      this.hosts.find({ where: { tenantId: user.tenantId }, select: { id: true, employeeId: true } }),
+    ]);
+    const hostOf = new Map(hosts.filter((h) => h.employeeId).map((h) => [h.employeeId!, h.id]));
+    const reachable = await this.reachableEmployees(user);
+    const visible = reachable ? all.filter((e) => reachable.has(e.id)) : all;
+    const tc = await this.keys.forTenant(user.tenantId);
+    await this.audit.fromRequest(req, { action: 'EMPLOYEES_VIEW', details: { count: visible.length, purpose: 'hosts' } });
+    return visible.map((e) => ({
+      id: e.id, externalId: e.externalId,
+      firstName: tc.decrypt(e.firstNameEnc, 'employee.firstName'), lastName: tc.decrypt(e.lastNameEnc, 'employee.lastName'),
+      email: tc.decrypt(e.emailEnc, 'employee.email'), department: tc.decrypt(e.departmentEnc, 'employee.department'), jobTitle: tc.decrypt(e.jobTitleEnc, 'employee.jobTitle'),
+      hostId: hostOf.get(e.id) ?? null,
+    })).sort((a, b) => `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`));
+  }
+
+  /** The employee's identity as a person to visit. Throws if the employee is unknown or already somebody's entry. */
+  private async employeeAsHost(user: AuthUser, employeeId: string, exceptHostId?: string) {
+    const tenantId = user.tenantId;
+    const e = await this.employees.findOne({ where: { id: employeeId, tenantId, active: true } });
+    const reachable = await this.reachableEmployees(user);
+    if (!e || (reachable && !reachable.has(e.id))) throw new BadRequestException('EMPLOYEE_NOT_FOUND');
+    const taken = await this.hosts.findOne({ where: { tenantId, employeeId }, select: { id: true } });
+    if (taken && taken.id !== exceptHostId) throw new ConflictException('EMPLOYEE_ALREADY_HOST');
+    const tc = await this.keys.forTenant(tenantId);
+    return {
+      employeeId: e.id, firstName: tc.decrypt(e.firstNameEnc, 'employee.firstName')!, lastName: tc.decrypt(e.lastNameEnc, 'employee.lastName')!,
+      email: tc.decrypt(e.emailEnc, 'employee.email'), department: tc.decrypt(e.departmentEnc, 'employee.department'), jobTitle: tc.decrypt(e.jobTitleEnc, 'employee.jobTitle'),
+    };
   }
 
   private async hostSites(user: AuthUser, siteIds: string[]) {
@@ -217,12 +276,15 @@ export class ManagementController {
   @Post('hosts')
   @Roles(Role.SUPER_ADMIN, Role.SITE_MANAGER)
   async createHost(@CurrentUser() user: AuthUser, @Body() dto: CreateHostDto, @Req() req: AppRequest) {
-    const { siteIds, ...fields } = dto;
+    const { siteIds, employeeId, ...fields } = dto;
+    // From an employee: name and email are theirs; department, job title and phone typed here win.
+    const emp = employeeId ? await this.employeeAsHost(user, employeeId) : null;
     const host = await this.hosts.save(this.hosts.create({
-      department: null, jobTitle: null, email: null, phone: null, ...fields,
+      department: null, jobTitle: null, email: null, phone: null, employeeId: null, ...fields,
+      ...(emp ? { employeeId: emp.employeeId, firstName: emp.firstName, lastName: emp.lastName, email: emp.email, department: fields.department || emp.department, jobTitle: fields.jobTitle || emp.jobTitle } : {}),
       tenantId: user.tenantId, sites: await this.hostSites(user, siteIds), active: true,
     }));
-    await this.audit.fromRequest(req, { action: 'HOST_CREATED', entityType: 'host', entityId: host.id, details: { siteIds } });
+    await this.audit.fromRequest(req, { action: 'HOST_CREATED', entityType: 'host', entityId: host.id, details: { siteIds, employeeId: emp?.employeeId } });
     return { id: host.id };
   }
 
@@ -233,8 +295,15 @@ export class ManagementController {
     if (!host) throw new NotFoundException();
     const ids = visibleSiteIds(user);
     if (ids && !host.sites.some((s) => ids.includes(s.id))) throw new NotFoundException();
-    const { siteIds, ...fields } = dto;
+    const { siteIds, employeeId, firstName, lastName, email, ...fields } = dto;
     Object.assign(host, fields);
+    // Name and email of a person linked to an employee come from the employee record.
+    if (employeeId === null || (employeeId === undefined && !host.employeeId)) {
+      Object.assign(host, { employeeId: null, ...(firstName !== undefined ? { firstName } : {}), ...(lastName !== undefined ? { lastName } : {}), ...(email !== undefined ? { email } : {}) });
+    } else if (employeeId !== undefined) {
+      const emp = await this.employeeAsHost(user, employeeId, host.id);
+      Object.assign(host, { employeeId: emp.employeeId, firstName: emp.firstName, lastName: emp.lastName, email: emp.email, department: host.department || emp.department, jobTitle: host.jobTitle || emp.jobTitle });
+    }
     if (siteIds !== undefined) {
       // Sites the caller cannot see stay as they are: a site manager never removes another site's link.
       const hidden = ids ? host.sites.filter((s) => !ids.includes(s.id)) : [];
@@ -243,7 +312,7 @@ export class ManagementController {
       if (!host.sites.length) throw new BadRequestException('HOST_SITE_REQUIRED');
     }
     await this.hosts.save(host);
-    await this.audit.fromRequest(req, { action: 'HOST_UPDATED', entityType: 'host', entityId: id, details: { siteIds, active: dto.active } });
+    await this.audit.fromRequest(req, { action: 'HOST_UPDATED', entityType: 'host', entityId: id, details: { siteIds, active: dto.active, employeeId } });
     return { ok: true };
   }
 

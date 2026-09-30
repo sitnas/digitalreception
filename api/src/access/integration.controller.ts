@@ -23,6 +23,8 @@ export class PutEmployeeDto {
   @Transform(trim) @IsString() @Length(1, 80) @Matches(NAME) firstName: string;
   @Transform(trim) @IsString() @Length(1, 80) @Matches(NAME) lastName: string;
   @IsOptional() @IsEmail() @MaxLength(190) email?: string | null;
+  @IsOptional() @Transform(trim) @IsString() @MaxLength(120) department?: string | null;
+  @IsOptional() @Transform(trim) @IsString() @MaxLength(120) jobTitle?: string | null;
   @IsOptional() @IsString() @MaxLength(40) @Matches(/^[0-9A-Fa-f:\- ]*$/) badgeUid?: string | null;
   @IsOptional() @IsBoolean() active?: boolean;
   @IsOptional() @IsISO8601() validFrom?: string | null;

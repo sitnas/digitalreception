@@ -8,6 +8,7 @@ import { Site } from './site.entity';
  */
 @Entity('hosts')
 @Index('IDX_hosts_tenant_lastname', ['tenantId', 'lastName'])
+@Index('IDX_hosts_employee', ['tenantId', 'employeeId'], { unique: true })
 export class Host {
   @PrimaryGeneratedColumn('uuid') id: string;
   @Column({ type: 'uuid' }) tenantId: string;
@@ -19,5 +20,10 @@ export class Host {
   @Column({ type: 'varchar', length: 40, nullable: true }) phone: string | null;
   @ManyToMany(() => Site) @JoinTable({ name: 'host_sites', joinColumn: { name: 'hostId', foreignKeyConstraintName: 'FK_host_sites_host' }, inverseJoinColumn: { name: 'siteId', foreignKeyConstraintName: 'FK_host_sites_site' } }) sites: Site[];
   @Column({ default: true }) active: boolean;
+  /**
+   * The employee this person is (optional). Name, email, department and job title then follow the
+   * external system, and the employee can invite guests from the phone app.
+   */
+  @Column({ type: 'uuid', nullable: true }) employeeId: string | null;
   @CreateDateColumn({ type: 'datetime', precision: 3, default: () => 'CURRENT_TIMESTAMP(3)' }) createdAt: Date;
 }
