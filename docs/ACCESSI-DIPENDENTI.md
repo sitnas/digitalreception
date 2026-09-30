@@ -217,7 +217,7 @@ Motivi di rifiuto mostrati dal lettore e in console (`reason`):
 
 In **Persone da visitare** → **Nuova persona** si può scegliere tra i dipendenti, cercando per nome, email o reparto. Nome ed email arrivano dal gestionale e si aggiornano da soli quando cambiano. Se il dipendente viene cancellato, resta tra le persone da visitare ma non più collegato. Chi non è un dipendente (un consulente, per esempio) si inserisce a mano come prima.
 
-Un dipendente collegato che ha attivato l'app *Il mio badge* ha in più il pulsante **I miei inviti**:
+Un dipendente collegato che ha attivato il badge, nell'app *Il mio badge* o nella pagina web `/badge`, ha in più il pulsante **I miei inviti**:
 - crea un invito per un proprio ospite, scegliendo sede (solo quelle in cui riceve visite), giorno, ora e motivo;
 - l'ospite riceve la stessa email con QR degli inviti creati in console;
 - dall'app può condividere codice e istruzioni, vedere chi aspetta e annullare.
