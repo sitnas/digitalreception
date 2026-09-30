@@ -163,7 +163,7 @@ export class AccessAdminController {
       const reachable = doors.length > 0 && (await this.rules.exist({ where: { tenantId: user.tenantId, employeeId: e.id, doorId: In(doors.map((d) => d.id)) } }));
       if (!reachable) throw new NotFoundException();
     }
-    await this.employees.update(e.id, { credentialSecretEnc: null, credentialIssuedAt: null });
+    await this.employees.update(e.id, { credentialSecretEnc: null, credentialIssuedAt: null, appTokenHash: null });
     await this.audit.fromRequest(req, { action: 'PHONE_BADGE_REVOKED', entityType: 'employee', entityId: e.id });
     return { ok: true };
   }

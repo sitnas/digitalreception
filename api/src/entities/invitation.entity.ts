@@ -36,6 +36,8 @@ export class Invitation {
   @Column({ type: 'datetime', precision: 3, nullable: true }) usedAt: Date | null;
   @Column({ type: 'varchar', length: 16 }) emailStatus: NoticeEmailStatus;
   @Column({ type: 'tinyint', default: 0 }) emailAttempts: number;
-  @Column({ type: 'uuid' }) createdByUserId: string;
+  /** A console user, or the visited employee from the phone app. */
+  @Column({ type: 'uuid', nullable: true }) createdByUserId: string | null;
+  @Column({ type: 'uuid', nullable: true }) createdByEmployeeId: string | null;
   @CreateDateColumn({ type: 'datetime', precision: 3, default: () => 'CURRENT_TIMESTAMP(3)' }) createdAt: Date;
 }

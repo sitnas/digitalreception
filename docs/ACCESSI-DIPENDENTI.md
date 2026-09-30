@@ -128,6 +128,8 @@ Corpo di `PUT /employees/{id}`:
   "firstName": "Mario",
   "lastName": "Rossi",
   "email": "mario.rossi@azienda.it",
+  "department": "Acquisti",
+  "jobTitle": "Buyer",
   "badgeUid": "04:A2:1B:9C",
   "active": true,
   "validFrom": "2026-10-01T00:00:00Z",
@@ -142,6 +144,7 @@ Corpo di `PUT /employees/{id}`:
 Campi:
 
 - **`email`**: serve per attivare il badge sul telefono.
+- **`department` / `jobTitle`** (facoltativi): reparto e ruolo. Servono quando il dipendente è anche tra le *persone da visitare*, perché il tablet li mostra accanto al nome.
 - **`badgeUid`**: il codice UID della tessera NFC. Sono ammessi i separatori `:`, `-` e gli spazi.
   - `null` rimuove la tessera; se il campo manca, la tessera resta com'è.
   - Una tessera può appartenere a un solo dipendente: altrimenti la risposta è `409 BADGE_IN_USE`.
@@ -155,6 +158,20 @@ Campi:
   - `401 API_KEY_INVALID`.
 
 L'API **riceve soltanto**: non esistono chiamate per leggere dipendenti, porte o passaggi. Le risposte contengono solo il codice inviato e l'esito (`created`, `deleted`). I passaggi si consultano in console, alla voce Passaggi.
+
+### Dati di prova: il gestionale finto
+
+Per provare tutto senza un gestionale vero c'è un comando che inventa dipendenti realistici: nomi italiani, email, reparto e ruolo, metà con tessera NFC. Li manda alla stessa API come farebbe un gestionale HR. Serve una chiave creata in **Integrazione API**.
+
+```bash
+docker compose exec api npm run fake-employees -- --key drk_… --count 20 --site MI --domain azienda.it \
+  --my-email tua.email@azienda.it --my-name "Nome Cognome"
+```
+
+- `--site` crea anche due porte in quella sede, *Ingresso principale* (lun–ven 7–20 per tutti) e *Magazzino* (solo logistica e produzione), con i permessi.
+- `--my-email` dà il tuo indirizzo al primo dipendente, così puoi attivare l'app sul tuo telefono e provare gli inviti.
+- Rilanciato, aggiorna le stesse persone senza creare doppioni. `--seed` cambia il gruppo di persone; `--remove` le cancella.
+- In GitHub Codespaces usa `docker compose -f docker-compose.codespaces.yml exec api …`.
 
 Motivi di rifiuto mostrati dal lettore e in console (`reason`):
 
@@ -195,3 +212,14 @@ Motivi di rifiuto mostrati dal lettore e in console (`reason`):
 
 - **Cosa si legge**: il lettore legge l'**UID** della tessera. Nel database c'è solo un indice cifrato dell'UID (HMAC con la chiave dell'organizzazione) e le ultime 4 cifre per riconoscerla in console.
 - **Limite di sicurezza**: l'UID delle tessere economiche (es. MIFARE Classic) si può copiare. Per le porte critiche meglio il QR sul telefono o tessere con autenticazione crittografica (DESFire), da valutare con il fornitore delle tessere.
+
+## Persone da visitare e inviti dal telefono
+
+In **Persone da visitare** → **Nuova persona** si può scegliere tra i dipendenti, cercando per nome, email o reparto. Nome ed email arrivano dal gestionale e si aggiornano da soli quando cambiano. Se il dipendente viene cancellato, resta tra le persone da visitare ma non più collegato. Chi non è un dipendente (un consulente, per esempio) si inserisce a mano come prima.
+
+Un dipendente collegato che ha attivato l'app *Il mio badge* ha in più il pulsante **I miei inviti**:
+- crea un invito per un proprio ospite, scegliendo sede (solo quelle in cui riceve visite), giorno, ora e motivo;
+- l'ospite riceve la stessa email con QR degli inviti creati in console;
+- dall'app può condividere codice e istruzioni, vedere chi aspetta e annullare.
+
+In console l'invito compare con l'etichetta "dall'app". L'app usa un token separato dal segreto del QR. Il token nasce con l'attivazione del badge e si revoca insieme al telefono (Dipendenti → *Revoca telefono*). Chi aveva attivato il badge prima di questa versione deve rimuoverlo e attivarlo di nuovo una volta.

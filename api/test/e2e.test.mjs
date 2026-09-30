@@ -503,6 +503,82 @@ describe('end-to-end', { skip: !enabled && 'E2E_DB_HOST not set' }, () => {
     assert.equal((await ssoAdmin.patch(`/admin/users/${adminRow.id}`, { ssoExempt: false })).status, 200);
   });
 
+  test('people to visit picked from the employees; the visited employee invites guests from the phone app', async () => {
+    const { createHash } = await import('node:crypto');
+    const IP = '10.9.0.5';
+    const api = (method, path, body) => fetch(`${BASE}/integration/v1${path}`, { method, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ctx.hrKey}` }, body: body && JSON.stringify(body) }).then(async (r) => ({ status: r.status, data: await r.json().catch(() => null) }));
+    ctx.hrKey = (await admin.post('/admin/access/api-keys', { name: 'HR for hosts' })).data.key;
+    const luisa = { firstName: 'Luisa', lastName: 'Verdi', email: 'luisa@e2e.test', department: 'Acquisti', jobTitle: 'Buyer', permissions: [] };
+    assert.equal((await api('PUT', '/employees/H100', luisa)).data.created, true);
+
+    // The console offers the employees; the person to visit takes name and email from the employee record.
+    const cand = (await admin.get('/admin/hosts/employees')).data.find((e) => e.externalId === 'H100');
+    assert.equal(cand.department, 'Acquisti'); assert.equal(cand.hostId, null);
+    // A site manager sees only employees who can open a door of their sites (like the employee list).
+    await admin.post('/admin/users', { email: 'sm-hosts@e2e.test', displayName: 'SM Hosts', role: 'SITE_MANAGER', siteIds: [ctx.milano.id], temporaryPassword: 'Temporary-Pass-333' });
+    const sm = new Client(IP); await sm.signIn('sm-hosts@e2e.test', 'Temporary-Pass-333', 'Sm-Hosts-Password-1');
+    assert.ok(!(await sm.get('/admin/hosts/employees')).data.some((e) => e.externalId === 'H100'));
+    assert.equal((await sm.post('/admin/hosts', { firstName: 'A', lastName: 'B', employeeId: cand.id, siteIds: [ctx.milano.id] })).data.message, 'EMPLOYEE_NOT_FOUND');
+    const host = await admin.post('/admin/hosts', { firstName: 'Typed', lastName: 'Name', phone: '+39 02 9', employeeId: cand.id, siteIds: [ctx.milano.id] });
+    assert.equal(host.status, 201, JSON.stringify(host.data));
+    assert.equal((await admin.post('/admin/hosts', { firstName: 'A', lastName: 'B', employeeId: cand.id, siteIds: [ctx.milano.id] })).data.message, 'EMPLOYEE_ALREADY_HOST');
+    let row = (await admin.get('/admin/hosts')).data.find((h) => h.id === host.data.id);
+    assert.deepEqual([row.firstName, row.lastName, row.email, row.department, row.jobTitle, row.phone, row.employeeId, row.appInvites], ['Luisa', 'Verdi', 'luisa@e2e.test', 'Acquisti', 'Buyer', '+39 02 9', cand.id, false]);
+    assert.equal((await admin.patch(`/admin/hosts/${host.data.id}`, { firstName: 'Changed' })).status, 200);
+    assert.equal((await admin.get('/admin/hosts')).data.find((h) => h.id === host.data.id).firstName, 'Luisa', 'a linked name follows the employee');
+    // The external system renames her: the tablet shows the new name.
+    await api('PUT', '/employees/H100', { ...luisa, lastName: 'Verdi Neri' });
+    assert.equal((await admin.get('/admin/hosts')).data.find((h) => h.id === host.data.id).lastName, 'Verdi Neri');
+
+    // She activates the phone app (code set directly: no SMTP in tests) and gets a token for her own requests.
+    const mysql = require('mysql2/promise');
+    const db = await mysql.createConnection({ host: env.DB_HOST, port: Number(env.DB_PORT), user: env.DB_USER, password: env.DB_PASSWORD, database: env.DB_NAME });
+    await db.query('UPDATE employees SET loginCodeHash = ?, loginCodeExpiresAt = DATE_ADD(UTC_TIMESTAMP(3), INTERVAL 5 MINUTE), loginCodeAttempts = 0 WHERE id = ?', [createHash('sha256').update(`${cand.id}|111222`).digest('hex'), cand.id]);
+    await db.end();
+    const badge = (await new Client(IP).post('/badge/activate', { email: 'luisa@e2e.test', code: '111222' })).data;
+    assert.match(badge.appToken, /^dra_[A-Za-z0-9_-]{40,}$/);
+    const phone = new Client(IP);
+    const me = (path, body, method) => phone.req(method ?? (body ? 'POST' : 'GET'), `/me${path}`, body, { bearer: badge.appToken });
+    assert.equal((await new Client(IP).get('/me')).status, 401);
+    assert.equal((await new Client(IP).get('/me', { bearer: 'dra_' + 'x'.repeat(43) })).status, 401);
+    assert.equal((await new Client(IP).get('/me', { bearer: badge.secret })).status, 401, 'the QR secret is not an app token');
+    const profile = (await me('')).data;
+    assert.equal(profile.canInvite, true); assert.deepEqual(profile.sites.map((x) => x.name), ['Milano']); assert.equal(profile.lastName, 'Verdi Neri');
+    assert.equal((await admin.get('/admin/hosts')).data.find((h) => h.id === host.data.id).appInvites, true);
+
+    // Invitations: only for her own sites; she sees and cancels only hers.
+    const tomorrow = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Rome', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(Date.now() + 86_400_000)).map((x) => [x.type, x.value]));
+    const guest = { date: `${tomorrow.year}-${tomorrow.month}-${tomorrow.day}`, time: '10:30', firstName: 'Ugo', lastName: 'Ospite', company: 'Ospiti Srl', email: 'ugo@e2e.test', purpose: 'MEETING' };
+    assert.equal((await me('/invitations', { ...guest, siteId: ctx.roma.id })).data.message, 'NOT_A_HOST_HERE');
+    assert.equal((await me('/invitations', { ...guest, siteId: ctx.milano.id, hostId: ctx.mario.id })).status, 400, 'the host is always herself');
+    const inv = await me('/invitations', { ...guest, siteId: ctx.milano.id });
+    assert.equal(inv.status, 201, JSON.stringify(inv.data));
+    const mine = (await me('/invitations')).data;
+    assert.equal(mine.length, 1); assert.equal(mine[0].firstName, 'Ugo'); assert.equal(mine[0].status, 'PENDING'); assert.equal(mine[0].siteName, 'Milano');
+    const inConsole = (await admin.get('/admin/invitations')).data.find((r) => r.id === inv.data.id);
+    assert.equal(inConsole.hostName, 'Luisa Verdi Neri'); assert.equal(inConsole.fromApp, true);
+    const qr = (await me(`/invitations/${inv.data.id}/qr`)).data;
+    assert.match(qr.code, /^[A-Z0-9]{8}$/); assert.ok(qr.payload.endsWith(qr.code));
+    const other = (await admin.get('/admin/invitations')).data.find((r) => r.hostName === 'Mario Rossi');
+    if (other) assert.equal((await me(`/invitations/${other.id}/cancel`, {})).status, 404, 'somebody else’s invitation');
+    assert.equal((await me(`/invitations/${inv.data.id}/cancel`, {})).status, 200);
+    assert.equal((await me('/invitations')).data[0].status, 'CANCELLED');
+
+    // Unlinked from the directory: no more inviting. Phone revoked: the token stops working.
+    assert.equal((await admin.patch(`/admin/hosts/${host.data.id}`, { employeeId: null })).status, 200);
+    assert.equal((await me('')).data.canInvite, false);
+    assert.equal((await me('/invitations')).data.message, 'NOT_A_HOST');
+    assert.equal((await admin.patch(`/admin/hosts/${host.data.id}`, { employeeId: cand.id })).status, 200);
+    assert.equal((await me('')).data.canInvite, true);
+    assert.equal((await admin.post(`/admin/access/employees/${cand.id}/revoke-phone`)).status, 200);
+    assert.equal((await me('')).status, 401);
+
+    // Removed by the external system: the person stays in the directory, no longer linked.
+    assert.equal((await api('DELETE', '/employees/H100')).status, 200);
+    row = (await admin.get('/admin/hosts')).data.find((h) => h.id === host.data.id);
+    assert.equal(row.employeeId, null); assert.equal(row.lastName, 'Verdi Neri');
+  });
+
   test('deleting the tenant removes its host directory too', async () => {
     const mysql = require('mysql2/promise');
     const db = await mysql.createConnection({ host: env.DB_HOST, port: Number(env.DB_PORT), user: env.DB_USER, password: env.DB_PASSWORD, database: env.DB_NAME });

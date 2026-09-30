@@ -1,4 +1,5 @@
 import type { Badge } from './badge';
+import type { Invite, NewInvite, Profile } from './invites';
 
 export class ApiError extends Error {
   constructor(public status: number, public code: string) { super(code); }
@@ -32,3 +33,19 @@ export async function serverClockOffsetMs(origin: string): Promise<number | null
     return Date.parse(date) - (before + Date.now()) / 2;
   } catch { return null; }
 }
+
+// ------------------------------------------------------------------ the employee's own requests
+
+type Authed = Pick<Badge, 'origin' | 'appToken'>;
+const authed = <R>(b: Authed, path: string, init?: RequestInit) => {
+  if (!b.appToken) return Promise.reject(new ApiError(401, 'APP_TOKEN_REQUIRED'));
+  return call<R>(b.origin, `/me${path}`, { ...init, headers: { Authorization: `Bearer ${b.appToken}` } });
+};
+
+/** Who I am and, if I can be visited, where: `canInvite` turns the invitations on in the app. */
+export const getProfile = (b: Authed) => authed<Profile>(b, '');
+export const listInvites = (b: Authed, scope: 'upcoming' | 'past' = 'upcoming') => authed<Invite[]>(b, `/invitations?scope=${scope}`);
+export const createInvite = (b: Authed, v: NewInvite, locale: string) =>
+  authed<{ id: string; emailStatus: string }>(b, '/invitations', { method: 'POST', body: JSON.stringify({ ...v, company: v.company || undefined, locale }) });
+export const cancelInvite = (b: Authed, id: string) => authed<{ ok: true }>(b, `/invitations/${id}/cancel`, { method: 'POST', body: '{}' });
+export const inviteQr = (b: Authed, id: string) => authed<{ code: string; payload: string }>(b, `/invitations/${id}/qr`);

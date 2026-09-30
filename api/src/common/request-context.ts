@@ -8,11 +8,14 @@ export interface AuthUser { id: string; tenantId: string; email: string; display
   /** This session was opened with single sign-on. */
   sso: boolean }
 export interface AuthDevice { id: string; tenantId: string; name: string; siteId: string }
+/** An employee using the phone app (token issued with the phone badge). */
+export interface AuthEmployee { id: string; tenantId: string }
 
 export interface AppRequest extends Request {
   tenant?: AuthTenant;
   user?: AuthUser;
   device?: AuthDevice;
+  employee?: AuthEmployee;
 }
 
 export function clientIp(req: Request): string | null {

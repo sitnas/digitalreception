@@ -1,12 +1,13 @@
 import * as Brightness from 'expo-brightness';
-import { useKeepAwake } from 'expo-keep-awake';
-import { usePreventScreenCapture } from 'expo-screen-capture';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
+import { router, useFocusEffect } from 'expo-router';
+import { allowScreenCaptureAsync, preventScreenCaptureAsync } from 'expo-screen-capture';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, AppState, Platform, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BadgeNfc } from '../../modules/badge-nfc';
-import { serverClockOffsetMs } from '../lib/api';
+import { getProfile, serverClockOffsetMs } from '../lib/api';
 import { qrPayload, stepAt, type Badge } from '../lib/badge';
 import { useBadge } from '../lib/badge-context';
 import { t } from '../lib/i18n';
@@ -16,9 +17,14 @@ import { Button } from './ui';
 /** Seconds of clock difference with the server beyond which the reader may refuse the QR. */
 const CLOCK_TOLERANCE_S = 20;
 
-/** Full brightness while the badge is on screen and the app is in front; the previous level comes back after. */
-function useFullBrightness() {
-  useEffect(() => {
+/**
+ * While the badge is the screen in front (not while the invitations are open): screen on, full
+ * brightness, no screenshots. The previous brightness comes back after.
+ */
+function useBadgeInFront() {
+  useFocusEffect(useCallback(() => {
+    activateKeepAwakeAsync('badge').catch(() => {});
+    preventScreenCaptureAsync('badge').catch(() => {}); // a screenshot would stop working anyway: do not invite it
     let previous: number | null = null;
     const raise = async () => {
       try { previous ??= await Brightness.getBrightnessAsync(); await Brightness.setBrightnessAsync(1); } catch { /* not available */ }
@@ -28,8 +34,12 @@ function useFullBrightness() {
     };
     raise();
     const sub = AppState.addEventListener('change', (s) => (s === 'active' ? raise() : restore()));
-    return () => { sub.remove(); restore(); };
-  }, []);
+    return () => {
+      sub.remove(); restore();
+      deactivateKeepAwake('badge').catch(() => {});
+      allowScreenCaptureAsync('badge').catch(() => {});
+    };
+  }, []));
 }
 
 type NfcState = 'ready' | 'off' | 'dev-build' | 'none';
@@ -42,7 +52,7 @@ function useNfcCard(value: string): [NfcState, () => void] {
   const [state, setState] = useState<NfcState>('none');
   const latest = useRef(value);
   latest.current = value;
-  useEffect(() => {
+  useFocusEffect(useCallback(() => {
     if (Platform.OS !== 'android') return;
     if (!BadgeNfc) { setState(__DEV__ ? 'dev-build' : 'none'); return; }
     if (!BadgeNfc.isSupported()) return;
@@ -57,8 +67,9 @@ function useNfcCard(value: string): [NfcState, () => void] {
       if (s === 'active') refresh();
       else BadgeNfc!.setPayload(null); // app in background: stop answering readers
     });
-    return () => { sub.remove(); BadgeNfc!.setPayload(null); };
-  }, []);
+    // Another screen in front (invitations): stop answering readers until the badge is back.
+    return () => { sub.remove(); BadgeNfc!.setPayload(null); setState('none'); };
+  }, []));
   // Same code as the QR, renewed every step.
   useEffect(() => { if (state === 'ready') BadgeNfc?.setPayload(value); }, [state, value]);
   return [state, () => BadgeNfc?.openSettings()];
@@ -68,9 +79,10 @@ export function BadgeScreen({ badge }: { badge: Badge }) {
   const theme = useTheme(badge.primaryColor);
   const { remove } = useBadge();
   const { width } = useWindowDimensions();
-  useKeepAwake();
-  usePreventScreenCapture(); // a screenshot would stop working anyway: do not invite it
-  useFullBrightness();
+  useBadgeInFront();
+  // People who can be visited also invite their guests from here.
+  const [canInvite, setCanInvite] = useState(false);
+  useEffect(() => { if (badge.appToken) getProfile(badge).then((p) => setCanInvite(p.canInvite), () => {}); }, [badge]);
 
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => { const h = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(h); }, []);
@@ -107,6 +119,8 @@ export function BadgeScreen({ badge }: { badge: Badge }) {
           {nfc === 'dev-build' ? <Text style={[styles.small, { color: theme.ink2, textAlign: 'center' }]}>{t.nfcDevBuild}</Text> : null}
           {clockOff ? <Text accessibilityRole="alert" style={[styles.warn, { color: theme.danger }]}>{t.clock}</Text> : null}
         </View>
+        {canInvite ? <Button label={t.invites.open} theme={theme} onPress={() => router.push('/invites')} /> : null}
+        {!badge.appToken ? <Text style={[styles.small, { color: theme.ink2, textAlign: 'center' }]}>{t.invites.reactivate}</Text> : null}
         {nfc === 'off' ? (
           <View style={styles.nfcOff}>
             <Text style={[styles.small, { color: theme.ink2, textAlign: 'center' }]}>{t.nfcOff}</Text>

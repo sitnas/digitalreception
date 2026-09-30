@@ -12,4 +12,4 @@ export enum FileKind { SIGNATURE = 'SIGNATURE', DOCUMENT = 'DOCUMENT', ASSET_IN 
 /** How far the visitor travelled to reach the site (self-declared at check-in). */
 export enum TravelDistance { UNDER_10_KM = 'UNDER_10_KM', FROM_10_TO_100_KM = 'FROM_10_TO_100_KM', OVER_100_KM = 'OVER_100_KM' }
 export enum NoticeEmailStatus { NOT_REQUESTED = 'NOT_REQUESTED', PENDING = 'PENDING', SENT = 'SENT', FAILED = 'FAILED', SKIPPED = 'SKIPPED' }
-export enum ActorType { USER = 'USER', DEVICE = 'DEVICE', SYSTEM = 'SYSTEM', ANONYMOUS = 'ANONYMOUS' }
+export enum ActorType { USER = 'USER', DEVICE = 'DEVICE', EMPLOYEE = 'EMPLOYEE', SYSTEM = 'SYSTEM', ANONYMOUS = 'ANONYMOUS' }

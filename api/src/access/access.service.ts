@@ -5,7 +5,7 @@ import { DataSource, In, MoreThan, Repository } from 'typeorm';
 import { CryptoService } from '../common/crypto.service';
 import { MailService } from '../common/mail.service';
 import { TenantKeysService } from '../common/tenant-keys.service';
-import { AccessEvent, AccessMethod, AccessResult, AccessRule, Door, Employee, Site, Tenant } from '../entities';
+import { AccessEvent, AccessMethod, AccessResult, AccessRule, Door, Employee, Host, Site, Tenant } from '../entities';
 
 /** Phone badge QR: DRE1:<employeeId>.<time step>.<signature>; a new code every QR_STEP_S seconds. */
 export const QR_PREFIX = 'DRE1:';
@@ -18,7 +18,7 @@ const LOGIN_CODE_MAX_ATTEMPTS = 5;
 
 export interface PermissionInput { door: string; days?: number[]; from?: string; to?: string }
 export interface EmployeeInput {
-  firstName: string; lastName: string; email?: string | null; badgeUid?: string | null; active?: boolean;
+  firstName: string; lastName: string; email?: string | null; department?: string | null; jobTitle?: string | null; badgeUid?: string | null; active?: boolean;
   validFrom?: string | null; validUntil?: string | null; permissions: PermissionInput[];
 }
 export interface ReaderContext { id: string; tenantId: string; siteId: string; doorId: string }
@@ -97,12 +97,18 @@ export class AccessService {
       Object.assign(e, {
         firstNameEnc: tc.encrypt(dto.firstName, 'employee.firstName'), lastNameEnc: tc.encrypt(dto.lastName, 'employee.lastName'),
         emailEnc: tc.encrypt(email, 'employee.email'), emailIndex: email ? tc.blindIndex(email, 'employee.email') : null,
+        departmentEnc: tc.encrypt(dto.department || null, 'employee.department'), jobTitleEnc: tc.encrypt(dto.jobTitle || null, 'employee.jobTitle'),
         active: dto.active ?? true,
         validFrom: dto.validFrom ? new Date(dto.validFrom) : null, validUntil: dto.validUntil ? new Date(dto.validUntil) : null,
       });
       // undefined leaves the badge as is, null removes it
       if (dto.badgeUid !== undefined) Object.assign(e, { badgeIndex, badgeHint: badge ? badge.slice(-4) : null });
       const saved = await em.save(e);
+      // The same person in the directory of people to visit follows the external system.
+      await em.update(Host, { tenantId, employeeId: saved.id }, {
+        firstName: dto.firstName, lastName: dto.lastName, email,
+        ...(dto.department ? { department: dto.department } : {}), ...(dto.jobTitle ? { jobTitle: dto.jobTitle } : {}),
+      });
       await em.delete(AccessRule, { tenantId, employeeId: saved.id });
       for (const p of dto.permissions) {
         await em.save(em.create(AccessRule, {
@@ -121,6 +127,8 @@ export class AccessService {
     await this.ds.transaction(async (em) => {
       await em.delete(AccessRule, { tenantId, employeeId: e.id });
       await em.update(AccessEvent, { tenantId, employeeId: e.id }, { employeeId: null });
+      // The person stays in the directory of people to visit, no longer linked (and no longer inviting from the app).
+      await em.update(Host, { tenantId, employeeId: e.id }, { employeeId: null });
       await em.delete(Employee, { id: e.id });
     });
     return e;
@@ -160,10 +168,15 @@ export class AccessService {
     const ok = timingSafeEqual(Buffer.from(e.loginCodeHash), Buffer.from(this.crypto.sha256(`${e.id}|${code}`)));
     if (!ok) throw new BadRequestException('CODE_INVALID');
     const secret = randomBytes(32);
-    await this.employees.update(e.id, { credentialSecretEnc: tc.encrypt(secret.toString('base64'), 'employee.credentialSecret'), credentialIssuedAt: new Date(), loginCodeHash: null, loginCodeExpiresAt: null, loginCodeAttempts: 0 });
+    // A second, separate secret for the app's own requests (invitations): the QR secret never leaves the phone.
+    const appToken = `dra_${randomBytes(32).toString('base64url')}`;
+    await this.employees.update(e.id, {
+      credentialSecretEnc: tc.encrypt(secret.toString('base64'), 'employee.credentialSecret'), credentialIssuedAt: new Date(),
+      appTokenHash: this.crypto.sha256(appToken), loginCodeHash: null, loginCodeExpiresAt: null, loginCodeAttempts: 0,
+    });
     const tenant = await this.tenants.findOneOrFail({ where: { id: tenantId }, select: { id: true, name: true } });
     return {
-      employeeId: e.id, secret: secret.toString('base64'), step: QR_STEP_S, organisation: tenant.name,
+      employeeId: e.id, secret: secret.toString('base64'), appToken, step: QR_STEP_S, organisation: tenant.name,
       firstName: tc.decrypt(e.firstNameEnc, 'employee.firstName'), lastName: tc.decrypt(e.lastNameEnc, 'employee.lastName'),
     };
   }

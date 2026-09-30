@@ -22,6 +22,7 @@ export class AuditService {
     let actorType = ActorType.ANONYMOUS, actorId: string | null = null, actorLabel: string | null = null;
     if (req.user) { actorType = ActorType.USER; actorId = req.user.id; actorLabel = req.user.email; }
     else if (req.device) { actorType = ActorType.DEVICE; actorId = req.device.id; actorLabel = req.device.name; }
+    else if (req.employee) { actorType = ActorType.EMPLOYEE; actorId = req.employee.id; actorLabel = 'app'; }
     await this.write({ tenantId: req.tenant?.id ?? null, actorType, actorId, actorLabel, ip: clientIp(req), ...entry });
   }
 

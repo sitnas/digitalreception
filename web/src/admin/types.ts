@@ -13,7 +13,10 @@ export interface VisitDetail extends VisitRow {
 }
 export interface Paged<T> { items: T[]; total: number; page: number; pageSize: number }
 export interface Device { id: string; siteId: string; site?: Site; name: string; createdAt: string; lastSeenAt: string | null; revokedAt: string | null }
-export interface HostRow { id: string; firstName: string; lastName: string; department: string | null; jobTitle: string | null; email: string | null; phone: string | null; sites: Site[]; active: boolean }
+export interface HostRow { id: string; firstName: string; lastName: string; department: string | null; jobTitle: string | null; email: string | null; phone: string | null; sites: Site[]; active: boolean;
+  /** Linked employee, and whether they activated the phone app (so they can invite from it). */
+  employeeId: string | null; appInvites: boolean }
+export interface HostCandidate { id: string; externalId: string; firstName: string | null; lastName: string | null; email: string | null; department: string | null; jobTitle: string | null; hostId: string | null }
 export interface UserRow { id: string; email: string; displayName: string; role: Role; sites: Site[]; active: boolean; lastLoginAt: string | null; mfaEnabledAt: string | null;
   /** Emergency account (password allowed when single sign-on is required) / already signed in once through the directory. */
   ssoExempt: boolean; ssoBound: boolean }

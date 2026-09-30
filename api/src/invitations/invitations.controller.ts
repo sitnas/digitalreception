@@ -60,7 +60,7 @@ export class InvitationsController {
   @Roles(...STAFF)
   async create(@CurrentUser() user: AuthUser, @Body() dto: CreateInvitationDto, @Req() req: AppRequest) {
     assertSiteAccess(user, dto.siteId);
-    const inv = await this.invitations.create(user, dto);
+    const inv = await this.invitations.create({ tenantId: user.tenantId, userId: user.id }, dto);
     await this.audit.fromRequest(req, { action: 'INVITATION_CREATED', entityType: 'invitation', entityId: inv.id, siteId: inv.siteId, details: { hostId: inv.hostId, expectedAt: inv.expectedAt } });
     return { id: inv.id, emailStatus: inv.emailStatus };
   }

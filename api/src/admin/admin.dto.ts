@@ -1,5 +1,5 @@
 import { Transform, Type } from 'class-transformer';
-import { ArrayMaxSize, IsArray, IsBoolean, IsEmail, IsEnum, IsIn, IsISO8601, IsInt, IsOptional, IsString, IsUUID, Length, Matches, Max, MaxLength, Min, MinLength } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsBoolean, IsEmail, IsEnum, IsIn, IsISO8601, IsInt, IsOptional, IsString, IsUUID, Length, Matches, Max, MaxLength, Min, MinLength, ValidateIf } from 'class-validator';
 import { Role, VisitStatus } from '../entities';
 
 const trim = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value);
@@ -68,6 +68,8 @@ export class CreateHostDto {
   @IsOptional() @Transform(({ value }) => (typeof value === 'string' ? value.trim().toLowerCase() || null : value)) @IsEmail() @MaxLength(190) email?: string | null;
   @IsOptional() @Transform(optionalText) @IsString() @MaxLength(40) @Matches(/^[0-9 +().\-/]*$/) phone?: string | null;
   @IsArray() @ArrayMaxSize(200) @IsUUID('all', { each: true }) siteIds: string[];
+  /** Picked from the employees: name and email then come from the employee record. */
+  @IsOptional() @IsUUID() employeeId?: string;
 }
 
 export class UpdateHostDto {
@@ -79,6 +81,8 @@ export class UpdateHostDto {
   @IsOptional() @Transform(optionalText) @IsString() @MaxLength(40) @Matches(/^[0-9 +().\-/]*$/) phone?: string | null;
   @IsOptional() @IsArray() @ArrayMaxSize(200) @IsUUID('all', { each: true }) siteIds?: string[];
   @IsOptional() @IsBoolean() active?: boolean;
+  /** Link to an employee, or null to unlink. */
+  @IsOptional() @ValidateIf((_, v) => v !== null) @IsUUID() employeeId?: string | null;
 }
 
 export class ResetPasswordDto { @IsString() @MinLength(12) @MaxLength(200) temporaryPassword: string }

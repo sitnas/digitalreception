@@ -2,8 +2,8 @@ import { CanActivate, ExecutionContext, Injectable, UnauthorizedException, creat
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository } from 'typeorm';
 import { CryptoService } from '../common/crypto.service';
-import { AppRequest } from '../common/request-context';
-import { ApiKey, DoorReader } from '../entities';
+import { AppRequest, AuthEmployee } from '../common/request-context';
+import { ApiKey, DoorReader, Employee } from '../entities';
 import type { ReaderContext } from './access.service';
 
 interface AccessRequest extends AppRequest { apiKey?: { id: string; tenantId: string }; reader?: ReaderContext }
@@ -41,6 +41,29 @@ export class ReaderGuard implements CanActivate {
     if (!r) throw new UnauthorizedException('READER_NOT_AUTHORISED');
     req.reader = { id: r.id, tenantId: r.tenantId, siteId: r.siteId, doorId: r.doorId };
     if (!r.lastSeenAt || Date.now() - r.lastSeenAt.getTime() > 50_000) await this.readers.update(r.id, { lastSeenAt: new Date() }); // heartbeat every minute
+    return true;
+  }
+}
+
+export const CurrentEmployee = createParamDecorator((_: unknown, ctx: ExecutionContext) => ctx.switchToHttp().getRequest<AppRequest>().employee!);
+
+/**
+ * Phone app of an employee: "Authorization: Bearer dra_…", issued with the phone badge and revoked
+ * with it. Only active employees inside their validity period get through.
+ */
+@Injectable()
+export class EmployeeAppGuard implements CanActivate {
+  constructor(private readonly crypto: CryptoService, @InjectRepository(Employee) private readonly employees: Repository<Employee>) {}
+
+  async canActivate(ctx: ExecutionContext): Promise<boolean> {
+    const req = ctx.switchToHttp().getRequest<AppRequest>();
+    const m = /^Bearer (dra_[A-Za-z0-9_-]{30,})$/.exec(req.headers.authorization ?? '');
+    if (!m || !req.tenant) throw new UnauthorizedException('APP_TOKEN_REQUIRED');
+    const e = await this.employees.findOne({ where: { appTokenHash: this.crypto.sha256(m[1]), tenantId: req.tenant.id, active: true } });
+    const now = new Date();
+    if (!e || (e.validFrom && now < e.validFrom) || (e.validUntil && now >= e.validUntil)) throw new UnauthorizedException('APP_TOKEN_INVALID');
+    const who: AuthEmployee = { id: e.id, tenantId: e.tenantId };
+    req.employee = who;
     return true;
   }
 }
