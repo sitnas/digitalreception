@@ -646,3 +646,13 @@ code.mfa-secret { font-size: 14px; overflow-wrap: anywhere; max-width: 100%; }
 .pick-list button:disabled { opacity: .5; cursor: not-allowed; }
 .pick-list small { color: var(--ink-2); }
 .input[readonly] { background: var(--surface-2); color: var(--ink-2); }
+
+/* Invitations on the "My badge" page */
+.badge-invites h1 { font-size: 24px; }
+.invite-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.invite-list button { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; min-height: 56px;
+  text-align: left; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--surface); color: var(--ink); font: inherit; cursor: pointer; }
+.invite-list button:hover { border-color: var(--ink-3); }
+.invite-list span:first-child { display: grid; gap: 2px; }
+.invite-list small { color: var(--ink-2); }
+.invite-code { margin: 0; font-size: 28px; font-weight: 800; letter-spacing: 4px; font-variant-numeric: tabular-nums; }

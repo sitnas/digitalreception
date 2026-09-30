@@ -2,6 +2,7 @@ import QRCode from 'qrcode';
 import { useEffect, useMemo, useState } from 'react';
 import { ApiError } from '../lib/api';
 import { applyBrand } from '../lib/theme';
+import { BadgeInvites, inviteStrings, me, type Profile } from './BadgeInvites';
 
 /**
  * "My badge" on the employee's phone. After a one-time email code the phone keeps a secret and
@@ -9,7 +10,9 @@ import { applyBrand } from '../lib/theme';
  * within a minute. Everything is computed on the phone, it works without network at the door.
  */
 
-interface Badge { employeeId: string; secret: string; step: number; organisation: string; firstName: string; lastName: string }
+interface Badge { employeeId: string; secret: string; step: number; organisation: string; firstName: string; lastName: string;
+  /** For the employee's own requests (invitations); missing on badges activated before it existed. */
+  appToken?: string }
 const KEY = 'rs_badge';
 const load = (): Badge | null => { try { return JSON.parse(localStorage.getItem(KEY) ?? 'null'); } catch { return null; } };
 const save = (b: Badge | null) => { try { if (b) localStorage.setItem(KEY, JSON.stringify(b)); else localStorage.removeItem(KEY); } catch { /* storage unavailable */ } };
@@ -39,6 +42,13 @@ async function sign(secretB64: string, message: string): Promise<string> {
 
 export function BadgeApp() {
   const [badge, setBadge] = useState<Badge | null>(load);
+  // People who can be visited also invite their guests from here.
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [inviting, setInviting] = useState(false);
+  useEffect(() => {
+    setProfile(null);
+    if (badge?.appToken) me<Profile>(badge.appToken).then(setProfile).catch(() => undefined);
+  }, [badge]);
   useEffect(() => {
     document.title = T.title;
     // The organisation's colours, also before activation (public endpoint, no personal data).
@@ -46,7 +56,9 @@ export function BadgeApp() {
   }, []);
   return (
     <div className="badge-app">
-      {badge ? <BadgeView badge={badge} onRemove={() => { save(null); setBadge(null); }} /> : <Activate onDone={(b) => { save(b); setBadge(b); }} />}
+      {!badge ? <Activate onDone={(b) => { save(b); setBadge(b); }} />
+        : inviting && profile?.canInvite && badge.appToken ? <BadgeInvites token={badge.appToken} profile={profile} lang={lang} onBack={() => setInviting(false)} />
+        : <BadgeView badge={badge} canInvite={!!profile?.canInvite} onInvites={() => setInviting(true)} onRemove={() => { save(null); setBadge(null); setInviting(false); }} />}
     </div>
   );
 }
@@ -66,9 +78,7 @@ function Activate({ onDone }: { onDone: (b: Badge) => void }) {
   const activate = async (e: React.FormEvent) => {
     e.preventDefault(); setBusy(true); setError(null);
     try {
-      // The app token (invitations) is for the phone app only: the web page never keeps it.
-      const { appToken: _unused, ...badge } = await post<Badge & { appToken?: string }>('activate', { email: email.trim(), code });
-      onDone(badge);
+      onDone(await post<Badge>('activate', { email: email.trim(), code }));
     } catch (err) { fail(err); } finally { setBusy(false); }
   };
 
@@ -93,7 +103,8 @@ function Activate({ onDone }: { onDone: (b: Badge) => void }) {
   );
 }
 
-function BadgeView({ badge, onRemove }: { badge: Badge; onRemove: () => void }) {
+function BadgeView({ badge, canInvite, onInvites, onRemove }: { badge: Badge; canInvite: boolean; onInvites: () => void; onRemove: () => void }) {
+  const I = inviteStrings(lang);
   const [now, setNow] = useState(() => Date.now());
   const [svg, setSvg] = useState('');
   const step = Math.floor(now / 1000 / badge.step);
@@ -126,6 +137,8 @@ function BadgeView({ badge, onRemove }: { badge: Badge; onRemove: () => void }) 
       </div>
       <p className="muted" style={{ margin: 0, fontSize: 14 }}>{T.next} {left}s</p>
       <p style={{ margin: 0 }}>{T.hint}</p>
+      {canInvite && <button type="button" className="btn btn-primary" onClick={onInvites}>{I.open}</button>}
+      {!badge.appToken && <p className="muted" style={{ margin: 0, fontSize: 13 }}>{I.reactivate}</p>}
       <button type="button" className="btn btn-ghost btn-sm" onClick={() => { if (window.confirm(T.removeConfirm)) onRemove(); }}>{T.remove}</button>
     </main>
   );
