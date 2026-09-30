@@ -16,6 +16,8 @@ import { InvitationsService } from './invitations/invitations.service';
 import { VisitsController } from './admin/visits.controller';
 import { VisitsService } from './admin/visits.service';
 import { AuthController } from './auth/auth.controller';
+import { SessionService } from './auth/session.service';
+import { SsoController } from './auth/sso.controller';
 import { APP_CONFIG, AppConfig, loadConfig } from './common/app-config';
 import { AuditService } from './common/audit.service';
 import { CryptoService } from './common/crypto.service';
@@ -46,20 +48,21 @@ const JWT = { algorithm: 'HS256' as const, issuer: 'reception-api', audience: 'r
     ThrottlerModule.forRoot([{ name: 'default', ttl: 60_000, limit: 120 }]),
     ScheduleModule.forRoot(),
   ],
-  controllers: [HealthController, TenantController, AuthController, KioskController, VisitsController, ManagementController, StatsController, InvitationsController, IntegrationController, ReaderController, BadgeController, AccessAdminController],
+  controllers: [HealthController, TenantController, AuthController, SsoController, KioskController, VisitsController, ManagementController, StatsController, InvitationsController, IntegrationController, ReaderController, BadgeController, AccessAdminController],
   providers: [
     { provide: APP_CONFIG, useValue: config as AppConfig },
     { provide: STORAGE, useFactory: () => createStorage(config) },
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     CryptoService, TenantKeysService, InvitationsService, AccessService, ApiKeyGuard, ReaderGuard, AuditService, FilesService, MailService, VisitLifecycleService,
-    AdminAuthGuard, DeviceGuard, KioskService, VisitsService, RetentionService, MailOutboxService,
+    SessionService, AdminAuthGuard, DeviceGuard, KioskService, VisitsService, RetentionService, MailOutboxService,
   ],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     // Every route except health checks requires a resolved, active tenant.
     consumer.apply(TenantResolverMiddleware)
-      .exclude({ path: 'health', method: RequestMethod.ALL }, { path: 'health/(.*)', method: RequestMethod.ALL })
+      // The single sign-on callback is shared by every organisation: the request it answers says which one.
+      .exclude({ path: 'health', method: RequestMethod.ALL }, { path: 'health/(.*)', method: RequestMethod.ALL }, { path: 'auth/sso/callback', method: RequestMethod.GET })
       .forRoutes({ path: '*', method: RequestMethod.ALL });
   }
 }

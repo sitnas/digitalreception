@@ -625,3 +625,11 @@ code.mfa-secret { font-size: 14px; overflow-wrap: anywhere; max-width: 100%; }
 .row-link { background: none; border: 0; padding: 0; font: inherit; color: inherit; text-align: left; text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; }
 /* Status pill on the door reader: white text needs a dark green; the dark theme's green is light. */
 @media (prefers-color-scheme: dark) { .reader-nfc { background: #1E7F4F; } .reader-nfc.off { background: #4A4A46; } }
+
+/* Single sign-on: neutral button with the provider's mark, as both providers' brand rules ask. */
+.btn-sso { background: var(--surface); border-color: var(--line-strong); color: var(--ink); gap: 10px; text-decoration: none; }
+.btn-sso:hover { background: var(--surface-2); border-color: var(--ink-3); }
+.btn-sso svg { flex: none; }
+.login-or { display: flex; align-items: center; gap: 12px; margin: 0; color: var(--ink-3); font-size: 13px; }
+.login-or::before, .login-or::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+.sso-mark { display: inline-flex; vertical-align: -3px; margin-right: 8px; }

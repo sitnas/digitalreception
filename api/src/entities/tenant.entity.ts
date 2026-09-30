@@ -28,5 +28,16 @@ export class Tenant {
   @Column({ type: 'varchar', length: 7, nullable: true }) secondaryColor: string | null;
   /** Every console user must use two-step verification. */
   @Column({ default: false }) mfaRequired: boolean;
+  /**
+   * Single sign-on: the provider and the directory linked by a SUPER_ADMIN (Microsoft Entra tenant id
+   * or Google Workspace domain). Only accounts of that directory are accepted.
+   */
+  @Column({ type: 'varchar', length: 12, nullable: true }) ssoProvider: 'microsoft' | 'google' | null;
+  @Column({ type: 'varchar', length: 100, nullable: true }) ssoOrgId: string | null;
+  /** Shown in the console to recognise the directory (a domain). */
+  @Column({ type: 'varchar', length: 190, nullable: true }) ssoOrgLabel: string | null;
+  @Column({ type: 'datetime', precision: 3, nullable: true }) ssoLinkedAt: Date | null;
+  /** Password sign-in refused except for users marked `ssoExempt` (emergency access). */
+  @Column({ default: false }) ssoEnforced: boolean;
   @CreateDateColumn({ type: 'datetime', precision: 3, default: () => 'CURRENT_TIMESTAMP(3)' }) createdAt: Date;
 }

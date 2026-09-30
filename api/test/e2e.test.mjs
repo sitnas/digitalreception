@@ -10,6 +10,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { promisify } from 'node:util';
+import { startFakeIdp } from './fake-idp.mjs';
 
 const require = createRequire(import.meta.url);
 const run = promisify(execFile);
@@ -17,6 +18,8 @@ const enabled = !!process.env.E2E_DB_HOST;
 const PORT = Number(process.env.E2E_PORT ?? 3199);
 const BASE = `http://127.0.0.1:${PORT}/api`;
 const SLUG = `e2e-${randomBytes(3).toString('hex')}`;
+const IDP_PORT = PORT - 1;
+const SSO_CLIENT = { clientId: 'e2e-client', clientSecret: randomBytes(16).toString('hex') };
 const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
 
 const env = {
@@ -27,7 +30,26 @@ const env = {
   DB_NAME: process.env.E2E_DB_NAME ?? 'reception', DB_USER: process.env.E2E_DB_USER ?? 'reception', DB_PASSWORD: process.env.E2E_DB_PASSWORD ?? 'reception',
   STORAGE_DRIVER: 'local', FILES_DIR: mkdtempSync(join(tmpdir(), 'e2e-files-')), COOKIE_SECURE: 'false', TRUST_PROXY: '1',
   SMTP_HOST: '', JOBS_ENABLED: 'false',
+  SSO_REDIRECT_URI: `http://127.0.0.1:${PORT}/api/auth/sso/callback`,
+  SSO_MICROSOFT_CLIENT_ID: SSO_CLIENT.clientId, SSO_MICROSOFT_CLIENT_SECRET: SSO_CLIENT.clientSecret, SSO_MICROSOFT_ISSUER: `http://127.0.0.1:${IDP_PORT}/ms`,
+  SSO_GOOGLE_CLIENT_ID: SSO_CLIENT.clientId, SSO_GOOGLE_CLIENT_SECRET: SSO_CLIENT.clientSecret, SSO_GOOGLE_ISSUER: `http://127.0.0.1:${IDP_PORT}/google`,
 };
+
+/** One browser for the single sign-on round trip: follows nothing, keeps every cookie. */
+class Browser {
+  jar = new Map();
+  constructor(ip, cookies = {}) { this.ip = ip; for (const [k, v] of Object.entries(cookies)) this.jar.set(k, v); }
+  async go(url) {
+    const headers = { 'X-Forwarded-For': this.ip };
+    if (this.jar.size) headers.Cookie = [...this.jar].map(([k, v]) => `${k}=${v}`).join('; ');
+    const r = await fetch(url.startsWith('http') ? url : BASE + url, { headers, redirect: 'manual' });
+    for (const c of r.headers.getSetCookie()) {
+      const [kv, ...attrs] = c.split(';'); const [k, v] = kv.split('=');
+      if (!v || attrs.some((a) => /max-age=0|expires=thu, 01 jan 1970/i.test(a.trim()))) this.jar.delete(k.trim()); else this.jar.set(k.trim(), v);
+    }
+    return { status: r.status, location: r.headers.get('location') ?? '', body: await r.text() };
+  }
+}
 
 /** Minimal client: keeps the session cookie and sends the CSRF header like the console does. */
 class Client {
@@ -62,7 +84,10 @@ describe('end-to-end', { skip: !enabled && 'E2E_DB_HOST not set' }, () => {
   const admin = new Client();
   const ctx = {};
 
+  const idp = startFakeIdp(IDP_PORT, SSO_CLIENT);
+
   before(async () => {
+    await idp.listen();
     const out = await run('node', ['dist/cli/tenants.js', 'create', '--slug', SLUG, '--name', 'E2E S.p.A.', '--countries', 'IT', '--admin-email', 'admin@e2e.test'], { env });
     adminPassword = /Temporary password[^:]*: (\S+)/.exec(out.stdout)[1];
     api = spawn('node', ['dist/main.js'], { env, stdio: ['ignore', 'ignore', 'inherit'] });
@@ -75,6 +100,7 @@ describe('end-to-end', { skip: !enabled && 'E2E_DB_HOST not set' }, () => {
 
   after(async () => {
     api?.kill();
+    await idp.close();
     await run('node', ['dist/cli/tenants.js', 'delete', '--slug', SLUG, '--confirm', SLUG], { env }).catch(() => {});
   });
 
@@ -387,6 +413,94 @@ describe('end-to-end', { skip: !enabled && 'E2E_DB_HOST not set' }, () => {
     assert.equal((await again.get('/auth/me')).status, 401, 'sessions revoked');
     const plain = new Client(MFA_IP);
     assert.equal((await plain.post('/auth/login', { email: 'mfa@e2e.test', password: 'Mfa-User-Password-1' })).data.ok, true);
+  });
+
+  test('single sign-on: link the directory, sign in, refusals, obligation with an emergency account', async () => {
+    const IP = '10.9.0.3';
+    const TID = '11111111-2222-3333-4444-555555555555';
+    const ms = (tid) => `${idp.base}/ms/${tid}/v2.0`;
+    const sessionOf = (b) => { const c = new Client(IP); c.cookie = `rs_session=${b.jar.get('rs_session')}`; return c; };
+    // Full round trip: start → provider (fake) → callback → finish, in the same browser unless told otherwise.
+    const roundTrip = async (b, startPath, claims, opts = {}) => {
+      const s = await b.go(startPath);
+      assert.equal(s.status, 302, s.body);
+      const cb = await b.go(`/auth/sso/callback?${idp.issueCode(s.location, claims, opts)}`);
+      assert.equal(cb.status, 302, cb.body);
+      assert.match(cb.location, new RegExp(`^http://127\\.0\\.0\\.1:${PORT}/api/auth/sso/finish\\?code=`));
+      return (opts.finishIn ?? b).go(cb.location);
+    };
+
+    assert.equal((await admin.get('/tenant')).data.sso, null, 'nothing linked yet');
+    const org = (await admin.get('/admin/organisation')).data;
+    assert.deepEqual(org.sso.available, ['microsoft', 'google']);
+    assert.equal(org.sso.provider, null);
+    assert.equal((await new Browser(IP).go('/auth/sso/start')).location, '/admin/?sso_error=SSO_NOT_CONFIGURED');
+
+    // Only a SUPER_ADMIN links, and only with a work account.
+    assert.equal((await new Browser(IP).go('/auth/sso/link?provider=microsoft')).status, 401);
+    const adminBrowser = () => new Browser(IP, { rs_session: admin.cookie.split('=')[1] });
+    let r = await roundTrip(adminBrowser(), '/auth/sso/link?provider=google', { sub: 'g1', email: 'someone@gmail.com', email_verified: true }, { issuer: `${idp.base}/google` });
+    assert.equal(r.location, '/admin/organisation?sso_error=NOT_A_WORK_ACCOUNT');
+    r = await roundTrip(adminBrowser(), '/auth/sso/link?provider=microsoft', { tid: TID, oid: 'o-boss', preferred_username: 'it@contoso.com' }, { issuer: ms(TID) });
+    assert.equal(r.location, '/admin/organisation?sso=linked');
+    const linked = (await admin.get('/admin/organisation')).data.sso;
+    assert.equal(linked.provider, 'microsoft'); assert.equal(linked.org, 'contoso.com'); assert.equal(linked.enforced, false);
+    assert.deepEqual((await admin.get('/tenant')).data.sso, { provider: 'microsoft', enforced: false });
+
+    // Sign-in of an existing user: the session is marked as single sign-on.
+    const b = new Browser(IP);
+    r = await roundTrip(b, '/auth/sso/start', { tid: TID, oid: 'o-admin', preferred_username: 'Admin@E2E.test' }, { issuer: ms(TID) });
+    assert.equal(r.location, '/admin/');
+    const ssoAdmin = sessionOf(b);
+    const me = (await ssoAdmin.get('/auth/me')).data;
+    assert.equal(me.email, 'admin@e2e.test'); assert.equal(me.sso, true);
+    assert.ok(!b.jar.has('rs_sso'), 'binding cookie cleared');
+
+    // Refusals: another browser, another directory, a forged token, an unknown person, a different account with the same email, a replayed code.
+    r = await roundTrip(new Browser(IP), '/auth/sso/start', { tid: TID, oid: 'o-admin', preferred_username: 'admin@e2e.test' }, { issuer: ms(TID), finishIn: new Browser('10.9.0.4') });
+    assert.equal(r.location, '/admin/?sso_error=OTHER_BROWSER');
+    const OTHER = '99999999-2222-3333-4444-555555555555';
+    r = await roundTrip(new Browser(IP), '/auth/sso/start', { tid: OTHER, oid: 'o-admin', preferred_username: 'admin@e2e.test' }, { issuer: ms(OTHER) });
+    assert.equal(r.location, '/admin/?sso_error=WRONG_ISSUER');
+    r = await roundTrip(new Browser(IP), '/auth/sso/start', { tid: TID, oid: 'o-admin', preferred_username: 'admin@e2e.test' }, { issuer: ms(TID), rogueKey: true });
+    assert.equal(r.location, '/admin/?sso_error=BAD_SIGNATURE');
+    r = await roundTrip(new Browser(IP), '/auth/sso/start', { tid: TID, oid: 'o-admin', preferred_username: 'admin@e2e.test' }, { issuer: ms(TID), nonce: 'not-the-one' });
+    assert.equal(r.location, '/admin/?sso_error=NONCE_MISMATCH');
+    r = await roundTrip(new Browser(IP), '/auth/sso/start', { tid: TID, oid: 'o-x', preferred_username: 'nobody@e2e.test' }, { issuer: ms(TID) });
+    assert.equal(r.location, '/admin/?sso_error=NO_ACCOUNT');
+    r = await roundTrip(new Browser(IP), '/auth/sso/start', { tid: TID, oid: 'o-intruder', preferred_username: 'admin@e2e.test' }, { issuer: ms(TID) });
+    assert.equal(r.location, '/admin/?sso_error=ACCOUNT_MISMATCH');
+    const replay = new Browser(IP);
+    const s = await replay.go('/auth/sso/start');
+    const q = idp.issueCode(s.location, { tid: TID, oid: 'o-admin', preferred_username: 'admin@e2e.test' }, { issuer: ms(TID) });
+    const first = await replay.go(`/auth/sso/callback?${q}`);
+    assert.equal((await replay.go(`/auth/sso/callback?${q}`)).status, 400, 'state used once');
+    assert.equal((await replay.go(first.location)).location, '/admin/');
+    assert.equal((await replay.go(first.location)).location, '/admin/?sso_error=EXPIRED', 'hand-off code used once');
+    assert.equal((await replay.go('/auth/sso/callback?state=unknown&code=x')).status, 400);
+
+    // Obligation: proven by signing in through the directory, and only with an emergency account kept.
+    assert.equal((await admin.patch('/admin/organisation', { ssoEnforced: true })).data.message, 'SSO_SELF_FIRST');
+    assert.equal((await ssoAdmin.patch('/admin/organisation', { ssoEnforced: true })).data.message, 'SSO_EMERGENCY_ADMIN_REQUIRED');
+    const users = (await ssoAdmin.get('/admin/users')).data;
+    const adminRow = users.find((u) => u.email === 'admin@e2e.test');
+    assert.equal(adminRow.ssoBound, true); assert.equal(adminRow.ssoSubject, undefined);
+    assert.equal((await ssoAdmin.patch(`/admin/users/${adminRow.id}`, { ssoExempt: true })).status, 200);
+    assert.equal((await ssoAdmin.patch('/admin/organisation', { ssoEnforced: true })).status, 200);
+    assert.equal((await ssoAdmin.patch(`/admin/users/${adminRow.id}`, { ssoExempt: false })).data.message, 'SSO_EMERGENCY_ADMIN_REQUIRED');
+    const rec = new Client(IP);
+    const denied = await rec.post('/auth/login', { email: 'rec@e2e.test', password: 'Rec-Password-E2E!' });
+    assert.equal(denied.status, 403); assert.equal(denied.data.message, 'SSO_REQUIRED');
+    // The emergency account passes (and still gets its own second factor, enabled in the previous test).
+    assert.equal((await new Client(IP).post('/auth/login', { email: 'admin@e2e.test', password: 'Admin-Password-E2E!' })).data.mfaRequired, true, 'emergency account');
+    assert.equal((await admin.get('/tenant')).data.sso.enforced, true);
+
+    // Unlinking turns everything off and forgets the bound accounts.
+    assert.equal((await ssoAdmin.post('/admin/organisation/sso/unlink')).status, 200);
+    assert.equal((await admin.get('/tenant')).data.sso, null);
+    assert.equal((await new Client(IP).post('/auth/login', { email: 'rec@e2e.test', password: 'Rec-Password-E2E!' })).data.ok, true);
+    assert.equal((await ssoAdmin.get('/admin/users')).data.find((u) => u.email === 'admin@e2e.test').ssoBound, false);
+    assert.equal((await ssoAdmin.patch(`/admin/users/${adminRow.id}`, { ssoExempt: false })).status, 200);
   });
 
   test('deleting the tenant removes its host directory too', async () => {

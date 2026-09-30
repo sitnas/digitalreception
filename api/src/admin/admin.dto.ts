@@ -53,6 +53,8 @@ export class UpdateUserDto {
   @IsOptional() @IsEnum(Role) role?: Role;
   @IsOptional() @IsArray() @ArrayMaxSize(200) @IsUUID('all', { each: true }) siteIds?: string[];
   @IsOptional() @IsBoolean() active?: boolean;
+  /** Emergency account: may use the password even when single sign-on is required. */
+  @IsOptional() @IsBoolean() ssoExempt?: boolean;
 }
 
 const optionalText = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() || null : value);
@@ -132,4 +134,5 @@ export class UpdateOrganisationDto {
   @IsOptional() @IsString() @Matches(/^(#[0-9A-Fa-f]{6})?$/) primaryColor?: string;
   @IsOptional() @IsString() @Matches(/^(#[0-9A-Fa-f]{6})?$/) secondaryColor?: string;
   @IsOptional() @IsBoolean() mfaRequired?: boolean;
+  @IsOptional() @IsBoolean() ssoEnforced?: boolean;
 }
