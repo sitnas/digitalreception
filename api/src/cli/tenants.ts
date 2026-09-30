@@ -8,7 +8,7 @@ import { TenantKeysService } from '../common/tenant-keys.service';
 import { presetFor } from '../database/country-presets';
 import { noticeTemplate } from '../database/notice-templates';
 import { typeormOptions } from '../database/typeorm-options';
-import { AccessEvent, AccessRule, ApiKey, Door, DoorReader, Employee, ActorType, AuditLog, CountryPolicy, Device, Host, Invitation, PairingCode, PrivacyNotice, Role, Site, StoredFile, Tenant, TenantStatus, User, Visit } from '../entities';
+import { AccessEvent, AccessRule, ApiKey, Door, DoorReader, Employee, ActorType, AuditLog, CountryPolicy, Device, Host, Invitation, PairingCode, PrivacyNotice, Role, Site, SsoRequest, StoredFile, Tenant, TenantStatus, User, Visit } from '../entities';
 
 /**
  * Platform operations (provisioning of customer organisations). Deliberately a CLI and not a
@@ -22,6 +22,7 @@ import { AccessEvent, AccessRule, ApiKey, Door, DoorReader, Employee, ActorType,
  *   npm run tenant -- rewrap-keys                            (after adding a new MASTER_KEYS entry)
  *   npm run tenant -- reset-mfa --slug acme --email it@acme.com   (last resort: the only administrator lost phone and recovery codes)
  *   npm run tenant -- reset-password --slug acme --email it@acme.com   (last resort: the only administrator forgot the password)
+ *   npm run tenant -- sso-off --slug acme      (last resort: the directory is unreachable and no emergency account works)
  */
 function args() {
   const [cmd, ...rest] = process.argv.slice(2);
@@ -117,7 +118,7 @@ async function main() {
           const userIds = (await em.find(User, { where: { tenantId: t.id }, select: { id: true } })).map((u) => u.id);
           if (userIds.length) await em.createQueryBuilder().delete().from('user_sites').where({ userId: In(userIds) }).execute();
           // Hosts after visits (visits reference them); host_sites rows go with their host (ON DELETE CASCADE).
-          for (const entity of [AccessEvent, AccessRule, DoorReader, Employee, Door, ApiKey, StoredFile, Invitation, Visit, Host, Device, PairingCode, User, PrivacyNotice, Site, CountryPolicy, AuditLog]) await em.delete(entity, { tenantId: t.id });
+          for (const entity of [SsoRequest, AccessEvent, AccessRule, DoorReader, Employee, Door, ApiKey, StoredFile, Invitation, Visit, Host, Device, PairingCode, User, PrivacyNotice, Site, CountryPolicy, AuditLog]) await em.delete(entity, { tenantId: t.id });
           await em.delete(Tenant, { id: t.id });
         });
         await platformAudit(ds, 'TENANT_DELETED', { slug: t.slug });
@@ -162,8 +163,16 @@ async function main() {
         console.log(`Temporary password for ${u.email} (shown once, to be changed at the next login): ${password}`);
         break;
       }
+      case 'sso-off': {
+        const t = await tenants.findOne({ where: { slug: opts.slug } });
+        if (!t) throw new Error('Tenant not found');
+        await tenants.update(t.id, { ssoEnforced: false });
+        await platformAudit(ds, 'TENANT_SSO_OFF', { slug: t.slug });
+        console.log(`Single sign-on no longer required for ${t.slug}: users can sign in with their password again. The directory stays linked.`);
+        break;
+      }
       default:
-        console.log('Commands: create | list | limits | suspend | activate | delete | rewrap-keys | reset-mfa | reset-password  (see header of src/cli/tenants.ts)');
+        console.log('Commands: create | list | limits | suspend | activate | delete | rewrap-keys | reset-mfa | reset-password | sso-off  (see header of src/cli/tenants.ts)');
         process.exitCode = 1;
     }
   } finally {

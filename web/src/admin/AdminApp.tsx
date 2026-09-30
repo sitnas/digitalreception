@@ -18,7 +18,7 @@ import { TodayPage } from './pages/Today';
 import { UsersPage } from './pages/Users';
 import type { Me, Role } from './types';
 
-interface Branding { name: string; logo: string | null; primaryColor: string | null; secondaryColor: string | null }
+interface Branding { name: string; logo: string | null; primaryColor: string | null; secondaryColor: string | null; sso: { provider: 'microsoft' | 'google'; enforced: boolean } | null }
 const MeContext = createContext<Me | null>(null);
 export const useMe = () => useContext(MeContext)!;
 
@@ -174,6 +174,14 @@ function LoginScreen({ branding, onLoggedIn }: { branding: Branding; onLoggedIn:
   const [recovery, setRecovery] = useState(false);
   const codeInput = useRef<HTMLInputElement>(null);
   const pwInput = useRef<HTMLInputElement>(null);
+  const sso = branding.sso;
+  const providerName = sso ? t.sso.providers[sso.provider] : '';
+  // Back from Microsoft / Google with an error: shown once, then removed from the address.
+  const [ssoError] = useState(() => {
+    const code = new URLSearchParams(location.search).get('sso_error');
+    return code ? (t.sso.errors[code as keyof typeof t.sso.errors] ?? t.sso.errors.generic) : null;
+  });
+  useEffect(() => { if (ssoError) history.replaceState(null, '', location.pathname); }, [ssoError]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault(); setBusy(true); setError(null);
@@ -183,7 +191,8 @@ function LoginScreen({ branding, onLoggedIn }: { branding: Branding; onLoggedIn:
       if (r.mfaRequired && r.mfaToken) { setMfaToken(r.mfaToken); setCode(''); setRecovery(false); } else onLoggedIn();
     }
     catch (err) {
-      setError(err instanceof ApiError && (err.status === 401 || err.status === 429) ? t.login.invalid : t.errors.generic);
+      setError(err instanceof ApiError && err.code === 'SSO_REQUIRED' ? t.sso.required.replace('{provider}', providerName)
+        : err instanceof ApiError && (err.status === 401 || err.status === 429) ? t.login.invalid : t.errors.generic);
       pwInput.current?.select();
     }
     finally { setBusy(false); }
@@ -227,6 +236,17 @@ function LoginScreen({ branding, onLoggedIn }: { branding: Branding; onLoggedIn:
     <AuthLayout branding={branding}>
       <form onSubmit={submit}>
         <h1>{t.login.title}</h1>
+        {ssoError && <p className="alert" role="alert">{ssoError}</p>}
+        {sso && (
+          <>
+            <a className={`btn btn-sso btn-sso-${sso.provider}`} href={`/api/auth/sso/start${email.includes('@') ? `?email=${encodeURIComponent(email.trim())}` : ''}`}>
+              <SsoLogo provider={sso.provider} />{t.sso.signIn.replace('{provider}', providerName)}
+            </a>
+            {sso.enforced
+              ? <p className="muted" style={{ margin: 0, fontSize: 13 }}>{t.sso.enforcedHint.replace('{provider}', providerName)}</p>
+              : <p className="login-or" aria-hidden="true"><span>{t.sso.or}</span></p>}
+          </>
+        )}
         <div className="field"><label htmlFor="em">{t.login.email}</label><input id="em" name="email" className="input" type="email" autoComplete="username" spellCheck={false} value={email} onChange={(e) => setEmail(e.target.value)} required /></div>
         <div className="field"><label htmlFor="pw">{t.login.password}</label><input ref={pwInput} id="pw" name="password" className="input" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required /></div>
         {error && <p className="alert" role="alert">{error}</p>}
@@ -234,6 +254,23 @@ function LoginScreen({ branding, onLoggedIn }: { branding: Branding; onLoggedIn:
         <LangSwitch />
       </form>
     </AuthLayout>
+  );
+}
+
+/** Provider marks, drawn inline (no third-party request from the login page). */
+export function SsoLogo({ provider }: { provider: 'microsoft' | 'google' }) {
+  return provider === 'microsoft' ? (
+    <svg width="18" height="18" viewBox="0 0 21 21" aria-hidden="true" focusable="false">
+      <rect x="1" y="1" width="9" height="9" fill="#F25022" /><rect x="11" y="1" width="9" height="9" fill="#7FBA00" />
+      <rect x="1" y="11" width="9" height="9" fill="#00A4EF" /><rect x="11" y="11" width="9" height="9" fill="#FFB900" />
+    </svg>
+  ) : (
+    <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+      <path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.6 5.4 2.7 13.3l7.9 6.1C12.5 13.6 17.8 9.5 24 9.5z" />
+      <path fill="#4285F4" d="M46.1 24.6c0-1.6-.1-3.1-.4-4.6H24v9h12.4c-.5 2.9-2.2 5.3-4.6 6.9l7.4 5.7c4.3-4 6.9-9.9 6.9-17z" />
+      <path fill="#FBBC05" d="M10.6 28.6c-.5-1.4-.8-3-.8-4.6s.3-3.2.8-4.6l-7.9-6.1C1 16.6 0 20.2 0 24s1 7.4 2.7 10.7l7.9-6.1z" />
+      <path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.4-5.7c-2.1 1.4-4.8 2.3-8.5 2.3-6.2 0-11.5-4.1-13.4-9.8l-7.9 6.1C6.6 42.6 14.6 48 24 48z" />
+    </svg>
   );
 }
 

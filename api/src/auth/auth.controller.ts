@@ -14,6 +14,7 @@ import { AppRequest, AuthUser } from '../common/request-context';
 import { TenantKeysService } from '../common/tenant-keys.service';
 import { hashRecoveryCode, newRecoveryCodes, newTotpSecret, otpauthUrl, verifyTotp } from '../common/totp';
 import { Tenant, User } from '../entities';
+import { SessionService } from './session.service';
 
 export class LoginDto {
   @IsEmail() @MaxLength(190) email: string;
@@ -58,6 +59,7 @@ export class AuthController {
     private readonly audit: AuditService,
     private readonly keys: TenantKeysService,
     @InjectRepository(Tenant) private readonly tenants: Repository<Tenant>,
+    private readonly sessions: SessionService,
   ) {}
 
   /** Reloads the user with the two-step verification columns (not selected by default). */
@@ -95,19 +97,6 @@ export class AuthController {
     await this.users.update(user.id, { failedLogins: lock ? 0 : failed, lockedUntil: lock });
   }
 
-  private async startSession(user: User, req: AppRequest, res: Response, details?: Record<string, unknown>) {
-    const now = new Date();
-    await this.users.update(user.id, { failedLogins: 0, lockedUntil: null, lastLoginAt: now });
-    const claims: SessionClaims = { sub: user.id, tid: user.tenantId, sv: user.sessionVersion };
-    const token = await this.jwt.signAsync(claims, { expiresIn: `${this.cfg.auth.sessionHours}h` });
-    res.cookie(SESSION_COOKIE, token, {
-      httpOnly: true, secure: this.cfg.auth.cookieSecure, sameSite: 'strict', path: '/api', maxAge: this.cfg.auth.sessionHours * 3_600_000,
-    });
-    req.user = { id: user.id, tenantId: user.tenantId, email: user.email, displayName: user.displayName, role: user.role, siteIds: [], mustChangePassword: user.mustChangePassword, mfaEnabled: !!user.mfaEnabledAt, mfaSetupRequired: false };
-    await this.audit.fromRequest(req, { action: 'LOGIN', entityType: 'user', entityId: user.id, details });
-    return { ok: true, mustChangePassword: user.mustChangePassword };
-  }
-
   @Post('login')
   @HttpCode(200)
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
@@ -125,13 +114,23 @@ export class AuthController {
       throw new UnauthorizedException('INVALID_CREDENTIALS'); // same message in every case: no user enumeration
     }
 
+    // The password is right, but the organisation signs in through its directory: only the
+    // emergency accounts may still use a password.
+    if (!user.ssoExempt) {
+      const t = await this.tenants.findOne({ where: { id: user.tenantId }, select: { id: true, ssoEnforced: true, ssoProvider: true, ssoOrgId: true } });
+      if (t?.ssoEnforced && t.ssoOrgId && t.ssoProvider && this.cfg.sso.providers[t.ssoProvider]) {
+        await this.audit.fromRequest(req, { action: 'LOGIN_FAILED', entityType: 'user', entityId: user.id, details: { reason: 'sso_required' } });
+        throw new ForbiddenException('SSO_REQUIRED');
+      }
+    }
+
     if (user.mfaEnabledAt) {
       // Password is right: no session yet, only a 5-minute ticket for the code step. Failed codes
       // keep counting towards the lock, so the password alone does not allow guessing codes.
       const claims: SessionClaims = { sub: user.id, tid: user.tenantId, sv: user.sessionVersion, typ: 'mfa' };
       return { mfaRequired: true, mfaToken: await this.jwt.signAsync(claims, { expiresIn: MFA_TOKEN_TTL }) };
     }
-    return this.startSession(user, req, res);
+    return this.sessions.start(user, req, res);
   }
 
   /** Second step of the login: the code from the authenticator app or a recovery code. */
@@ -155,7 +154,7 @@ export class AuthController {
       await this.audit.fromRequest(req, { action: 'LOGIN_FAILED', entityType: 'user', entityId: user.id, details: { reason: 'mfa' } });
       throw new UnauthorizedException('MFA_CODE_INVALID');
     }
-    return this.startSession(user, req, res, { mfa: method });
+    return this.sessions.start(user, req, res, { details: { mfa: method } });
   }
 
   // -------------------------------------------------------- two-step verification (own account)

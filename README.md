@@ -14,6 +14,8 @@ Gli ospiti attesi si possono **preregistrare** dalla console (pagina Inviti): ri
 
 Nella **console** l'azienda vede chi è in sede adesso (elenco stampabile per l'evacuazione), consulta lo storico, esporta, cancella i dati su richiesta dell'interessato, gestisce sedi, tablet, persone da visitare, utenti, regole privacy per paese, informative versionate e il registro degli accessi. Ogni organizzazione sceglie logo e due colori (principale e secondario), applicati a tablet, console, pagina di accesso ed email del badge; il colore del testo si adatta da solo per restare leggibile. Il ruolo Auditor consulta in sola lettura tutti i visitatori di tutte le sedi, con documenti, e scarica storico e registro accessi.
 
+**Accesso alla console**: password con verifica in due passaggi facoltativa o obbligatoria, oppure **accesso con Microsoft o Google** (SSO). Ogni azienda sceglie Microsoft o Google e collega il proprio Microsoft 365 o Google Workspace, e può rendere l'SSO obbligatorio tenendo un account di emergenza. Configurazione in [docs/OPERAZIONI.md](docs/OPERAZIONI.md#accesso-con-microsoft-o-google-sso).
+
 ## Architettura in breve
 
 | Componente | Tecnologia | Note |

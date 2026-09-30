@@ -19,7 +19,13 @@ export interface AppConfig {
   access: { logRetentionDays: number };
   mail: { host?: string; port: number; secure: boolean; user?: string; pass?: string; from: string };
   jobs: { enabled: boolean };
+  /** Sign-in with Microsoft / Google (OIDC). Apps registered once by the platform; each organisation links its own directory. */
+  sso: { redirectUri?: string; providers: Partial<Record<SsoProviderId, SsoProviderConfig>> };
 }
+
+export type SsoProviderId = 'microsoft' | 'google';
+/** `issuer` is the Microsoft authority (…/<tenant>/v2.0 is appended) or the Google issuer. Overridable for tests. */
+export interface SsoProviderConfig { clientId: string; clientSecret: string; issuer: string }
 
 export const APP_CONFIG = Symbol('APP_CONFIG');
 
@@ -99,7 +105,17 @@ export function loadConfig(): AppConfig {
     },
     // Every replica may run jobs: a DB lock guarantees a single executor. Set JOBS_ENABLED=false to keep a replica API-only.
     jobs: { enabled: process.env.JOBS_ENABLED !== 'false' },
+    sso: { redirectUri: process.env.SSO_REDIRECT_URI?.trim() || undefined, providers: {} },
   };
+  const provider = (id: SsoProviderId, prefix: string, issuer: string) => {
+    const clientId = process.env[`${prefix}_CLIENT_ID`]?.trim(), clientSecret = process.env[`${prefix}_CLIENT_SECRET`]?.trim();
+    if (clientId && clientSecret) cfg.sso.providers[id] = { clientId, clientSecret, issuer: (process.env[`${prefix}_ISSUER`]?.trim() || issuer).replace(/\/+$/, '') };
+  };
+  provider('microsoft', 'SSO_MICROSOFT', 'https://login.microsoftonline.com');
+  provider('google', 'SSO_GOOGLE', 'https://accounts.google.com');
+  if (Object.keys(cfg.sso.providers).length && !cfg.sso.redirectUri) throw new Error('SSO_REDIRECT_URI is required when an SSO provider is configured');
+  if (cfg.env === 'production' && cfg.sso.redirectUri?.startsWith('http:')) throw new Error('SSO_REDIRECT_URI must use https in production');
+  if (cfg.sso.redirectUri && !/^https?:\/\/[^/]+\/api\/auth\/sso\/callback$/.test(cfg.sso.redirectUri)) throw new Error('SSO_REDIRECT_URI must be https://<host>/api/auth/sso/callback');
 
   if (cfg.env === 'production' && cfg.db.synchronize) throw new Error('DB_SYNC=true is not allowed in production: use migrations');
   if (cfg.env === 'production' && !cfg.auth.cookieSecure) throw new Error('COOKIE_SECURE=false is not allowed in production');

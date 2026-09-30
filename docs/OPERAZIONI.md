@@ -29,9 +29,45 @@ In modalità `subdomain` serve un record DNS (o un wildcard `*.BASE_DOMAIN`) e u
 | `delete --slug acme --confirm acme` | cancellazione definitiva con distruzione delle chiavi |
 | `rewrap-keys` | dopo aver aggiunto una nuova chiave master |
 | `reset-mfa --slug acme --email it@acme.com` | azzera la verifica in due passaggi di un utente (es. l'unico amministratore ha perso telefono e codici di recupero); chiude le sue sessioni. Verificare prima l'identità della persona su un canale indipendente |
+| `sso-off --slug acme` | toglie l'obbligo di accesso con Microsoft/Google quando il servizio non risponde e nessun account di emergenza funziona; il collegamento resta |
 | `reset-password --slug acme --email it@acme.com` | assegna una password temporanea (mostrata una volta, da cambiare al primo accesso), sblocca l'account dopo troppi tentativi e chiude le sessioni. La verifica in due passaggi resta attiva. Stesse cautele sull'identità |
 
 Tutti i comandi scrivono un evento nel registro accessi di piattaforma.
+
+## Accesso con Microsoft o Google (SSO)
+
+Le due app si registrano **una volta sola** per tutta la piattaforma. Poi ogni cliente, dalla console, sceglie Microsoft o Google e collega il proprio Microsoft 365 o Google Workspace, senza toccare il server.
+
+L'indirizzo di ritorno è sempre lo stesso: `https://<indirizzo della console>/api/auth/sso/callback`. In modalità `subdomain` va bene l'indirizzo di un qualunque cliente, oppure un nome dedicato, per esempio `login.reception.example.com`, che punta allo stesso server. Va messo in `SSO_REDIRECT_URI` e registrato identico presso Microsoft e Google.
+
+### Microsoft Entra ID
+
+1. [portal.azure.com](https://portal.azure.com) → **Microsoft Entra ID** → **Registrazioni app** → **Nuova registrazione**.
+2. Nome: per esempio "Registro visitatori". Tipi di account: **Account in qualsiasi directory organizzativa (multi-tenant)**. URI di reindirizzamento: piattaforma **Web**, l'indirizzo di ritorno sopra.
+3. Copia **ID applicazione (client)** in `SSO_MICROSOFT_CLIENT_ID`.
+4. **Certificati e segreti** → **Nuovo segreto client** → copia il **Valore** in `SSO_MICROSOFT_CLIENT_SECRET`. Il segreto scade: segnati la data e rinnovalo prima.
+5. Non servono altri permessi: bastano `openid`, `email` e `profile`, già inclusi.
+
+Se nell'azienda cliente gli utenti non possono approvare app da soli, il primo accesso mostra "serve l'approvazione dell'amministratore". L'IT del cliente approva una volta da `https://login.microsoftonline.com/<ID tenant del cliente>/adminconsent?client_id=<SSO_MICROSOFT_CLIENT_ID>`.
+
+### Google Workspace
+
+1. [console.cloud.google.com](https://console.cloud.google.com) → nuovo progetto → **API e servizi** → **Schermata consenso OAuth**. Tipo utente **Esterno**, perché lo usano aziende diverse. Aggiungi nome, logo ed email di assistenza, poi **pubblica** l'app. Con i soli ambiti `openid`, `email` e `profile` non serve la verifica approfondita.
+2. **Credenziali** → **Crea credenziali** → **ID client OAuth** → tipo **Applicazione web** → **URI di reindirizzamento autorizzati**: l'indirizzo di ritorno sopra.
+3. Copia ID client e segreto in `SSO_GOOGLE_CLIENT_ID` e `SSO_GOOGLE_CLIENT_SECRET`.
+
+Sono accettati solo account Google Workspace, non indirizzi @gmail.com.
+
+### Riavvio e attivazione per il cliente
+
+Dopo aver impostato le variabili, riavvia l'API: `docker compose up -d api`. Poi, nella console del cliente, un amministratore:
+
+1. apre **Organizzazione** → **Accesso con l'account aziendale** → **Collega Microsoft** (o Google) ed entra con il proprio account aziendale. Da quel momento vengono accettati solo gli account della stessa organizzazione (tenant Microsoft o dominio Workspace);
+2. crea gli utenti in **Utenti** con la **stessa email** che hanno in azienda. Per Microsoft è il nome di accesso (UPN), di solito uguale all'email. Nessun account viene creato in automatico;
+3. esce e prova **Accedi con Microsoft**;
+4. se vuole, in **Utenti** segna almeno un amministratore come **account di emergenza** e poi attiva **Obbliga l'accesso con l'account aziendale**. Da allora la password funziona solo per gli account di emergenza.
+
+In GitHub Codespaces l'indirizzo di ritorno è `https://<nome-codespace>-8080.app.github.dev/api/auth/sso/callback` e la porta 8080 deve essere pubblica.
 
 ## Rotazione della chiave master
 

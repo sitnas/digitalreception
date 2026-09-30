@@ -93,7 +93,7 @@ function UserPanel({ panel, sites, meId, onClose, onChanged }: { panel: Panel; s
   const self = editing?.id === meId;
   const [f, setF] = useState(() => ({
     displayName: editing?.displayName ?? '', email: editing?.email ?? '', role: (editing?.role ?? 'RECEPTIONIST') as Role,
-    siteIds: editing?.sites.map((s) => s.id) ?? [], temporaryPassword: editing ? '' : strongPassword(),
+    siteIds: editing?.sites.map((s) => s.id) ?? [], temporaryPassword: editing ? '' : strongPassword(), ssoExempt: editing?.ssoExempt ?? false,
   }));
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -118,8 +118,8 @@ function UserPanel({ panel, sites, meId, onClose, onChanged }: { panel: Panel; s
     const siteIds = needsSites(f.role) ? f.siteIds : [];
     if (needsSites(f.role) && siteIds.length === 0) { setError(t.users.pickSite); return; }
     const ok = await run(() => editing
-      ? api.patch(`/admin/users/${editing.id}`, { displayName: f.displayName, role: f.role, siteIds })
-      : api.post('/admin/users', { ...f, siteIds }));
+      ? api.patch(`/admin/users/${editing.id}`, { displayName: f.displayName, role: f.role, siteIds, ssoExempt: f.role === 'SUPER_ADMIN' && f.ssoExempt })
+      : api.post('/admin/users', { displayName: f.displayName, email: f.email, role: f.role, siteIds, temporaryPassword: f.temporaryPassword }));
     if (ok) { if (editing) setSaved(true); else onClose(); }
   };
   // Actions that close the user's sessions ask for a second click first; `pending` shows which one is in flight.
@@ -185,6 +185,15 @@ function UserPanel({ panel, sites, meId, onClose, onChanged }: { panel: Panel; s
                     onChange={(e) => setF({ ...f, siteIds: e.target.checked ? [...f.siteIds, s.id] : f.siteIds.filter((x) => x !== s.id) })} />{s.name} <span className="muted">({s.countryCode})</span></label>
                 ))}
               </div>
+            </section>
+          )}
+
+          {editing && f.role === 'SUPER_ADMIN' && (
+            <section className="drawer-section">
+              <h3>{t.sso.section}</h3>
+              {editing.ssoBound && <p className="hint" style={{ margin: 0 }}>{t.sso.bound}</p>}
+              <label className="toggle"><input type="checkbox" name="sso-exempt" aria-describedby="sso-exempt-help" checked={f.ssoExempt} onChange={(e) => setF({ ...f, ssoExempt: e.target.checked })} />{t.sso.exempt}</label>
+              <span id="sso-exempt-help" className="hint">{t.sso.exemptHelp}</span>
             </section>
           )}
 

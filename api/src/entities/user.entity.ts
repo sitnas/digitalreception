@@ -26,5 +26,9 @@ export class User {
   @Column({ type: 'bigint', nullable: true, select: false, transformer: { to: (v: number | null) => v, from: (v: string | null) => (v === null ? null : Number(v)) } }) mfaLastStep: number | null;
   /** JSON array of SHA-256 hashes of the unused recovery codes. */
   @Column({ type: 'text', nullable: true, select: false }) mfaRecoveryHashes: string | null;
+  /** Directory account bound at the first single sign-on ("<provider>:<org>:<subject>"): a renamed or reused email cannot take it over. */
+  @Column({ type: 'varchar', length: 255, nullable: true }) ssoSubject: string | null;
+  /** May still sign in with the password when the organisation requires single sign-on (emergency account). */
+  @Column({ default: false }) ssoExempt: boolean;
   @CreateDateColumn({ type: 'datetime', precision: 3, default: () => 'CURRENT_TIMESTAMP(3)' }) createdAt: Date;
 }

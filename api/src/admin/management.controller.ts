@@ -1,10 +1,11 @@
-import { BadRequestException, Body, ConflictException, Controller, ForbiddenException, Get, Header, HttpCode, NotFoundException, Param, ParseUUIDPipe, Patch, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, ConflictException, Controller, ForbiddenException, Get, Header, HttpCode, Inject, NotFoundException, Param, ParseUUIDPipe, Patch, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { Response } from 'express';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Between, In, IsNull, LessThan, Like, MoreThanOrEqual, Repository } from 'typeorm';
 import { AuditService } from '../common/audit.service';
 import { CryptoService } from '../common/crypto.service';
+import { APP_CONFIG, AppConfig } from '../common/app-config';
 import { MailService } from '../common/mail.service';
 import { AdminAuthGuard, CurrentUser, Roles, assertSiteAccess, visibleSiteIds } from '../common/guards';
 import { AppRequest, AuthUser } from '../common/request-context';
@@ -40,7 +41,15 @@ export class ManagementController {
     private readonly crypto: CryptoService,
     private readonly audit: AuditService,
     private readonly mail: MailService,
+    @Inject(APP_CONFIG) private readonly cfg: AppConfig,
   ) {}
+
+  /** An active SUPER_ADMIN who may still sign in with the password: the way back in if the directory is unreachable. */
+  private hasEmergencyAdmin(tenantId: string, exceptUserId?: string) {
+    return this.users.createQueryBuilder('u')
+      .where('u.tenantId = :tid AND u.active = 1 AND u.ssoExempt = 1 AND u.role = :role', { tid: tenantId, role: Role.SUPER_ADMIN })
+      .andWhere(exceptUserId ? 'u.id <> :except' : '1=1', { except: exceptUserId }).getExists();
+  }
 
   private async limits(tenantId: string) {
     return this.tenants.findOneOrFail({ where: { id: tenantId }, select: { id: true, maxSites: true, maxDevices: true, maxUsers: true } });
@@ -56,7 +65,12 @@ export class ManagementController {
       this.devices.count({ where: { tenantId: user.tenantId, revokedAt: IsNull() } }),
       this.users.count({ where: { tenantId: user.tenantId, active: true } }),
     ]);
-    return { name: t.name, slug: t.slug, logo: t.logoDataUrl, primaryColor: t.primaryColor, secondaryColor: t.secondaryColor, mfaRequired: t.mfaRequired, email: { enabled: this.mail.enabled, from: this.mail.enabled ? this.mail.from : null }, usage: { sites, devices, users }, limits: { sites: t.maxSites, devices: t.maxDevices, users: t.maxUsers } };
+    const sso = {
+      available: (['microsoft', 'google'] as const).filter((p) => !!this.cfg.sso.providers[p]),
+      provider: t.ssoProvider, org: t.ssoOrgLabel, linkedAt: t.ssoLinkedAt, enforced: t.ssoEnforced,
+      emergencyAdmin: await this.hasEmergencyAdmin(user.tenantId), signedInWithSso: user.sso,
+    };
+    return { name: t.name, slug: t.slug, logo: t.logoDataUrl, primaryColor: t.primaryColor, secondaryColor: t.secondaryColor, mfaRequired: t.mfaRequired, sso, email: { enabled: this.mail.enabled, from: this.mail.enabled ? this.mail.from : null }, usage: { sites, devices, users }, limits: { sites: t.maxSites, devices: t.maxDevices, users: t.maxUsers } };
   }
 
   @Patch('organisation')
@@ -72,8 +86,29 @@ export class ManagementController {
       if (dto.mfaRequired && !user.mfaEnabled) throw new ConflictException('MFA_SELF_FIRST');
       patch.mfaRequired = dto.mfaRequired;
     }
+    if (dto.ssoEnforced !== undefined) {
+      if (dto.ssoEnforced) {
+        const t = await this.tenants.findOneOrFail({ where: { id: user.tenantId }, select: { id: true, ssoOrgId: true } });
+        if (!t.ssoOrgId) throw new ConflictException('SSO_NOT_LINKED');
+        // Same idea: signing in through the directory must have worked at least once, for this admin, now.
+        if (!user.sso) throw new ConflictException('SSO_SELF_FIRST');
+        if (!(await this.hasEmergencyAdmin(user.tenantId))) throw new ConflictException('SSO_EMERGENCY_ADMIN_REQUIRED');
+      }
+      patch.ssoEnforced = dto.ssoEnforced;
+    }
     await this.tenants.update(user.tenantId, patch);
-    await this.audit.fromRequest(req, { action: 'ORGANISATION_UPDATED', entityType: 'tenant', entityId: user.tenantId, details: { name: dto.name, logoChanged: dto.logoDataUrl !== undefined, primaryColor: dto.primaryColor, secondaryColor: dto.secondaryColor, mfaRequired: dto.mfaRequired } });
+    await this.audit.fromRequest(req, { action: 'ORGANISATION_UPDATED', entityType: 'tenant', entityId: user.tenantId, details: { name: dto.name, logoChanged: dto.logoDataUrl !== undefined, primaryColor: dto.primaryColor, secondaryColor: dto.secondaryColor, mfaRequired: dto.mfaRequired, ssoEnforced: dto.ssoEnforced } });
+    return { ok: true };
+  }
+
+  /** Disconnects the directory: everyone signs in with the password again. */
+  @Post('organisation/sso/unlink')
+  @Roles(Role.SUPER_ADMIN)
+  @HttpCode(200)
+  async unlinkSso(@CurrentUser() user: AuthUser, @Req() req: AppRequest) {
+    await this.tenants.update(user.tenantId, { ssoProvider: null, ssoOrgId: null, ssoOrgLabel: null, ssoLinkedAt: null, ssoEnforced: false });
+    await this.users.update({ tenantId: user.tenantId }, { ssoSubject: null });
+    await this.audit.fromRequest(req, { action: 'SSO_UNLINKED', entityType: 'tenant', entityId: user.tenantId });
     return { ok: true };
   }
 
@@ -215,8 +250,9 @@ export class ManagementController {
   // ---------------------------------------------------------------- users
   @Get('users')
   @Roles(Role.SUPER_ADMIN)
-  listUsers(@CurrentUser() user: AuthUser) {
-    return this.users.find({ where: { tenantId: user.tenantId }, relations: { sites: true }, order: { displayName: 'ASC' } });
+  async listUsers(@CurrentUser() user: AuthUser) {
+    const rows = await this.users.find({ where: { tenantId: user.tenantId }, relations: { sites: true }, order: { displayName: 'ASC' } });
+    return rows.map(({ ssoSubject, ...u }) => ({ ...u, ssoBound: !!ssoSubject }));
   }
 
   private async tenantSites(tenantId: string, ids: string[]) {
@@ -251,10 +287,17 @@ export class ManagementController {
       if (maxUsers !== null && (await this.users.count({ where: { tenantId: me.tenantId, active: true } })) >= maxUsers) throw new ForbiddenException('PLAN_LIMIT_USERS');
     }
     if (dto.displayName !== undefined) user.displayName = dto.displayName;
-    const privilegeChange = (dto.role !== undefined && dto.role !== user.role) || dto.siteIds !== undefined || dto.active === false;
+    const sameSites = (ids: string[]) => ids.length === user.sites.length && ids.every((sid) => user.sites.some((s) => s.id === sid));
+    const privilegeChange = (dto.role !== undefined && dto.role !== user.role) || (dto.siteIds !== undefined && !sameSites([...new Set(dto.siteIds)])) || dto.active === false;
     if (dto.role !== undefined) user.role = dto.role;
     if (dto.siteIds !== undefined) user.sites = await this.tenantSites(me.tenantId, dto.siteIds);
     if (dto.active !== undefined) user.active = dto.active;
+    if (dto.ssoExempt !== undefined) user.ssoExempt = dto.ssoExempt;
+    // While single sign-on is required, the last emergency administrator cannot go away.
+    const losesEmergency = user.ssoExempt === false || user.active === false || user.role !== Role.SUPER_ADMIN;
+    if (losesEmergency && (await this.tenants.exist({ where: { id: me.tenantId, ssoEnforced: true } })) && !(await this.hasEmergencyAdmin(me.tenantId, user.id))) {
+      throw new ConflictException('SSO_EMERGENCY_ADMIN_REQUIRED');
+    }
     if (privilegeChange) user.sessionVersion += 1; // force re-login with the new privileges
     await this.users.save(user);
     await this.audit.fromRequest(req, { action: 'USER_UPDATED', entityType: 'user', entityId: id, details: { ...dto } });

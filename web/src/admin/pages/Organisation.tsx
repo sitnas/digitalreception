@@ -1,13 +1,17 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 import { DEFAULT_PRIMARY, DEFAULT_SECONDARY, applyBrand, brandVars, contrast, isHex } from '../../lib/theme';
-import { useMe } from '../AdminApp';
+import { fmtDateTime } from '../../lib/format';
+import { SsoLogo, useMe } from '../AdminApp';
 import { errorText, useI18n } from '../i18n';
 import { ErrorBox, PageHead, useAsync } from '../ui';
+
+type SsoProvider = 'microsoft' | 'google';
 
 interface Org {
   name: string; slug: string; logo: string | null; primaryColor: string | null; secondaryColor: string | null;
   email: { enabled: boolean; from: string | null }; mfaRequired: boolean;
+  sso: { available: SsoProvider[]; provider: SsoProvider | null; org: string | null; linkedAt: string | null; enforced: boolean; emergencyAdmin: boolean; signedInWithSso: boolean };
   usage: { sites: number; devices: number; users: number }; limits: { sites: number | null; devices: number | null; users: number | null };
 }
 
@@ -97,6 +101,7 @@ export function OrganisationPage() {
           <div className="stack">
           <EmailCard email={org.data.email} t={t} />
           <MfaPolicyCard required={org.data.mfaRequired} onChanged={org.reload} t={t} />
+          <SsoCard sso={org.data.sso} onChanged={org.reload} />
           <aside className="a-card">
             <h2>{t.org.usage2}</h2>
             <table><tbody>
@@ -135,6 +140,78 @@ function MfaPolicyCard({ required, onChanged, t }: { required: boolean; onChange
       <label className="toggle"><input type="checkbox" name="mfa-required" aria-describedby="mfa-hint" checked={value} disabled={busy || (!value && !me.mfaEnabled)} onChange={(e) => toggle(e.target.checked)} />{t.mfa.orgRequire}</label>
       <p id="mfa-hint" className="muted" style={{ margin: 0, fontSize: 13 }}>{t.mfa.orgHint}</p>
       <p role="status" aria-live="polite" className="hint" style={{ margin: 0 }}>{saved && !busy ? t.org.saved : ''}</p>
+      {error && <p className="alert" role="alert" style={{ margin: 0 }}>{error}</p>}
+    </section>
+  );
+}
+
+/**
+ * Single sign-on: the SUPER_ADMIN links the company directory by signing in once with it, tries it,
+ * then may require it. The server enforces every precondition; the card only explains them.
+ */
+function SsoCard({ sso, onChanged }: { sso: Org['sso']; onChanged: () => void }) {
+  const { t, intl } = useI18n();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [confirmUnlink, setConfirmUnlink] = useState(false);
+  const [choice, setChoice] = useState<boolean | undefined>(undefined);
+  // Back from the provider: "?sso=linked" or "?sso_error=…", shown once.
+  useEffect(() => {
+    const p = new URLSearchParams(location.search);
+    const code = p.get('sso_error');
+    if (p.get('sso') === 'linked') setNotice(t.sso.linkedOk);
+    else if (code) setError(t.sso.errors[code as keyof typeof t.sso.errors] ?? t.sso.errors.generic);
+    if (p.has('sso') || code) history.replaceState(null, '', location.pathname);
+  }, [t]);
+
+  const name = (p: SsoProvider) => t.sso.providers[p];
+  const enforced = choice ?? sso.enforced;
+  const canEnforce = sso.signedInWithSso && sso.emergencyAdmin;
+  const run = async (fn: () => Promise<unknown>, done?: string) => {
+    setBusy(true); setError(null); setNotice(null);
+    try { await fn(); onChanged(); if (done) setNotice(done); return true; }
+    catch (err) { setError(errorText(t, err)); return false; }
+    finally { setBusy(false); }
+  };
+  const toggle = async (on: boolean) => {
+    setChoice(on);
+    if (!(await run(() => api.patch('/admin/organisation', { ssoEnforced: on }), t.org.saved))) setChoice(undefined);
+  };
+  const unlink = async () => { if (await run(() => api.post('/admin/organisation/sso/unlink'), t.sso.unlinked)) { setConfirmUnlink(false); setChoice(undefined); } };
+
+  return (
+    <section className="a-card stack" aria-labelledby="sso-h" aria-busy={busy}>
+      <h2 id="sso-h" style={{ margin: 0 }}>{t.sso.section}</h2>
+      <p className="muted" style={{ margin: 0, fontSize: 13 }}>{t.sso.intro}</p>
+      {sso.provider && sso.linkedAt ? (
+        <>
+          <p style={{ margin: 0 }}><span className="sso-mark"><SsoLogo provider={sso.provider} /></span>
+            {t.sso.linked.replace('{provider}', name(sso.provider)).replace('{org}', sso.org ?? '—').replace('{date}', fmtDateTime(sso.linkedAt, intl))}</p>
+          <label className="toggle"><input type="checkbox" name="sso-enforced" aria-describedby="sso-enforce-help" checked={enforced}
+            disabled={busy || (!enforced && !canEnforce)} onChange={(e) => toggle(e.target.checked)} />{t.sso.enforce}</label>
+          <p id="sso-enforce-help" className="muted" style={{ margin: 0, fontSize: 13 }}>
+            {!enforced && !sso.signedInWithSso ? t.sso.enforceNeedsSso.replace('{provider}', name(sso.provider))
+              : !enforced && !sso.emergencyAdmin ? t.sso.enforceNeedsEmergency : t.sso.enforceHelp}
+          </p>
+          <div className="inline">
+            {sso.available.includes(sso.provider) && <a className="btn btn-ghost btn-sm" href={`/api/auth/sso/link?provider=${sso.provider}`}>{t.sso.link.replace('{provider}', name(sso.provider))}</a>}
+            {confirmUnlink
+              ? <button type="button" className="btn btn-danger btn-sm" onClick={unlink} disabled={busy}>{t.sso.unlinkConfirm}</button>
+              : <button type="button" className="btn btn-ghost btn-sm is-danger" onClick={() => setConfirmUnlink(true)} disabled={busy}>{t.sso.unlink}</button>}
+          </div>
+        </>
+      ) : sso.available.length ? (
+        <>
+          <div className="inline">
+            {sso.available.map((p) => (
+              <a key={p} className={`btn btn-sso btn-sso-${p}`} href={`/api/auth/sso/link?provider=${p}`}><SsoLogo provider={p} />{t.sso.link.replace('{provider}', name(p))}</a>
+            ))}
+          </div>
+          <p className="hint" style={{ margin: 0 }}>{t.sso.linkHelp}</p>
+        </>
+      ) : <p className="hint" style={{ margin: 0 }}>{t.sso.unavailable}</p>}
+      <div role="status" aria-live="polite">{notice && <p className="alert alert-info" style={{ margin: 0 }}>{notice}</p>}</div>
       {error && <p className="alert" role="alert" style={{ margin: 0 }}>{error}</p>}
     </section>
   );
