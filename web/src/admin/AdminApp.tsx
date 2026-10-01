@@ -24,8 +24,9 @@ export const useMe = () => useContext(MeContext)!;
 
 const LOCALE_KEY = 'rs_admin_locale';
 function initialLocale(): AdminLocale {
-  try { const s = localStorage.getItem(LOCALE_KEY); if (s === 'it' || s === 'es') return s; } catch { /* ignore */ }
-  return navigator.language.toLowerCase().startsWith('es') ? 'es' : 'it';
+  try { const s = localStorage.getItem(LOCALE_KEY); if (s === 'it' || s === 'es' || s === 'en') return s; } catch { /* ignore */ }
+  const nav = navigator.language.toLowerCase();
+  return nav.startsWith('es') ? 'es' : nav.startsWith('it') ? 'it' : 'en';
 }
 
 type NavGroup = keyof typeof ADMIN_STRINGS.it.navGroups;
@@ -50,7 +51,7 @@ const NAV: { to: string; key: keyof typeof ADMIN_STRINGS.it.nav; group: NavGroup
 export function AdminApp() {
   const [locale, setLocaleState] = useState<AdminLocale>(initialLocale);
   const setLocale = (l: AdminLocale) => { setLocaleState(l); try { localStorage.setItem(LOCALE_KEY, l); } catch { /* ignore */ } };
-  const i18n = useMemo(() => ({ t: ADMIN_STRINGS[locale], locale, intl: locale === 'es' ? 'es-ES' : 'it-IT', setLocale }), [locale]);
+  const i18n = useMemo(() => ({ t: ADMIN_STRINGS[locale], locale, intl: locale === 'es' ? 'es-ES' : locale === 'en' ? 'en-GB' : 'it-IT', setLocale }), [locale]);
   const [branding, setBranding] = useState<Branding | null>(null);
   const [me, setMe] = useState<Me | null | 'anon'>(null);
   const [fatal, setFatal] = useState<string | null>(null);
@@ -156,7 +157,7 @@ function LangSwitch() {
     <label className="inline" style={{ fontSize: 13 }}>
       <span className="muted">{t.language}</span>
       <select className="input lang-select" value={locale} onChange={(e) => setLocale(e.target.value as AdminLocale)}>
-        <option value="it">Italiano</option><option value="es">Español</option>
+        <option value="it">Italiano</option><option value="es">Español</option><option value="en">English</option>
       </select>
     </label>
   );

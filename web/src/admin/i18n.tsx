@@ -1,6 +1,7 @@
 import { createContext, useContext } from 'react';
+import { en } from './i18n-en';
 
-export type AdminLocale = 'it' | 'es';
+export type AdminLocale = 'it' | 'es' | 'en';
 
 const it = {
   appName: 'Reception',
@@ -183,7 +184,7 @@ const es: Dict = {
   errors: { EMPLOYEE_ALREADY_HOST: 'Este empleado ya está entre las personas a visitar.', EMPLOYEE_NOT_FOUND: 'Empleado no encontrado o no activo.', SSO_SELF_FIRST: 'Para hacerlo obligatorio debe haber entrado con la cuenta corporativa en esta sesión.', SSO_EMERGENCY_ADMIN_REQUIRED: 'Se necesita al menos un administrador activo marcado como cuenta de emergencia.', SSO_NOT_LINKED: 'Primero vincule Microsoft o Google.', DOOR_ID_EXISTS: 'Ya existe una puerta con este código externo.', INVALID_RANGE: 'Intervalo no válido.', INVALID_DATE: 'Fecha no válida.', INVITATION_IN_PAST: 'El día elegido ya pasó.', INVITATION_TOO_FAR: 'Se puede invitar como máximo con 90 días de antelación.', HOST_NOT_FOUND: 'La persona elegida no recibe visitas en esta sede.', INVITATION_USED: 'El invitado ya llegó con esta invitación.', INVITATION_CANCELLED: 'La invitación fue anulada.', INVITATION_EXPIRED: 'El día de la invitación ya pasó.', EMAIL_DISABLED: 'El envío de correo no está activo: vea Organización.', generic: 'No ha funcionado. Inténtelo de nuevo y, si vuelve a pasar, recargue la página.', forbidden: 'Su rol no permite esta operación.', EMAIL_EXISTS: 'Ya existe un usuario con este correo.', SITE_CODE_EXISTS: 'Ya existe una sede con este código.', INVALID_TIMEZONE: 'Zona horaria no válida (ej. America/Lima).', EXPORT_TOO_LARGE: 'Demasiados resultados: acote el periodo (máximo 10.000 filas).', CANNOT_DEMOTE_SELF: 'No puede quitarse a sí mismo el rol de administrador.', DEFAULT_LOCALE_NOT_ENABLED: 'El idioma predeterminado debe estar entre los activos.', PLAN_LIMIT_SITES: 'Ha alcanzado el número máximo de sedes de su plan.', PLAN_LIMIT_DEVICES: 'Ha alcanzado el número máximo de tabletas de su plan.', PLAN_LIMIT_USERS: 'Ha alcanzado el número máximo de usuarios de su plan.', COUNTRY_EXISTS: 'Este país ya está configurado.', UNKNOWN_COUNTRY: 'Configure antes el país en la sección Privacidad.', TENANT_SUSPENDED: 'El acceso de esta organización está suspendido. Contacte con el proveedor del servicio.', HOST_SITE_REQUIRED: 'Elija al menos una sede.', MFA_SELF_FIRST: 'Active antes la verificación en dos pasos en su cuenta (Seguridad de la cuenta).', MFA_REQUIRED_BY_ORGANISATION: 'Su organización exige la verificación en dos pasos.', CANNOT_RESET_OWN_MFA: 'No puede restablecer su propia verificación: desactívela en Seguridad de la cuenta.', MFA_CODE_INVALID: 'Código no válido.', INVALID_CREDENTIALS: 'Contraseña incorrecta.', MFA_ALREADY_ENABLED: 'La verificación en dos pasos ya está activa.' },
 };
 
-export const ADMIN_STRINGS: Record<AdminLocale, Dict> = { it, es };
+export const ADMIN_STRINGS: Record<AdminLocale, Dict> = { it, es, en };
 export type AdminStrings = Dict;
 
 export const I18nContext = createContext<{ t: AdminStrings; locale: AdminLocale; intl: string; setLocale: (l: AdminLocale) => void }>({ t: it, locale: 'it', intl: 'it-IT', setLocale: () => {} });
