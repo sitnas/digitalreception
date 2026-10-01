@@ -2,13 +2,17 @@ import type { Badge } from './badge';
 import type { Invite, NewInvite, Profile } from './invites';
 
 export class ApiError extends Error {
-  constructor(public status: number, public code: string) { super(code); }
+  status: number;
+  code: string;
+  constructor(status: number, code: string) { super(code); this.status = status; this.code = code; }
 }
 
 async function call<R>(origin: string, path: string, init?: RequestInit): Promise<R> {
   const r = await fetch(`${origin}/api${path}`, { ...init, headers: { 'Content-Type': 'application/json', ...init?.headers } });
-  const data = await r.json().catch(() => ({}));
-  if (!r.ok) throw new ApiError(r.status, Array.isArray(data.message) ? data.message[0] : data.message ?? String(r.status));
+  const data = await r.json().catch(() => undefined);
+  if (!r.ok) throw new ApiError(r.status, Array.isArray(data?.message) ? data.message[0] : data?.message ?? String(r.status));
+  // A page that is not our JSON (a login wall, a captive portal, a proxy error page answering 200).
+  if (data === undefined || data === null || typeof data !== 'object') throw new ApiError(r.status, 'BAD_RESPONSE');
   return data as R;
 }
 
@@ -44,7 +48,11 @@ const authed = <R>(b: Authed, path: string, init?: RequestInit) => {
 
 /** Who I am and, if I can be visited, where: `canInvite` turns the invitations on in the app. */
 export const getProfile = (b: Authed) => authed<Profile>(b, '');
-export const listInvites = (b: Authed, scope: 'upcoming' | 'past' = 'upcoming') => authed<Invite[]>(b, `/invitations?scope=${scope}`);
+export const listInvites = async (b: Authed, scope: 'upcoming' | 'past' = 'upcoming') => {
+  const rows = await authed<Invite[]>(b, `/invitations?scope=${scope}`);
+  if (!Array.isArray(rows)) throw new ApiError(200, 'BAD_RESPONSE');
+  return rows;
+};
 export const createInvite = (b: Authed, v: NewInvite, locale: string) =>
   authed<{ id: string; emailStatus: string }>(b, '/invitations', { method: 'POST', body: JSON.stringify({ ...v, company: v.company || undefined, locale }) });
 export const cancelInvite = (b: Authed, id: string) => authed<{ ok: true }>(b, `/invitations/${id}/cancel`, { method: 'POST', body: '{}' });
