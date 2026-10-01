@@ -5,7 +5,8 @@ import { DataSource, In, MoreThan, Repository } from 'typeorm';
 import { CryptoService } from '../common/crypto.service';
 import { MailService } from '../common/mail.service';
 import { TenantKeysService } from '../common/tenant-keys.service';
-import { AccessEvent, AccessMethod, AccessResult, AccessRule, Door, Employee, Host, Site, Tenant } from '../entities';
+import { AccessEvent, AccessMethod, AccessResult, AccessRule, CountryPolicy, Door, Employee, Host, Site, Tenant } from '../entities';
+import { WebhooksService } from '../common/webhooks.service';
 
 /** Phone badge QR: DRE1:<employeeId>.<time step>.<signature>; a new code every QR_STEP_S seconds. */
 export const QR_PREFIX = 'DRE1:';
@@ -59,6 +60,7 @@ export class AccessService {
     private readonly keys: TenantKeysService,
     private readonly crypto: CryptoService,
     private readonly mail: MailService,
+    private readonly webhooks: WebhooksService,
   ) {}
 
   // ------------------------------------------------------------ sync from the external system
@@ -230,12 +232,20 @@ export class AccessService {
     }
 
     const result = reason ? AccessResult.DENIED : AccessResult.GRANTED;
-    await this.events.save(this.events.create({
-      tenantId: reader.tenantId, siteId: door.siteId, doorId: door.id, readerId: reader.id,
-      employeeId: employee?.id ?? null, method, result, reason: reason ?? 'OK', at: now,
-    }));
     const first = employee && tc.decrypt(employee.firstNameEnc, 'employee.firstName');
     const last = employee && tc.decrypt(employee.lastNameEnc, 'employee.lastName');
+    await this.ds.transaction(async (em) => {
+      await em.save(em.create(AccessEvent, {
+        tenantId: reader.tenantId, siteId: door.siteId, doorId: door.id, readerId: reader.id,
+        employeeId: employee?.id ?? null, method, result, reason: reason ?? 'OK', at: now,
+      }));
+      if (reason) {
+        const policy = await em.findOne(CountryPolicy, { where: { tenantId: reader.tenantId, countryCode: site.countryCode }, select: { tenantId: true, countryCode: true, defaultLocale: true } });
+        await this.webhooks.enqueue(em, reader.tenantId, site.id, 'access.denied', {
+          site: site.name, door: door.name, reason, locale: policy?.defaultLocale ?? 'en', employee: first && last ? `${first} ${last}` : null,
+        });
+      }
+    });
     // The reader shows who it recognised only to the person standing there: first name and initial.
     return { result, reason: reason ?? 'OK', name: first && last ? `${first} ${last.charAt(0)}.` : null, door: door.name, at: now };
   }

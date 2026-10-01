@@ -10,6 +10,7 @@ import { TenantKeysService } from '../common/tenant-keys.service';
 import { addDays } from '../common/time.util';
 import { exitQrSvg } from '../common/exit-qr';
 import { InvitationsService } from '../invitations/invitations.service';
+import { WebhooksService } from '../common/webhooks.service';
 import { CountryPolicy, Device, FileKind, Host, NoticeEmailStatus, PairingCode, PrivacyNotice, Site, Tenant, Visit, VisitStatus } from '../entities';
 import { CheckInDto, CheckOutDto } from './kiosk.dto';
 
@@ -42,6 +43,7 @@ export class KioskService {
     private readonly mail: MailService,
     private readonly audit: AuditService,
     private readonly invitations: InvitationsService,
+    private readonly webhooks: WebhooksService,
   ) {}
 
   async pair(tenant: AuthTenant, code: string, req: AppRequest) {
@@ -174,6 +176,11 @@ export class KioskService {
       if (docPhoto) await this.files.store(em, tc, saved.id, FileKind.DOCUMENT, docPhoto, addDays(now, Math.min(policy.documentPhotoRetentionDays, policy.visitRetentionDays)));
       if (assetPhoto) await this.files.store(em, tc, saved.id, FileKind.ASSET_IN, assetPhoto, addDays(now, Math.min(policy.assetPhotoRetentionDays, policy.visitRetentionDays)));
       if (dto.invitationCode) await this.invitations.consume(em, device, dto.invitationCode, saved.id);
+      // Teams / Slack / HTTPS notification, queued with the visit: delivered by the outbox worker.
+      await this.webhooks.enqueue(em, device.tenantId, site.id, 'visit.arrived', {
+        site: site.name, locale: policy.defaultLocale, host: hostName,
+        visitor: `${dto.firstName} ${dto.lastName}`, company: dto.company || null,
+      });
       return saved;
     });
 

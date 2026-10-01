@@ -126,3 +126,31 @@ test('TOTP matches the RFC 6238 test vectors and refuses replays', () => {
   assert.equal(new Set(codes).size, 10);
   assert.equal(hashRecoveryCode(codes[0]), hashRecoveryCode(codes[0].toLowerCase().replace('-', '')));
 });
+
+test('webhooks refuse addresses inside the network (SSRF) and anything but https', () => {
+  const { WebhooksService, isPrivateIp } = require('../dist/common/webhooks.service.js');
+  for (const ip of ['127.0.0.1', '10.1.2.3', '172.16.0.1', '172.31.255.255', '192.168.1.1', '169.254.169.254', '100.64.0.1', '0.0.0.0', '::1', 'fd00::1', 'fe80::1', '::ffff:10.0.0.1']) assert.equal(isPrivateIp(ip), true, ip);
+  for (const ip of ['8.8.8.8', '172.32.0.1', '52.96.0.1', '2603:1026::1']) assert.equal(isPrivateIp(ip), false, ip);
+  const svc = new WebhooksService({ webhooks: { allowPrivate: false } }, null, null, null);
+  const code = (url) => { try { svc.checkUrl(url); return 'OK'; } catch (e) { return e.message; } };
+  assert.equal(code('https://hooks.slack.com/services/T/B/x'), 'OK');
+  assert.equal(code('http://hooks.slack.com/services/T/B/x'), 'WEBHOOK_URL_HTTPS');
+  assert.equal(code('https://169.254.169.254/latest/meta-data'), 'WEBHOOK_URL_PRIVATE');
+  assert.equal(code('https://[::1]/x'), 'WEBHOOK_URL_PRIVATE');
+  assert.equal(code('https://localhost/x'), 'WEBHOOK_URL_PRIVATE');
+  assert.equal(code('https://user:pw@example.com/x'), 'WEBHOOK_URL_INVALID');
+  assert.equal(code('not a url'), 'WEBHOOK_URL_INVALID');
+});
+
+test('webhook messages: names only when allowed, Teams gets an Adaptive Card, generic payloads are signed', () => {
+  const { WebhooksService } = require('../dist/common/webhooks.service.js');
+  const svc = new WebhooksService({ webhooks: { allowPrivate: false } }, null, null, null);
+  const ev = { event: 'visit.arrived', at: '2026-10-01T08:00:00.000Z', data: { site: 'Milano', locale: 'it', host: 'Mario Rossi', visitor: 'Ugo Ospite', company: 'Ospiti Srl' } };
+  assert.equal(JSON.parse(svc.render({ kind: 'slack', includeNames: false }, ev, null).body).text, 'Un ospite per Mario Rossi è arrivato a Milano.');
+  assert.equal(JSON.parse(svc.render({ kind: 'slack', includeNames: true }, ev, null).body).text, 'Ospite arrivato a Milano: Ugo Ospite (Ospiti Srl), per Mario Rossi.');
+  const teams = JSON.parse(svc.render({ kind: 'teams', includeNames: false }, ev, null).body);
+  assert.equal(teams.attachments[0].contentType, 'application/vnd.microsoft.card.adaptive');
+  const g = svc.render({ kind: 'generic', includeNames: false }, ev, 'whsec_test');
+  assert.equal(JSON.parse(g.body).data.visitor, undefined, 'no names unless allowed');
+  assert.equal(g.headers['X-DR-Signature'], `sha256=${createHmac('sha256', 'whsec_test').update(`${g.headers['X-DR-Timestamp']}.${g.body}`).digest('hex')}`);
+});

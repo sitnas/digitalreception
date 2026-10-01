@@ -10,9 +10,11 @@ import { SsoRequest } from './sso-request.entity';
 import { StoredFile } from './stored-file.entity';
 import { Tenant, TenantStatus } from './tenant.entity';
 import { User } from './user.entity';
+import { Webhook, WebhookDelivery, WEBHOOK_EVENTS, type WebhookEvent, type WebhookKind } from './webhook.entity';
 import { Visit } from './visit.entity';
 
 export * from './enums';
 export { AccessEvent, AccessMethod, AccessResult, AccessRule, ApiKey, Door, DoorReader, Employee };
-export { Tenant, TenantStatus, AuditLog, CountryPolicy, Device, Host, Invitation, InvitationStatus, PairingCode, PrivacyNotice, Site, SsoRequest, StoredFile, User, Visit };
-export const ENTITIES = [AccessEvent, AccessRule, ApiKey, Door, DoorReader, Employee, Tenant, AuditLog, CountryPolicy, Device, Host, Invitation, PairingCode, PrivacyNotice, Site, SsoRequest, StoredFile, User, Visit];
+export { Tenant, TenantStatus, AuditLog, CountryPolicy, Device, Host, Invitation, InvitationStatus, PairingCode, PrivacyNotice, Site, SsoRequest, StoredFile, User, Visit, Webhook, WebhookDelivery, WEBHOOK_EVENTS };
+export type { WebhookEvent, WebhookKind };
+export const ENTITIES = [AccessEvent, AccessRule, ApiKey, Door, DoorReader, Employee, Tenant, AuditLog, CountryPolicy, Device, Host, Invitation, PairingCode, PrivacyNotice, Site, SsoRequest, StoredFile, User, Visit, Webhook, WebhookDelivery];

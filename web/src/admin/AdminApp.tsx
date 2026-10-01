@@ -11,6 +11,7 @@ import { InvitationsPage } from './pages/Invitations';
 import { AccessLogPage, DoorsPage, EmployeesPage, IntegrationPage } from './pages/Access';
 import { HostsPage } from './pages/Hosts';
 import { OrganisationPage } from './pages/Organisation';
+import { WebhooksPage } from './pages/Webhooks';
 import { PrivacyPage } from './pages/Privacy';
 import { SitesPage } from './pages/Sites';
 import { StatsPage } from './pages/Stats';
@@ -45,6 +46,7 @@ const NAV: { to: string; key: keyof typeof ADMIN_STRINGS.it.nav; group: NavGroup
   { to: 'users', key: 'users', group: 'setup', roles: ['SUPER_ADMIN'] },
   { to: 'privacy', key: 'privacy', group: 'compliance', roles: ['SUPER_ADMIN', 'SITE_MANAGER', 'AUDITOR'] },
   { to: 'audit', key: 'audit', group: 'compliance', roles: ['SUPER_ADMIN', 'AUDITOR'] },
+  { to: 'notifications', key: 'notifications', group: 'setup', roles: ['SUPER_ADMIN'] },
   { to: 'organisation', key: 'org', group: 'setup', roles: ['SUPER_ADMIN'] },
 ];
 
@@ -408,6 +410,7 @@ function Shell({ branding, me, onLogout }: { branding: Branding; me: Me; onLogou
           {items.some((i) => i.to === 'users') && <Route path="users" element={<UsersPage />} />}
           {items.some((i) => i.to === 'privacy') && <Route path="privacy" element={<PrivacyPage />} />}
           {items.some((i) => i.to === 'audit') && <Route path="audit" element={<AuditPage />} />}
+          {items.some((i) => i.to === 'notifications') && <Route path="notifications" element={<WebhooksPage />} />}
           {items.some((i) => i.to === 'organisation') && <Route path="organisation" element={<OrganisationPage />} />}
           <Route path="account" element={<AccountPage />} />
           <Route path="*" element={<Navigate to={home} replace />} />
