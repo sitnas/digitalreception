@@ -33,7 +33,7 @@ L'app è progettata per ridurre i dati al minimo:
 3. **Lettori.** In **Porte e lettori → Associa lettore** si ottiene un codice di 8 caratteri. Sul tablet o telefono Android alla porta si apre `https://<indirizzo>/reader`, si inserisce il codice e il lettore resta associato a quella porta.
    - **QR**: il lettore usa la fotocamera frontale.
    - **Tessere NFC**: su Chrome per Android si tocca una volta "Attiva tessere NFC". In alternativa si collega un lettore NFC USB che funziona come tastiera.
-4. **Dipendenti.** Il sistema esterno li invia con l'API. Ognuno attiva il badge sul telefono dalla pagina `https://<indirizzo>/badge`: inserisce l'email di lavoro, riceve un codice di 6 cifre e lo digita. Serve l'invio email attivo (vedi Organizzazione).
+4. **Dipendenti.** Il sistema esterno li invia con l'API, oppure l'amministratore li aggiunge a mano in **Console → Dipendenti → Nuovo dipendente**. Vedi sotto, *Dipendenti a mano*. Ognuno attiva il badge sul telefono dalla pagina `https://<indirizzo>/badge`: inserisce l'email di lavoro, riceve un codice di 6 cifre e lo digita. Serve l'invio email attivo (vedi Organizzazione).
 
 ## Installare i lettori su dispositivi fisici
 
@@ -186,6 +186,17 @@ Motivi di rifiuto mostrati dal lettore e in console (`reason`):
 | `DOOR_INACTIVE` | Porta disattivata |
 | `NO_PERMISSION` | Nessun permesso per quella porta |
 | `OUTSIDE_SCHEDULE` | Fuori dai giorni o dagli orari consentiti |
+
+## Dipendenti a mano
+
+Senza un gestionale, o per qualcuno che il gestionale non conosce (un consulente, uno stagista), l'amministratore (SUPER_ADMIN) gestisce i dipendenti dalla console:
+
+- **Dipendenti → Nuovo dipendente**: nome, cognome, email, reparto e ruolo, la tessera NFC (UID) se c'è, il periodo di validità. Poi le porte, ognuna con i giorni e l'orario. Nessun giorno scelto vuol dire tutti i giorni; nessun orario, a qualsiasi ora.
+- Il **codice esterno** è facoltativo: se resta vuoto ne viene generato uno (`MAN-…`). Se in futuro colleghi un gestionale, conviene usare il codice che ha lui.
+- **Modifica** su ogni riga apre lo stesso modulo. Il campo tessera vuoto lascia quella attuale; *Togli la tessera* la rimuove. Da lì si può anche eliminare il dipendente: perde porte, tessera e badge sul telefono, mentre i passaggi registrati restano senza nome.
+- Le regole sono quelle dell'API: una tessera e un'email appartengono a una persona sola.
+
+In elenco i dipendenti creati in console hanno l'etichetta "a mano". Vale l'ultimo che scrive: se il gestionale invia lo stesso codice esterno, sovrascrive il record, che da quel momento torna suo. Per questo modificando un dipendente arrivato dall'API la console avvisa che il prossimo invio annullerà le modifiche.
 
 ## Come funziona il QR sul telefono
 

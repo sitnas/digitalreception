@@ -1,4 +1,4 @@
-import { BadRequestException, Body, ConflictException, Controller, Get, HttpCode, NotFoundException, Param, ParseUUIDPipe, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, ConflictException, Controller, Delete, Get, HttpCode, NotFoundException, Param, ParseUUIDPipe, Patch, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Transform, Type } from 'class-transformer';
 import { IsBoolean, IsIn, IsInt, IsISO8601, IsOptional, IsString, IsUUID, Length, Matches, Max, Min } from 'class-validator';
@@ -9,7 +9,8 @@ import { AdminAuthGuard, CurrentUser, Roles, assertSiteAccess, visibleSiteIds } 
 import { AppRequest, AuthUser } from '../common/request-context';
 import { TenantKeysService } from '../common/tenant-keys.service';
 import { AccessEvent, AccessRule, ApiKey, Door, DoorReader, Employee, PairingCode, Role, Site } from '../entities';
-import { EXTERNAL_ID } from './integration.controller';
+import { AccessService } from './access.service';
+import { EXTERNAL_ID, PutEmployeeDto } from './integration.controller';
 
 const trim = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim().replace(/\s+/g, ' ') : value);
 const PAIRING_TTL_MIN = 15;
@@ -23,6 +24,10 @@ export class CreateDoorDto {
 export class UpdateDoorDto {
   @IsOptional() @Transform(trim) @IsString() @Length(1, 80) name?: string;
   @IsOptional() @IsBoolean() active?: boolean;
+}
+/** Same fields as the integration API; the console may leave the code empty and get one generated. */
+export class CreateEmployeeDto extends PutEmployeeDto {
+  @IsOptional() @Transform(trim) @IsString() @Matches(EXTERNAL_ID) externalId?: string;
 }
 export class ReaderCodeDto {
   @Transform(trim) @IsString() @Length(2, 80) name: string;
@@ -57,6 +62,7 @@ export class AccessAdminController {
     private readonly keys: TenantKeysService,
     private readonly crypto: CryptoService,
     private readonly audit: AuditService,
+    private readonly access: AccessService,
   ) {}
 
   private async visibleDoors(user: AuthUser) {
@@ -125,7 +131,7 @@ export class AccessAdminController {
     return { ok: true };
   }
 
-  // ------------------------------------------------------------------ employees (read-only mirror)
+  // ------------------------------------------------------------------ employees
   @Get('employees')
   @Roles(...READ)
   async listEmployees(@CurrentUser() user: AuthUser, @Req() req: AppRequest) {
@@ -141,13 +147,62 @@ export class AccessAdminController {
     return visible.map((e) => ({
       id: e.id, externalId: e.externalId,
       firstName: tc.decrypt(e.firstNameEnc, 'employee.firstName'), lastName: tc.decrypt(e.lastNameEnc, 'employee.lastName'),
-      email: tc.decrypt(e.emailEnc, 'employee.email'), active: e.active, validFrom: e.validFrom, validUntil: e.validUntil,
+      email: tc.decrypt(e.emailEnc, 'employee.email'), department: tc.decrypt(e.departmentEnc, 'employee.department'), jobTitle: tc.decrypt(e.jobTitleEnc, 'employee.jobTitle'),
+      source: e.source, active: e.active, validFrom: e.validFrom, validUntil: e.validUntil,
       badgeHint: e.badgeHint, phoneBadge: !!e.credentialSecretEnc, phoneBadgeIssuedAt: e.credentialIssuedAt, updatedAt: e.updatedAt,
       permissions: rules.filter((r) => r.employeeId === e.id && doorById.has(r.doorId)).map((r) => {
         const d = doorById.get(r.doorId)!;
-        return { door: d.name, site: sites.get(d.siteId) ?? '—', days: r.days ? r.days.split(',').map(Number) : null, from: r.fromTime, to: r.toTime };
+        return { doorExternalId: d.externalId, door: d.name, site: sites.get(d.siteId) ?? '—', days: r.days ? r.days.split(',').map(Number) : null, from: r.fromTime, to: r.toTime };
       }),
     }));
+  }
+
+  /**
+   * By hand, for organisations without an HR system (or for a consultant it does not know).
+   * Same rules as the integration API; only the administrator, since permissions span every site.
+   */
+  @Post('employees')
+  @Roles(Role.SUPER_ADMIN)
+  async createEmployee(@CurrentUser() user: AuthUser, @Body() dto: CreateEmployeeDto, @Req() req: AppRequest) {
+    const { externalId: given, ...data } = dto;
+    const externalId = given || `MAN-${this.crypto.randomCode(8)}`;
+    if (await this.employees.exist({ where: { tenantId: user.tenantId, externalId } })) throw new ConflictException('EMPLOYEE_ID_EXISTS');
+    await this.assertEmailFree(user.tenantId, data.email, null);
+    const { employee } = await this.access.upsertEmployee(user.tenantId, externalId, data, 'CONSOLE');
+    await this.audit.fromRequest(req, { action: 'EMPLOYEE_CREATED', entityType: 'employee', entityId: employee.id, details: { externalId, permissions: data.permissions.length } });
+    return { id: employee.id, externalId };
+  }
+
+  /** Replaces the whole record like the API does. badgeUid: undefined keeps the card, null removes it. */
+  @Put('employees/:id')
+  @Roles(Role.SUPER_ADMIN)
+  async updateEmployee(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Body() dto: PutEmployeeDto, @Req() req: AppRequest) {
+    const e = await this.employees.findOne({ where: { id, tenantId: user.tenantId } });
+    if (!e) throw new NotFoundException('EMPLOYEE_NOT_FOUND');
+    await this.assertEmailFree(user.tenantId, dto.email, e.id);
+    await this.access.upsertEmployee(user.tenantId, e.externalId, dto, 'CONSOLE');
+    await this.audit.fromRequest(req, { action: 'EMPLOYEE_UPDATED', entityType: 'employee', entityId: e.id, details: { externalId: e.externalId, wasFromApi: e.source === 'API', permissions: dto.permissions.length, badge: dto.badgeUid === undefined ? 'kept' : dto.badgeUid ? 'set' : 'removed' } });
+    return { ok: true };
+  }
+
+  @Delete('employees/:id')
+  @HttpCode(200)
+  @Roles(Role.SUPER_ADMIN)
+  async deleteEmployee(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Req() req: AppRequest) {
+    const e = await this.employees.findOne({ where: { id, tenantId: user.tenantId } });
+    if (!e) throw new NotFoundException('EMPLOYEE_NOT_FOUND');
+    await this.access.deleteEmployee(user.tenantId, e.externalId);
+    await this.audit.fromRequest(req, { action: 'EMPLOYEE_DELETED', entityType: 'employee', entityId: e.id, details: { externalId: e.externalId } });
+    return { ok: true };
+  }
+
+  /** The email activates the phone badge: two people with the same one could not be told apart. */
+  private async assertEmailFree(tenantId: string, email: string | null | undefined, selfId: string | null) {
+    const clean = email?.trim().toLowerCase();
+    if (!clean) return;
+    const tc = await this.keys.forTenant(tenantId);
+    const other = await this.employees.findOne({ where: { tenantId, emailIndex: tc.blindIndex(clean, 'employee.email')! }, select: { id: true } });
+    if (other && other.id !== selfId) throw new ConflictException('EMPLOYEE_EMAIL_IN_USE');
   }
 
   /** Lost or changed phone: the current phone badge stops working; the employee activates it again. */

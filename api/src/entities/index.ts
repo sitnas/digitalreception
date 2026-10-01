@@ -16,5 +16,6 @@ import { Visit } from './visit.entity';
 export * from './enums';
 export { AccessEvent, AccessMethod, AccessResult, AccessRule, ApiKey, Door, DoorReader, Employee };
 export { Tenant, TenantStatus, AuditLog, CountryPolicy, Device, Host, Invitation, InvitationStatus, PairingCode, PrivacyNotice, Site, SsoRequest, StoredFile, User, Visit, Webhook, WebhookDelivery, WEBHOOK_EVENTS };
+export type { EmployeeSource } from './access.entity';
 export type { WebhookEvent, WebhookKind };
 export const ENTITIES = [AccessEvent, AccessRule, ApiKey, Door, DoorReader, Employee, Tenant, AuditLog, CountryPolicy, Device, Host, Invitation, PairingCode, PrivacyNotice, Site, SsoRequest, StoredFile, User, Visit, Webhook, WebhookDelivery];

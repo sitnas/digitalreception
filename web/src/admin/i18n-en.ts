@@ -140,8 +140,8 @@ export const en: AdminStrings = {
     noticeTitle: 'Title', noticeBody: 'Text', placeholderHint: 'Use {{visitRetentionDays}} to insert the retention days automatically.', published: 'Published version', readOnly: 'Read-only for your role.',
   },
   access: {
-    employeesTitle: 'Employees', employeesIntro: 'The people the external system sends through the API, with the doors they can open. Changes happen in the external system; here you can only look.',
-    badgePage: '“My badge” page to share with employees', search: 'Search', noEmployees: 'No employees: the external system hasn’t sent any yet (see API integration).',
+    employeesTitle: 'Employees', employeesIntro: 'The people who can open doors, with each one’s permissions. They come from the external system through the API, or you add them here by hand.',
+    badgePage: '“My badge” page to share with employees', search: 'Search', noEmployees: 'No employees yet. Add one here, or connect the external system from API integration.',
     person: 'Person', externalId: 'External ID', externalIdHint: 'The same ID the external system uses.', credentials: 'Credentials', doors: 'Doors', validity: 'Valid', always: 'Always',
     noEmail: 'No email: can’t activate the phone badge', inactive: 'Inactive', card: 'Card', phone: 'Phone', noDoors: 'No doors', everyDay: 'Every day', weekdays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
     revokePhone: 'Turn off phone badge', revokeConfirm: 'Turn off {name}’s phone badge? They’ll have to activate it again with a code by email.', revoked: 'Phone badge turned off.',
@@ -158,6 +158,7 @@ export const en: AdminStrings = {
     docsTitle: 'How the API works', docsIntro: 'Every request carries the header “Authorization: Bearer <key>”. IDs are the external system’s own. PUT replaces the whole record, permissions included, so you can repeat it without creating duplicates.',
     docDoor: 'Create or update a door: siteCode (site code), name.', docPut: 'Create or update an employee: name, email, card badgeUid, active, validFrom/validUntil, permissions (door, days 1-7, hours).',
     docDelete: 'Delete the employee and their permissions.', baseUrl: 'Base address',
+    addEmployee: 'New employee', editEmployee: 'Edit employee', edit: 'Edit', firstName: 'First name', lastName: 'Last name', email: 'Email', emailHint: 'Needed to activate the badge on the phone.', department: 'Department', jobTitle: 'Job title', externalIdAuto: 'Optional. Leave it empty and we generate one; if you have an HR system, use the code it uses.', cardUid: 'NFC card (UID)', cardUidHint: 'The card code, for example 04:A2:1B:9C. A USB NFC reader can read it.', currentCard: 'Current card ···{hint}', removeCard: 'Remove the card', newCard: 'New card (UID)', newCardHint: 'Empty: the current card stays.', activeLabel: 'Active: can open doors', validFrom: 'Valid from', validUntil: 'Valid until', validityHint: 'Both days included. Empty means no limit.', permissionsTitle: 'Doors they can open', addPermission: 'Add door', removePermission: 'Remove', days: 'Days', daysHint: 'No day picked: every day.', fromTime: 'From', toTime: 'To', timeHint: 'No hours: any time.', noDoorsToAssign: 'There are no doors to assign yet: create them in Doors and readers.', manual: 'by hand', fromApiWarning: 'This employee comes from the external system: its next update overwrites the changes made here.', employeeSaved: 'Employee saved.', deleteEmployee: 'Delete employee', deleteConfirm: 'Delete {name}? They lose doors, card and phone badge. Past door events stay, without the name.', employeeDeleted: 'Employee deleted.',
   },
   invites: {
     title: 'Invitations', fromApp: 'from the app', intro: 'Register expected guests in advance: they get an email with a QR, show it to the tablet when they arrive, and the tablet fills in their details. All that’s left is reading the privacy notice and signing.',
@@ -180,6 +181,7 @@ export const en: AdminStrings = {
   },
   audit: { title: 'Audit log', intro: 'Who did what, when and from where. Nobody can edit or delete it from the console.', when: 'When', actor: 'Who', action: 'Action', target: 'Item', ip: 'IP', details: 'Details', filterAction: 'Action', filterActor: 'User or tablet', export: 'Export CSV' },
   errors: {
+    EMPLOYEE_ID_EXISTS: 'An employee with this external code already exists.', EMPLOYEE_EMAIL_IN_USE: 'Another employee already uses this email.', BADGE_IN_USE: 'This card is already assigned to another employee.', INVALID_BADGE_UID: 'Invalid card code: it needs at least 4 characters from 0-9 and A-F.', TIME_WINDOW_INCOMPLETE: 'Give both the start and the end time, or leave both empty.', UNKNOWN_DOOR: 'One of the chosen doors no longer exists: reload the page.',
     WEBHOOK_URL_INVALID: 'Invalid address.', WEBHOOK_URL_HTTPS: 'The address must start with https://.', WEBHOOK_URL_PRIVATE: 'This address points inside the network: it isn’t allowed, for security.',
     EMPLOYEE_ALREADY_HOST: 'This employee is already among the people to visit.', EMPLOYEE_NOT_FOUND: 'Employee not found or not active.',
     SSO_SELF_FIRST: 'To make it mandatory you need to have signed in with your work account in this session.', SSO_EMERGENCY_ADMIN_REQUIRED: 'You need at least one active administrator marked as an emergency account.', SSO_NOT_LINKED: 'Link Microsoft or Google first.',

@@ -39,6 +39,7 @@ export const api = {
   get: <T>(p: string) => request<T>(p),
   post: <T>(p: string, body?: unknown) => request<T>(p, { method: 'POST', body: json(body ?? {}) }),
   patch: <T>(p: string, body: unknown) => request<T>(p, { method: 'PATCH', body: json(body) }),
+  put: <T>(p: string, body: unknown) => request<T>(p, { method: 'PUT', body: json(body) }),
   del: <T>(p: string, body?: unknown) => request<T>(p, { method: 'DELETE', body: json(body ?? {}) }),
   blob: (p: string) => request<Blob>(p),
   kiosk: {
