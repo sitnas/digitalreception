@@ -159,15 +159,15 @@ const BADGE_CODE_STRINGS = {
 };
 
 const INVITE_STRINGS = {
-  it: { subject: 'Il tuo invito', hello: 'Gentile {name}, ti aspettiamo per una visita.', host: 'Ti aspetta', when: 'Quando', site: 'Sede', code: 'Codice invito',
+  it: { subject: 'Il tuo invito', hello: 'Ciao {name}, ti aspettiamo in sede.', host: 'Ti aspetta', when: 'Quando', site: 'Sede', code: 'Codice invito',
     how: 'All’arrivo tocca “Ho un invito” sul tablet della reception e mostra questo QR alla fotocamera: i tuoi dati saranno già compilati, dovrai solo leggere l’informativa privacy e firmare.',
-    privacy: '{org} ha registrato nome, azienda ed email solo per preparare questa visita. I dati dell’invito vengono cancellati pochi giorni dopo la data prevista.' },
-  es: { subject: 'Su invitación', hello: 'Estimado/a {name}, le esperamos para una visita.', host: 'Le espera', when: 'Cuándo', site: 'Sede', code: 'Código de invitación',
+    privacy: '{org} ha registrato nome, azienda ed email solo per preparare questa visita. Cancelliamo i dati dell’invito pochi giorni dopo la data prevista.' },
+  es: { subject: 'Su invitación', hello: 'Hola {name}, le esperamos en nuestra sede.', host: 'Le espera', when: 'Cuándo', site: 'Sede', code: 'Código de invitación',
     how: 'Al llegar, pulse «Tengo una invitación» en la tableta de recepción y muestre este QR a la cámara: sus datos ya estarán completos, solo tendrá que leer la información de privacidad y firmar.',
     privacy: '{org} ha registrado su nombre, empresa y correo solo para preparar esta visita. Los datos de la invitación se eliminan pocos días después de la fecha prevista.' },
-  en: { subject: 'Your invitation', hello: 'Dear {name}, you are expected for a visit.', host: 'Meeting', when: 'When', site: 'Site', code: 'Invitation code',
+  en: { subject: 'Your invitation', hello: 'Hi {name}, we’re expecting you.', host: 'Meeting', when: 'When', site: 'Site', code: 'Invitation code',
     how: 'When you arrive, tap “I have an invitation” on the reception tablet and show this QR to the camera: your details will already be filled in, you will only need to read the privacy notice and sign.',
-    privacy: '{org} recorded your name, company and email only to prepare this visit. The invitation data is deleted a few days after the expected date.' },
+    privacy: '{org} recorded your name, company and email only to prepare this visit. We delete the invitation data a few days after the expected date.' },
 };
 
 const ARRIVAL_STRINGS = {

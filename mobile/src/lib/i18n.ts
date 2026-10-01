@@ -44,7 +44,7 @@ const STRINGS = {
       reactivate: 'Per invitare ospiti dall’app rimuovi il badge e attivalo di nuovo: serve una sola volta.',
       errors: { name: 'Scrivi nome e cognome, solo lettere.', email: 'Email non valida.', time: 'Ora non valida: per esempio 9:30.', INVITATION_IN_PAST: 'Quel giorno è già passato.', INVITATION_TOO_FAR: 'Puoi invitare fino a 90 giorni in anticipo.', NOT_A_HOST: 'Non sei più tra le persone da visitare: chiedi alla reception.', NOT_A_HOST_HERE: 'In questa sede non ricevi visite.', INVITATION_USED: 'L’ospite è già arrivato.', INVITATION_CANCELLED: 'Invito già annullato.', INVITATION_EXPIRED: 'Invito scaduto.' },
     },
-    errors: { CODE_INVALID: 'Codice non valido o scaduto. Chiedine uno nuovo.', generic: 'Operazione non riuscita. Riprova.', offline: 'Connessione non disponibile.', tooMany: 'Troppi tentativi: aspetta un minuto e riprova.', invalidEmail: 'Email non valida: controlla che sia scritta per intero, senza spazi.', detail: 'Dettaglio per l’assistenza' },
+    errors: { CODE_INVALID: 'Codice non valido o scaduto. Chiedine uno nuovo.', generic: 'Non è andata a buon fine. Riprova tra qualche secondo.', offline: 'Connessione non disponibile.', tooMany: 'Troppi tentativi: aspetta un minuto e riprova.', invalidEmail: 'Email non valida: controlla che sia scritta per intero, senza spazi.', detail: 'Dettaglio per l’assistenza' },
   },
   es: {
     title: 'Mi credencial',
@@ -89,7 +89,7 @@ const STRINGS = {
       reactivate: 'Para invitar desde la app, quite la credencial y actívela de nuevo: solo una vez.',
       errors: { name: 'Escriba nombre y apellidos, solo letras.', email: 'Correo no válido.', time: 'Hora no válida: por ejemplo 9:30.', INVITATION_IN_PAST: 'Ese día ya ha pasado.', INVITATION_TOO_FAR: 'Puede invitar hasta 90 días antes.', NOT_A_HOST: 'Ya no está entre las personas a visitar: pregunte en recepción.', NOT_A_HOST_HERE: 'En esta sede no recibe visitas.', INVITATION_USED: 'El invitado ya llegó.', INVITATION_CANCELLED: 'Invitación ya cancelada.', INVITATION_EXPIRED: 'Invitación caducada.' },
     },
-    errors: { CODE_INVALID: 'Código no válido o caducado. Pida uno nuevo.', generic: 'No se pudo completar. Inténtelo de nuevo.', offline: 'Sin conexión.', tooMany: 'Demasiados intentos: espere un minuto y vuelva a intentarlo.', invalidEmail: 'Correo no válido: compruebe que esté completo y sin espacios.', detail: 'Detalle para soporte' },
+    errors: { CODE_INVALID: 'Código no válido o caducado. Pida uno nuevo.', generic: 'No ha funcionado. Inténtelo de nuevo en unos segundos.', offline: 'Sin conexión.', tooMany: 'Demasiados intentos: espere un minuto y vuelva a intentarlo.', invalidEmail: 'Correo no válido: compruebe que esté completo y sin espacios.', detail: 'Detalle para soporte' },
   },
   en: {
     title: 'My badge',
@@ -134,7 +134,7 @@ const STRINGS = {
       reactivate: 'To invite guests from the app, remove the badge and activate it again: only once.',
       errors: { name: 'Type first and last name, letters only.', email: 'Invalid email.', time: 'Invalid time: for example 9:30.', INVITATION_IN_PAST: 'That day has already passed.', INVITATION_TOO_FAR: 'You can invite up to 90 days ahead.', NOT_A_HOST: 'You are no longer among the people to visit: ask reception.', NOT_A_HOST_HERE: 'You do not receive visits at this site.', INVITATION_USED: 'The guest has already arrived.', INVITATION_CANCELLED: 'Invitation already cancelled.', INVITATION_EXPIRED: 'Invitation expired.' },
     },
-    errors: { CODE_INVALID: 'Invalid or expired code. Ask for a new one.', generic: 'Something went wrong. Try again.', offline: 'No connection.', tooMany: 'Too many attempts: wait a minute and try again.', invalidEmail: 'Invalid email: check it is complete and has no spaces.', detail: 'Detail for support' },
+    errors: { CODE_INVALID: 'Invalid or expired code. Ask for a new one.', generic: 'That didn’t work. Try again in a few seconds.', offline: 'No connection.', tooMany: 'Too many attempts: wait a minute and try again.', invalidEmail: 'Invalid email: check it is complete and has no spaces.', detail: 'Detail for support' },
   },
 } as const;
 
