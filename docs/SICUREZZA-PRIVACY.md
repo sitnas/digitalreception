@@ -84,7 +84,7 @@ Riferimenti normativi dei modelli di informativa: GDPR e D.Lgs. 196/2003 (Italia
 | Regole privacy e informative | modifica | lettura | no | lettura |
 | Registro accessi | sì | no | no | sì |
 
-**Registro accessi.** Registra login riusciti e falliti, ogni elenco consultato (con i filtri, ma senza il testo cercato), ogni apertura di scheda, ogni immagine vista, ogni export con numero di righe, cancellazioni con motivo, modifiche a utenti, sedi, policy e informative, esecuzioni dei job. Non contiene mai dati dei visitatori, solo identificativi. L'applicazione non offre funzioni per modificarlo o cancellarlo.
+**Registro accessi.** Registra login riusciti e falliti, ogni elenco consultato (con i filtri, ma senza il testo cercato), ogni apertura di scheda, ogni immagine vista, ogni export con numero di righe, cancellazioni con motivo, modifiche a utenti, sedi, policy e informative, esecuzioni dei job. Non contiene mai dati dei visitatori, solo identificativi. Dalla console e dall'API nessuno può modificarlo o cancellarlo. Le voci contengono IP ed email degli utenti, quindi non restano per sempre: il job di conservazione elimina quelle più vecchie di `AUDIT_LOG_RETENTION_DAYS`, di default 365 giorni e mai meno di 90.
 
 **Applicazione web.** Validazione rigorosa di ogni input con rifiuto dei campi non previsti; immagini accettate solo JPEG/PNG con verifica dei byte iniziali e limite di 3 MB; export CSV protetto da *formula injection*; header di sicurezza (CSP senza origini esterne, HSTS, `nosniff`, `no-referrer`, `frame-ancestors 'none'`, fotocamera consentita solo alla stessa origine); `Cache-Control: no-store` su tutte le risposte dell'API; rate limiting generale e più stretto su login e associazione; le query SQL non vengono mai scritte nei log, nemmeno quelle fallite; container senza privilegi di root, filesystem in sola lettura.
 
@@ -105,7 +105,7 @@ Riferimenti normativi dei modelli di informativa: GDPR e D.Lgs. 196/2003 (Italia
 Espressi come necessità dell'applicazione; le scelte tecniche su come soddisfarli spettano all'infrastruttura.
 
 1. **HTTPS** con certificato valido davanti all'applicazione (necessario per fotocamera e cookie sicuri).
-2. **Un database MySQL 8 o MariaDB 10.11+** con un utente dedicato limitato al proprio schema. Consigliato: sulla tabella `audit_logs` concedere all'utente applicativo solo `INSERT` e `SELECT`.
+2. **Un database MySQL 8 o MariaDB 10.11+** con un utente dedicato limitato al proprio schema. Consigliato: sulla tabella `audit_logs` concedere all'utente applicativo solo `INSERT`, `SELECT` e `DELETE`, senza `UPDATE`. Il `DELETE` serve al job di conservazione.
 3. **Uno spazio di archiviazione privato e persistente** per le immagini cifrate (volume o storage compatibile S3), non esposto pubblicamente.
 4. **Un luogo sicuro per i segreti** (`MASTER_KEYS`, `JWT_SECRET`, password DB), separato dai backup del database: chi ha solo il backup non deve poter leggere i dati.
 5. **Backup** di database e immagini secondo la politica aziendale; le copie restano cifrate.

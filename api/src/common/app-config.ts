@@ -17,6 +17,8 @@ export interface AppConfig {
     | { driver: 'local'; dir: string }
     | { driver: 's3'; bucket: string; region: string; endpoint?: string; accessKeyId?: string; secretAccessKey?: string; forcePathStyle: boolean; prefix: string };
   access: { logRetentionDays: number };
+  /** Console audit trail (who did what, with IP): kept this many days, then deleted. */
+  audit: { retentionDays: number };
   mail: { host?: string; port: number; secure: boolean; user?: string; pass?: string; from: string };
   jobs: { enabled: boolean };
   /** Sign-in with Microsoft / Google (OIDC). Apps registered once by the platform; each organisation links its own directory. */
@@ -95,6 +97,8 @@ export function loadConfig(): AppConfig {
     storage,
     // Employee access log: kept short on purpose (worker monitoring rules, GDPR minimisation).
     access: { logRetentionDays: Math.max(1, Number(process.env.ACCESS_LOG_RETENTION_DAYS ?? 90)) },
+    // Long enough to investigate an incident or answer an audit, not forever (it holds IPs and emails).
+    audit: { retentionDays: Math.max(90, Number(process.env.AUDIT_LOG_RETENTION_DAYS ?? 365)) },
     mail: {
       host: process.env.SMTP_HOST || undefined,
       port: Number(process.env.SMTP_PORT ?? 587),

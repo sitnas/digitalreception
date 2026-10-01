@@ -3,10 +3,12 @@ import { ActorType } from './enums';
 
 /**
  * Append-only audit trail (who accessed which personal data, when, from where).
- * The application never updates or deletes rows; at DB level grant only INSERT/SELECT.
+ * Nobody can change or delete an entry from the console or the API: the only deletion is the
+ * retention job, for entries older than AUDIT_LOG_RETENTION_DAYS (they hold IPs and emails).
  * It never contains visitor personal data, only identifiers.
  */
 @Entity('audit_logs')
+@Index('IDX_audit_logs_at', ['at'])
 @Index(['tenantId', 'at'])
 @Index(['tenantId', 'action', 'at'])
 @Index(['tenantId', 'entityType', 'entityId'])
