@@ -8,7 +8,7 @@ import { withDbLock } from '../common/db-lock';
 import { FilesService } from '../common/files.service';
 import { addDays, startOfLocalDay } from '../common/time.util';
 import { VisitLifecycleService } from '../common/visit-lifecycle.service';
-import { AccessEvent, CountryPolicy, Invitation, Site, StoredFile, Visit, VisitStatus } from '../entities';
+import { AccessEvent, CountryPolicy, Invitation, Site, SsoRequest, StoredFile, Visit, VisitStatus } from '../entities';
 import { INVITATION_KEEP_DAYS } from '../invitations/invitations.service';
 
 const BATCH = 500;
@@ -19,7 +19,9 @@ const BATCH = 500;
  *  2. visits past the country retention are anonymised;
  *  3. visits still open from a previous local day are closed as AUTO_CLOSED;
  *  4. invitations are deleted INVITATION_KEEP_DAYS after their day (used, cancelled or not);
- *  5. employee access events are deleted after cfg.access.logRetentionDays.
+ *  5. employee access events are deleted after cfg.access.logRetentionDays;
+ *  6. audit trail entries (they hold IPs and emails) are deleted after cfg.audit.retentionDays;
+ *  7. single sign-on attempts left unfinished are deleted once expired.
  * Runs on one replica at a time (DB lock), in bounded batches so it scales with data volume.
  */
 @Injectable()
@@ -87,6 +89,16 @@ export class RetentionService {
     if (inv.affected) this.log.log(`Retention: ${inv.affected} past invitations deleted`);
     const ev = await this.ds.getRepository(AccessEvent).delete({ at: LessThan(addDays(now, -this.cfg.access.logRetentionDays)) });
     if (ev.affected) this.log.log(`Retention: ${ev.affected} access events deleted`);
+    // In batches: the first run on an old installation may find years of entries.
+    const auditCutoff = addDays(now, -this.cfg.audit.retentionDays);
+    let auditDeleted = 0;
+    for (;;) {
+      const r: { affectedRows?: number } = await this.ds.query('DELETE FROM `audit_logs` WHERE `at` < ? LIMIT 5000', [auditCutoff]);
+      auditDeleted += r.affectedRows ?? 0;
+      if ((r.affectedRows ?? 0) < 5000) break;
+    }
+    if (auditDeleted) this.log.log(`Retention: ${auditDeleted} audit entries older than ${this.cfg.audit.retentionDays} days deleted`);
+    await this.ds.getRepository(SsoRequest).delete({ expiresAt: LessThan(now) });
 
     for (const [tenantId, s] of stats) {
       await this.audit.system(tenantId, { action: 'RETENTION_RUN', details: { ...s } });

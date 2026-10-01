@@ -579,6 +579,19 @@ describe('end-to-end', { skip: !enabled && 'E2E_DB_HOST not set' }, () => {
     assert.equal(row.employeeId, null); assert.equal(row.lastName, 'Verdi Neri');
   });
 
+  test('retention deletes audit entries older than AUDIT_LOG_RETENTION_DAYS, keeps recent ones', async () => {
+    const mysql = require('mysql2/promise');
+    const db = await mysql.createConnection({ host: env.DB_HOST, port: Number(env.DB_PORT), user: env.DB_USER, password: env.DB_PASSWORD, database: env.DB_NAME });
+    const [[t]] = await db.query('SELECT id FROM tenants WHERE slug = ?', [SLUG]);
+    const add = (days, action) => db.query("INSERT INTO audit_logs (tenantId, at, actorType, actorId, actorLabel, action, ip) VALUES (?, DATE_SUB(UTC_TIMESTAMP(3), INTERVAL ? DAY), 'USER', NULL, 'old@e2e.test', ?, '203.0.113.9')", [t.id, days, action]);
+    await add(400, 'E2E_OLD_ENTRY');
+    await add(30, 'E2E_RECENT_ENTRY');
+    await run('node', ['dist/database/run-retention.js'], { env: { ...env, AUDIT_LOG_RETENTION_DAYS: '365' } });
+    const [rows] = await db.query("SELECT action FROM audit_logs WHERE tenantId = ? AND action LIKE 'E2E_%'", [t.id]);
+    await db.end();
+    assert.deepEqual(rows.map((r) => r.action), ['E2E_RECENT_ENTRY']);
+  });
+
   test('deleting the tenant removes its host directory too', async () => {
     const mysql = require('mysql2/promise');
     const db = await mysql.createConnection({ host: env.DB_HOST, port: Number(env.DB_PORT), user: env.DB_USER, password: env.DB_PASSWORD, database: env.DB_NAME });
