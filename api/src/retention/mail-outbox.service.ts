@@ -4,6 +4,7 @@ import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { APP_CONFIG, AppConfig } from '../common/app-config';
 import { withDbLock } from '../common/db-lock';
+import { markJobRun } from '../common/job-runs';
 import { MailService } from '../common/mail.service';
 import { TenantKeysService } from '../common/tenant-keys.service';
 import { renderNotice } from '../kiosk/kiosk.service';
@@ -33,8 +34,8 @@ export class MailOutboxService {
   }
 
   async run() {
-    try { await withDbLock(this.ds, 'mail-outbox', () => this.execute()); }
-    catch (e) { this.log.error(`Mail outbox failed: ${(e as Error).message}`); }
+    try { await withDbLock(this.ds, 'mail-outbox', async () => { await this.execute(); await markJobRun(this.ds, 'mail-outbox'); }); }
+    catch (e) { this.log.error(`Mail outbox failed: ${(e as Error).message}`); await markJobRun(this.ds, 'mail-outbox', e); }
   }
 
   private async execute() {

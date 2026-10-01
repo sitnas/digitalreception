@@ -20,6 +20,8 @@ const BASE = `http://127.0.0.1:${PORT}/api`;
 const SLUG = `e2e-${randomBytes(3).toString('hex')}`;
 const IDP_PORT = PORT - 1;
 const HOOK_PORT = PORT - 2;
+const API2_PORT = PORT + 1;
+const HEALTH_TOKEN = randomBytes(24).toString('hex');
 const SSO_CLIENT = { clientId: 'e2e-client', clientSecret: randomBytes(16).toString('hex') };
 const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
 
@@ -30,7 +32,7 @@ const env = {
   DB_TYPE: 'mysql', DB_HOST: process.env.E2E_DB_HOST, DB_PORT: process.env.E2E_DB_PORT ?? '3306',
   DB_NAME: process.env.E2E_DB_NAME ?? 'reception', DB_USER: process.env.E2E_DB_USER ?? 'reception', DB_PASSWORD: process.env.E2E_DB_PASSWORD ?? 'reception',
   STORAGE_DRIVER: 'local', FILES_DIR: mkdtempSync(join(tmpdir(), 'e2e-files-')), COOKIE_SECURE: 'false', TRUST_PROXY: '1',
-  SMTP_HOST: '', JOBS_ENABLED: 'false', WEBHOOK_ALLOW_PRIVATE: 'true',
+  SMTP_HOST: '', JOBS_ENABLED: 'false', WEBHOOK_ALLOW_PRIVATE: 'true', THROTTLE_STORE: 'database', HEALTH_TOKEN,
   SSO_REDIRECT_URI: `http://127.0.0.1:${PORT}/api/auth/sso/callback`,
   SSO_MICROSOFT_CLIENT_ID: SSO_CLIENT.clientId, SSO_MICROSOFT_CLIENT_SECRET: SSO_CLIENT.clientSecret, SSO_MICROSOFT_ISSUER: `http://127.0.0.1:${IDP_PORT}/ms`,
   SSO_GOOGLE_CLIENT_ID: SSO_CLIENT.clientId, SSO_GOOGLE_CLIENT_SECRET: SSO_CLIENT.clientSecret, SSO_GOOGLE_ISSUER: `http://127.0.0.1:${IDP_PORT}/google`,
@@ -91,6 +93,8 @@ describe('end-to-end', { skip: !enabled && 'E2E_DB_HOST not set' }, () => {
     await idp.listen();
     const out = await run('node', ['dist/cli/tenants.js', 'create', '--slug', SLUG, '--name', 'E2E S.p.A.', '--countries', 'IT', '--admin-email', 'admin@e2e.test'], { env });
     adminPassword = /Temporary password[^:]*: (\S+)/.exec(out.stdout)[1];
+    // Rate-limit counters live in the database (THROTTLE_STORE=database): start each run from zero.
+    await run('node', ['-e', `require('mysql2/promise').createConnection({ host: process.env.DB_HOST, port: +process.env.DB_PORT, user: process.env.DB_USER, password: process.env.DB_PASSWORD, database: process.env.DB_NAME }).then(async (c) => { await c.query('DELETE FROM throttle_counters').catch(() => {}); await c.end(); })`], { env });
     api = spawn('node', ['dist/main.js'], { env, stdio: ['ignore', 'ignore', 'inherit'] });
     for (let i = 0; i < 120; i++) {
       try { if ((await fetch(`${BASE}/health`)).ok) break; } catch { /* not up yet */ }
@@ -637,6 +641,37 @@ describe('end-to-end', { skip: !enabled && 'E2E_DB_HOST not set' }, () => {
     } finally {
       await new Promise((r) => server.close(r));
     }
+  });
+
+  test('two replicas share the sign-in rate limit (THROTTLE_STORE=database)', async () => {
+    const api2 = spawn('node', ['dist/main.js'], { env: { ...env, PORT: String(API2_PORT) }, stdio: ['ignore', 'ignore', 'inherit'] });
+    try {
+      for (let i = 0; i < 120; i++) { try { if ((await fetch(`http://127.0.0.1:${API2_PORT}/api/health`)).ok) break; } catch { /* starting */ } await new Promise((r) => setTimeout(r, 250)); }
+      const ip = `10.77.${randomBytes(1)[0]}.${randomBytes(1)[0]}`;
+      const login = (port) => fetch(`http://127.0.0.1:${port}/api/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Forwarded-For': ip }, body: JSON.stringify({ email: 'nobody@e2e.test', password: 'wrong-password' }) }).then((r) => r.status);
+      const statuses = [];
+      for (let i = 0; i < 6; i++) statuses.push(await login(PORT));
+      for (let i = 0; i < 5; i++) statuses.push(await login(API2_PORT));
+      // 10 attempts per minute in total, wherever they land: the 11th is refused by the second replica.
+      assert.deepEqual(statuses, [...Array(10).fill(401), 429]);
+    } finally { api2.kill(); }
+  });
+
+  test('ops health: token required, healthy after the jobs ran, 503 when a job stops', async () => {
+    const ops = (token) => fetch(`${BASE}/health/ops`, { headers: token ? { Authorization: `Bearer ${token}` } : {} }).then(async (r) => ({ status: r.status, data: await r.json() }));
+    assert.equal((await ops()).status, 401);
+    assert.equal((await ops('x'.repeat(48))).status, 401);
+    await run('node', ['dist/database/run-retention.js'], { env });
+    const ok = await ops(HEALTH_TOKEN);
+    assert.equal(ok.status, 200, JSON.stringify(ok.data)); assert.equal(ok.data.status, 'ok');
+    assert.ok(ok.data.jobs.retention.lastRunAt); assert.deepEqual(ok.data.mail.enabled, false);
+    const mysql = require('mysql2/promise');
+    const db = await mysql.createConnection({ host: env.DB_HOST, port: Number(env.DB_PORT), user: env.DB_USER, password: env.DB_PASSWORD, database: env.DB_NAME });
+    await db.query("UPDATE job_runs SET lastRunAt = DATE_SUB(UTC_TIMESTAMP(3), INTERVAL 3 HOUR) WHERE name = 'retention'");
+    const bad = await ops(HEALTH_TOKEN);
+    await db.query("UPDATE job_runs SET lastRunAt = UTC_TIMESTAMP(3) WHERE name = 'retention'");
+    await db.end();
+    assert.equal(bad.status, 503); assert.match(bad.data.problems[0], /^retention: not run for 180 min/);
   });
 
   test('deleting the tenant removes its host directory too', async () => {

@@ -4,6 +4,8 @@ import { JwtModule } from '@nestjs/jwt';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { DataSource } from 'typeorm';
+import { DbThrottlerStorage } from './common/db-throttler.storage';
 import { ManagementController } from './admin/management.controller';
 import { StatsController } from './admin/stats.controller';
 import { InvitationsController } from './invitations/invitations.controller';
@@ -49,7 +51,11 @@ const JWT = { algorithm: 'HS256' as const, issuer: 'reception-api', audience: 'r
     TypeOrmModule.forRoot(typeormOptions(config)),
     TypeOrmModule.forFeature(ENTITIES),
     JwtModule.register({ secret: config.auth.jwtSecret, signOptions: JWT, verifyOptions: { algorithms: [JWT.algorithm], issuer: JWT.issuer, audience: JWT.audience } }),
-    ThrottlerModule.forRoot([{ name: 'default', ttl: 60_000, limit: 120 }]),
+    ThrottlerModule.forRootAsync({
+      inject: [DataSource],
+      // With several replicas the counters must be shared, or each one grants its own quota.
+      useFactory: (ds: DataSource) => ({ throttlers: [{ name: 'default', ttl: 60_000, limit: 120 }], ...(config.throttleStore === 'database' ? { storage: new DbThrottlerStorage(ds) } : {}) }),
+    }),
     ScheduleModule.forRoot(),
   ],
   controllers: [HealthController, TenantController, AuthController, SsoController, KioskController, VisitsController, ManagementController, StatsController, InvitationsController, IntegrationController, ReaderController, BadgeController, AccessAdminController, EmployeeAppController, WebhooksController],

@@ -21,6 +21,10 @@ export interface AppConfig {
   audit: { retentionDays: number };
   /** Outgoing notifications. allowPrivate (tests and development only) lets them reach local addresses over http. */
   webhooks: { allowPrivate: boolean };
+  /** memory = each process counts on its own (one replica); database = shared by every replica. */
+  throttleStore: 'memory' | 'database';
+  /** Bearer token for /api/health/ops; unset = endpoint off. */
+  healthToken?: string;
   mail: { host?: string; port: number; secure: boolean; user?: string; pass?: string; from: string };
   jobs: { enabled: boolean };
   /** Sign-in with Microsoft / Google (OIDC). Apps registered once by the platform; each organisation links its own directory. */
@@ -101,6 +105,8 @@ export function loadConfig(): AppConfig {
     access: { logRetentionDays: Math.max(1, Number(process.env.ACCESS_LOG_RETENTION_DAYS ?? 90)) },
     // Long enough to investigate an incident or answer an audit, not forever (it holds IPs and emails).
     webhooks: { allowPrivate: process.env.WEBHOOK_ALLOW_PRIVATE === 'true' },
+    throttleStore: process.env.THROTTLE_STORE === 'database' ? 'database' : 'memory',
+    healthToken: process.env.HEALTH_TOKEN?.trim() || undefined,
     audit: { retentionDays: Math.max(90, Number(process.env.AUDIT_LOG_RETENTION_DAYS ?? 365)) },
     mail: {
       host: process.env.SMTP_HOST || undefined,
@@ -125,6 +131,7 @@ export function loadConfig(): AppConfig {
   if (cfg.sso.redirectUri && !/^https?:\/\/[^/]+\/api\/auth\/sso\/callback$/.test(cfg.sso.redirectUri)) throw new Error('SSO_REDIRECT_URI must be https://<host>/api/auth/sso/callback');
 
   if (cfg.env === 'production' && cfg.db.synchronize) throw new Error('DB_SYNC=true is not allowed in production: use migrations');
+  if (cfg.healthToken && cfg.healthToken.length < 24) throw new Error('HEALTH_TOKEN must be at least 24 characters');
   if (cfg.env === 'production' && cfg.webhooks.allowPrivate) throw new Error('WEBHOOK_ALLOW_PRIVATE=true is not allowed in production');
   if (cfg.env === 'production' && !cfg.auth.cookieSecure) throw new Error('COOKIE_SECURE=false is not allowed in production');
   return cfg;
