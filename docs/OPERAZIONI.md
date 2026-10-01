@@ -69,6 +69,15 @@ Dopo aver impostato le variabili, riavvia l'API: `docker compose up -d api`. Poi
 
 In GitHub Codespaces l'indirizzo di ritorno è `https://<nome-codespace>-8080.app.github.dev/api/auth/sso/callback` e la porta 8080 deve essere pubblica.
 
+## Notifiche push ai dipendenti
+
+Funzionano senza configurazione: la chiave per il Web Push (pagina `/badge`) viene creata al primo uso e salvata cifrata nel database. Servono soltanto:
+
+- accesso in uscita verso `https://exp.host` (app) e verso i servizi push dei browser (`fcm.googleapis.com`, `*.push.services.mozilla.com`, `*.push.apple.com`, `*.notify.windows.com`);
+- per l'app pubblicata, le chiavi Firebase e Apple descritte in `APP-MOBILE.md`.
+
+Variabili facoltative: `EXPO_ACCESS_TOKEN` (se su expo.dev è attiva la sicurezza avanzata per le push), `WEB_PUSH_PUBLIC_KEY` e `WEB_PUSH_PRIVATE_KEY` (per usare una coppia di chiavi propria: `npx web-push generate-vapid-keys`), `WEB_PUSH_SUBJECT` (contatto per i servizi push, di default `mailto:` + `MAIL_FROM`). Le notifiche non partite subito vengono ritentate dal job `push-outbox`, controllato anche da `/api/health/ops`.
+
 ## Rotazione della chiave master
 
 1. Genera una nuova chiave: `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`.
@@ -91,7 +100,7 @@ Salvare insieme database e archivio immagini. Le chiavi master vanno conservate 
 - `/api/health/live`: il processo risponde.
 - `/api/health`: il processo può servire traffico (database raggiungibile).
 - `/api/health/ops`: lo stato del lavoro in background, per un servizio di monitoraggio (UptimeRobot, Better Stack, Zabbix…). Si attiva impostando `HEALTH_TOKEN` (almeno 24 caratteri) e si chiama con `Authorization: Bearer <HEALTH_TOKEN>`. Risponde **503** quando:
-  - la pulizia dei dati non gira da più di 90 minuti, o le code di email e notifiche da più di 10;
+  - la pulizia dei dati non gira da più di 90 minuti, o le code di email, notifiche e push da più di 10;
   - un job ha dato errore nell'ultima ora;
   - ci sono email ferme in coda da più di 15 minuti.
 

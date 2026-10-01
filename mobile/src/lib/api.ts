@@ -49,3 +49,11 @@ export const createInvite = (b: Authed, v: NewInvite, locale: string) =>
   authed<{ id: string; emailStatus: string }>(b, '/invitations', { method: 'POST', body: JSON.stringify({ ...v, company: v.company || undefined, locale }) });
 export const cancelInvite = (b: Authed, id: string) => authed<{ ok: true }>(b, `/invitations/${id}/cancel`, { method: 'POST', body: '{}' });
 export const inviteQr = (b: Authed, id: string) => authed<{ code: string; payload: string }>(b, `/invitations/${id}/qr`);
+
+// ------------------------------------------------------------------ "your guest has arrived" notices
+export const pushRegister = (b: Authed, token: string, locale: string) =>
+  authed<{ id: string }>(b, '/push', { method: 'POST', body: JSON.stringify({ kind: 'expo', token, locale }) });
+export const pushUnregister = (b: Authed, token: string) =>
+  authed<{ ok: true }>(b, '/push', { method: 'DELETE', body: JSON.stringify({ kind: 'expo', target: token }) });
+export const pushTest = (b: Authed, token: string) =>
+  authed<{ result: string }>(b, '/push/test', { method: 'POST', body: JSON.stringify({ kind: 'expo', target: token }) });

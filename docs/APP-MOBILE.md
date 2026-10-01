@@ -44,6 +44,20 @@ Le app si compilano nel cloud con **EAS** (non servono Xcode né Android Studio)
 3. Android di prova (APK da installare direttamente): `npx eas-cli@latest build --profile preview --platform android`.
 4. Store: `npx eas-cli@latest build --profile production --platform all`, poi `npx eas-cli@latest submit`. Servono un account Google Play Console (25 $ una tantum) e un Apple Developer Program (99 $/anno).
 
+## Notifica "è arrivato il tuo ospite"
+
+Chi è tra le *persone da visitare* trova in **I miei inviti** l'interruttore *Avvisami quando arriva un ospite*. Al check-in del suo ospite al tablet il telefono riceve una notifica, di solito entro un paio di secondi. *Manda una prova* verifica subito che arrivi.
+
+- **Expo Go su Android non riceve notifiche push** (Expo le ha tolte da Expo Go). Per provarle su Android serve una build: `npx eas-cli@latest build --profile preview --platform android`. Su iPhone Expo Go per le prove dovrebbe ancora funzionare.
+- **Android, build vere**: le notifiche passano da Firebase Cloud Messaging. Una volta sola:
+  1. crea un progetto su [console.firebase.google.com](https://console.firebase.google.com) e aggiungi un'app Android con lo stesso `package` di `app.json`;
+  2. scarica `google-services.json`, mettilo in `mobile/` e aggiungi in `app.json`, sotto `android`, `"googleServicesFile": "./google-services.json"`;
+  3. in Firebase → Impostazioni progetto → Account di servizio genera una chiave privata (JSON) e caricala con `npx eas-cli@latest credentials` → Android → *Google Service Account Key for Push Notifications (FCM V1)*.
+- **iPhone, build vere**: alla prima build EAS chiede se creare la chiave per le notifiche Apple (APNs): rispondi sì.
+- Il server deve poter raggiungere `https://exp.host`. Se il progetto Expo ha l'opzione "Enhanced security for push" attiva, metti il token di accesso in `EXPO_ACCESS_TOKEN`.
+
+La stessa notifica esiste per la pagina web `/badge` (vedi `ACCESSI-DIPENDENTI.md`).
+
 ## Telefono come tessera NFC (Android)
 
 Sui telefoni Android con NFC l'app risponde anche ai lettori NFC come una tessera: basta avvicinare il retro del telefono al lettore. Il codice trasmesso è lo stesso del QR (cambia ogni 30 secondi, firmato), quindi il server non cambia.

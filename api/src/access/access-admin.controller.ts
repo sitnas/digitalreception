@@ -8,7 +8,7 @@ import { CryptoService } from '../common/crypto.service';
 import { AdminAuthGuard, CurrentUser, Roles, assertSiteAccess, visibleSiteIds } from '../common/guards';
 import { AppRequest, AuthUser } from '../common/request-context';
 import { TenantKeysService } from '../common/tenant-keys.service';
-import { AccessEvent, AccessRule, ApiKey, Door, DoorReader, Employee, PairingCode, Role, Site } from '../entities';
+import { AccessEvent, AccessRule, ApiKey, Door, DoorReader, Employee, PairingCode, PushDevice, Role, Site } from '../entities';
 import { AccessService } from './access.service';
 import { EXTERNAL_ID, PutEmployeeDto } from './integration.controller';
 
@@ -219,6 +219,7 @@ export class AccessAdminController {
       if (!reachable) throw new NotFoundException();
     }
     await this.employees.update(e.id, { credentialSecretEnc: null, credentialIssuedAt: null, appTokenHash: null });
+    await this.employees.manager.delete(PushDevice, { tenantId: user.tenantId, employeeId: e.id });
     await this.audit.fromRequest(req, { action: 'PHONE_BADGE_REVOKED', entityType: 'employee', entityId: e.id });
     return { ok: true };
   }

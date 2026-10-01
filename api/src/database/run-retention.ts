@@ -4,6 +4,7 @@ import { AppModule } from '../app.module';
 import { MailOutboxService } from '../retention/mail-outbox.service';
 import { RetentionService } from '../retention/retention.service';
 import { WebhookOutboxService } from '../retention/webhook-outbox.service';
+import { PushOutboxService } from '../retention/push-outbox.service';
 
 /** Manual trigger of the background jobs (the API also runs them on schedule, one replica at a time). */
 async function main() {
@@ -11,6 +12,7 @@ async function main() {
   await app.get(RetentionService).run();
   await app.get(MailOutboxService).run();
   await app.get(WebhookOutboxService).run();
+  await app.get(PushOutboxService).run();
   await app.close();
 }
 main();

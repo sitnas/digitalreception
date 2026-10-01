@@ -5,7 +5,7 @@ import { DataSource, In, MoreThan, Repository } from 'typeorm';
 import { CryptoService } from '../common/crypto.service';
 import { MailService } from '../common/mail.service';
 import { TenantKeysService } from '../common/tenant-keys.service';
-import { AccessEvent, AccessMethod, AccessResult, AccessRule, CountryPolicy, Door, Employee, EmployeeSource, Host, Site, Tenant } from '../entities';
+import { AccessEvent, AccessMethod, AccessResult, AccessRule, CountryPolicy, Door, Employee, EmployeeSource, Host, PushDevice, Site, Tenant } from '../entities';
 import { WebhooksService } from '../common/webhooks.service';
 
 /** Phone badge QR: DRE1:<employeeId>.<time step>.<signature>; a new code every QR_STEP_S seconds. */
@@ -134,6 +134,7 @@ export class AccessService {
       await em.update(AccessEvent, { tenantId, employeeId: e.id }, { employeeId: null });
       // The person stays in the directory of people to visit, no longer linked (and no longer inviting from the app).
       await em.update(Host, { tenantId, employeeId: e.id }, { employeeId: null });
+      await em.delete(PushDevice, { tenantId, employeeId: e.id });
       await em.delete(Employee, { id: e.id });
     });
     return e;
@@ -175,6 +176,8 @@ export class AccessService {
     const secret = randomBytes(32);
     // A second, separate secret for the app's own requests (invitations): the QR secret never leaves the phone.
     const appToken = `dra_${randomBytes(32).toString('base64url')}`;
+    // A new phone replaces the old one: the old one stops receiving arrival notices too.
+    await this.ds.getRepository(PushDevice).delete({ tenantId, employeeId: e.id });
     await this.employees.update(e.id, {
       credentialSecretEnc: tc.encrypt(secret.toString('base64'), 'employee.credentialSecret'), credentialIssuedAt: new Date(),
       appTokenHash: this.crypto.sha256(appToken), loginCodeHash: null, loginCodeExpiresAt: null, loginCodeAttempts: 0,

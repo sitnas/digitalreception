@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ApiError } from '../lib/api';
 import { applyBrand } from '../lib/theme';
 import { BadgeInvites, inviteStrings, me, type Profile } from './BadgeInvites';
+import { forgetWebPush } from './BadgePush';
 
 /**
  * "My badge" on the employee's phone. After a one-time email code the phone keeps a secret and
@@ -50,6 +51,13 @@ export function BadgeApp() {
     if (badge?.appToken) me<Profile>(badge.appToken).then(setProfile).catch(() => undefined);
   }, [badge]);
   useEffect(() => {
+    // Installs as its own "My badge" app (needed on iPhone for notifications).
+    const link = document.querySelector<HTMLLinkElement>('link[rel="manifest"]');
+    const previous = link?.getAttribute('href');
+    link?.setAttribute('href', '/manifest-badge.webmanifest');
+    return () => { if (previous) link?.setAttribute('href', previous); };
+  }, []);
+  useEffect(() => {
     document.title = T.title;
     // The organisation's colours, also before activation (public endpoint, no personal data).
     fetch('/api/tenant').then((r) => (r.ok ? r.json() : null)).then((b) => b && applyBrand(b)).catch(() => undefined);
@@ -58,7 +66,7 @@ export function BadgeApp() {
     <div className="badge-app">
       {!badge ? <Activate onDone={(b) => { save(b); setBadge(b); }} />
         : inviting && profile?.canInvite && badge.appToken ? <BadgeInvites token={badge.appToken} profile={profile} lang={lang} onBack={() => setInviting(false)} />
-        : <BadgeView badge={badge} canInvite={!!profile?.canInvite} onInvites={() => setInviting(true)} onRemove={() => { save(null); setBadge(null); setInviting(false); }} />}
+        : <BadgeView badge={badge} canInvite={!!profile?.canInvite} onInvites={() => setInviting(true)} onRemove={() => { forgetWebPush(badge.appToken); save(null); setBadge(null); setInviting(false); }} />}
     </div>
   );
 }

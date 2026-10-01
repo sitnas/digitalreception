@@ -36,7 +36,14 @@
           "configureAndroidBackup": true
         }
       ],
-      "expo-localization"
+      "expo-localization",
+      [
+        "expo-notifications",
+        {
+          "color": "#111111",
+          "defaultChannel": "arrivals"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": false

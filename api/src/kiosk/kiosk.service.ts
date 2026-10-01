@@ -10,6 +10,7 @@ import { TenantKeysService } from '../common/tenant-keys.service';
 import { addDays } from '../common/time.util';
 import { exitQrSvg } from '../common/exit-qr';
 import { InvitationsService } from '../invitations/invitations.service';
+import { PushService } from '../common/push.service';
 import { WebhooksService } from '../common/webhooks.service';
 import { CountryPolicy, Device, FileKind, Host, NoticeEmailStatus, PairingCode, PrivacyNotice, Site, Tenant, Visit, VisitStatus } from '../entities';
 import { CheckInDto, CheckOutDto } from './kiosk.dto';
@@ -44,6 +45,7 @@ export class KioskService {
     private readonly audit: AuditService,
     private readonly invitations: InvitationsService,
     private readonly webhooks: WebhooksService,
+    private readonly push: PushService,
   ) {}
 
   async pair(tenant: AuthTenant, code: string, req: AppRequest) {
@@ -147,6 +149,7 @@ export class KioskService {
     // The host picked from the directory is told that their visitor has arrived.
     const wantsHostNotice = !!hostEmail && this.mail.enabled;
 
+    let pushQueued = false;
     const visit = await this.ds.transaction(async (em) => {
       const saved = await em.save(em.create(Visit, {
         tenantId: device.tenantId, siteId: site.id, status: VisitStatus.OPEN, code: await this.uniqueCode(device.tenantId, site.id),
@@ -181,8 +184,11 @@ export class KioskService {
         site: site.name, locale: policy.defaultLocale, host: hostName,
         visitor: `${dto.firstName} ${dto.lastName}`, company: dto.company || null,
       });
+      // Push to the phone of the visited employee, if they turned it on in the app or on /badge.
+      pushQueued = await this.push.enqueueArrival(em, device.tenantId, hostId, { site: site.name, visitor: `${dto.firstName} ${dto.lastName}`, company: dto.company || null });
       return saved;
     });
+    if (pushQueued) this.push.kick();
 
     await this.audit.fromRequest(req, {
       action: 'VISIT_CHECK_IN', entityType: 'visit', entityId: visit.id, siteId: site.id,

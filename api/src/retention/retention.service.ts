@@ -9,7 +9,7 @@ import { markJobRun } from '../common/job-runs';
 import { FilesService } from '../common/files.service';
 import { addDays, startOfLocalDay } from '../common/time.util';
 import { VisitLifecycleService } from '../common/visit-lifecycle.service';
-import { AccessEvent, CountryPolicy, Invitation, Site, SsoRequest, StoredFile, Visit, VisitStatus, WebhookDelivery } from '../entities';
+import { AccessEvent, CountryPolicy, Invitation, Site, SsoRequest, StoredFile, Visit, VisitStatus, WebhookDelivery, PushDelivery } from '../entities';
 import { INVITATION_KEEP_DAYS } from '../invitations/invitations.service';
 
 const BATCH = 500;
@@ -103,6 +103,7 @@ export class RetentionService {
     if (auditDeleted) this.log.log(`Retention: ${auditDeleted} audit entries older than ${this.cfg.audit.retentionDays} days deleted`);
     await this.ds.getRepository(SsoRequest).delete({ expiresAt: LessThan(now) });
     await this.ds.getRepository(WebhookDelivery).delete({ createdAt: LessThan(addDays(now, -7)) });
+    await this.ds.getRepository(PushDelivery).delete({ createdAt: LessThan(addDays(now, -7)) });
     await this.ds.query('DELETE FROM throttle_counters WHERE expiresAt < UTC_TIMESTAMP(3) AND (blockedUntil IS NULL OR blockedUntil < UTC_TIMESTAMP(3))');
 
     for (const [tenantId, s] of stats) {

@@ -136,6 +136,32 @@ export function WebhooksPage() {
           </table>
         )}
       </div>
+
+      <PushSettings />
     </>
+  );
+}
+
+/** "Your guest has arrived" on the employee's phone: whether the lock screen shows the guest's name. */
+function PushSettings() {
+  const { t } = useI18n();
+  const W = t.webhooks;
+  const settings = useAsync(() => api.get<{ includeNames: boolean; devices: number }>('/admin/push-settings'), []);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const change = async (includeNames: boolean) => {
+    setMsg(null);
+    try { await api.patch('/admin/push-settings', { includeNames }); settings.reload(); setMsg({ ok: true, text: W.pushSaved }); }
+    catch (err) { setMsg({ ok: false, text: errorText(t, err) }); }
+  };
+  if (!settings.data) return <ErrorBox error={settings.error} />;
+  return (
+    <section className="a-card stack" style={{ marginTop: 24 }} aria-labelledby="push-h">
+      <h2 id="push-h" style={{ margin: 0 }}>{W.pushTitle}</h2>
+      <p className="muted" style={{ margin: 0 }}>{W.pushIntro}</p>
+      <label className="toggle"><input type="checkbox" checked={settings.data.includeNames} aria-describedby="pn-help" onChange={(e) => change(e.target.checked)} />{W.pushNames}</label>
+      <span id="pn-help" className="hint" style={{ marginTop: -8 }}>{W.pushNamesHelp}</span>
+      <p className="muted" style={{ margin: 0 }}>{W.pushDevices.replace('{n}', String(settings.data.devices))}</p>
+      <div role="status" aria-live="polite">{msg && <p className={msg.ok ? 'alert alert-info' : 'alert'} style={{ margin: 0 }}>{msg.text}</p>}</div>
+    </section>
   );
 }
