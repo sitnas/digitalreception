@@ -90,6 +90,12 @@ Salvare insieme database e archivio immagini. Le chiavi master vanno conservate 
 
 - `/api/health/live`: il processo risponde.
 - `/api/health`: il processo può servire traffico (database raggiungibile).
+- `/api/health/ops`: lo stato del lavoro in background, per un servizio di monitoraggio (UptimeRobot, Better Stack, Zabbix…). Si attiva impostando `HEALTH_TOKEN` (almeno 24 caratteri) e si chiama con `Authorization: Bearer <HEALTH_TOKEN>`. Risponde **503** quando:
+  - la pulizia dei dati non gira da più di 90 minuti, o le code di email e notifiche da più di 10;
+  - un job ha dato errore nell'ultima ora;
+  - ci sono email ferme in coda da più di 15 minuti.
+
+  Il corpo elenca il problema in chiaro, per esempio `retention: not run for 180 min`, e contiene solo conteggi, nessun dato personale.
 - Log applicativi su stdout, senza dati personali; le esecuzioni dei job di conservazione compaiono nel log e nel registro accessi.
 
 ## Più repliche
@@ -98,3 +104,4 @@ Salvare insieme database e archivio immagini. Le chiavi master vanno conservate 
 2. Tutte le repliche con le stesse variabili d'ambiente.
 3. `TRUST_PROXY` uguale al numero di proxy davanti all'API, per avere gli IP corretti nel registro accessi.
 4. I job girano in una sola replica alla volta grazie al lock sul database; `JOBS_ENABLED=false` li esclude da una replica specifica.
+5. `THROTTLE_STORE=database`: i limiti di tentativi (login, codici, accesso SSO) vengono contati nel database e valgono per tutte le repliche insieme. Con il valore predefinito, `memory`, ogni replica conta per conto suo: con tre repliche un attaccante avrebbe il triplo dei tentativi. Costa una scrittura sul database per richiesta.

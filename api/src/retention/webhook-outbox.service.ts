@@ -4,6 +4,7 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { APP_CONFIG, AppConfig } from '../common/app-config';
 import { withDbLock } from '../common/db-lock';
+import { markJobRun } from '../common/job-runs';
 import { WebhooksService } from '../common/webhooks.service';
 
 /** Delivers queued Teams / Slack / HTTPS notifications every minute, on one replica at a time. */
@@ -19,7 +20,7 @@ export class WebhookOutboxService {
   }
 
   async run() {
-    try { await withDbLock(this.ds, 'webhook-outbox', async () => { while ((await this.webhooks.deliverDue()) === 100); }); }
-    catch (e) { this.log.error(`Webhook outbox failed: ${(e as Error).message}`); }
+    try { await withDbLock(this.ds, 'webhook-outbox', async () => { while ((await this.webhooks.deliverDue()) === 100); await markJobRun(this.ds, 'webhook-outbox'); }); }
+    catch (e) { this.log.error(`Webhook outbox failed: ${(e as Error).message}`); await markJobRun(this.ds, 'webhook-outbox', e); }
   }
 }

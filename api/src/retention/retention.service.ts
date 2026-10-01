@@ -5,6 +5,7 @@ import { DataSource, IsNull, LessThan, Repository } from 'typeorm';
 import { APP_CONFIG, AppConfig } from '../common/app-config';
 import { AuditService } from '../common/audit.service';
 import { withDbLock } from '../common/db-lock';
+import { markJobRun } from '../common/job-runs';
 import { FilesService } from '../common/files.service';
 import { addDays, startOfLocalDay } from '../common/time.util';
 import { VisitLifecycleService } from '../common/visit-lifecycle.service';
@@ -48,10 +49,11 @@ export class RetentionService {
 
   async run(): Promise<void> {
     try {
-      const ran = await withDbLock(this.ds, 'retention', () => this.execute());
+      const ran = await withDbLock(this.ds, 'retention', async () => { await this.execute(); await markJobRun(this.ds, 'retention'); });
       if (!ran) this.log.debug('Retention skipped: running on another replica');
     } catch (e) {
       this.log.error(`Retention run failed: ${(e as Error).message}`);
+      await markJobRun(this.ds, 'retention', e);
     }
   }
 
@@ -101,6 +103,7 @@ export class RetentionService {
     if (auditDeleted) this.log.log(`Retention: ${auditDeleted} audit entries older than ${this.cfg.audit.retentionDays} days deleted`);
     await this.ds.getRepository(SsoRequest).delete({ expiresAt: LessThan(now) });
     await this.ds.getRepository(WebhookDelivery).delete({ createdAt: LessThan(addDays(now, -7)) });
+    await this.ds.query('DELETE FROM throttle_counters WHERE expiresAt < UTC_TIMESTAMP(3) AND (blockedUntil IS NULL OR blockedUntil < UTC_TIMESTAMP(3))');
 
     for (const [tenantId, s] of stats) {
       await this.audit.system(tenantId, { action: 'RETENTION_RUN', details: { ...s } });
