@@ -74,6 +74,7 @@ class Client {
   get(p, o) { return this.req('GET', p, undefined, o); }
   post(p, b, o) { return this.req('POST', p, b ?? {}, o); }
   patch(p, b) { return this.req('PATCH', p, b); }
+  put(p, b) { return this.req('PUT', p, b); }
   del(p, b) { return this.req('DELETE', p, b ?? {}); }
   async signIn(email, password, newPassword) {
     this.cookie = '';
@@ -341,6 +342,43 @@ describe('end-to-end', { skip: !enabled && 'E2E_DB_HOST not set' }, () => {
     await db.end();
     assert.equal(Number(orphan.n), 0, 'deleting the employee unlinks the log');
     assert.equal((await verify(mainReader, { nfc: '04A21B9C' })).reason, 'UNKNOWN_CREDENTIAL');
+  });
+
+  test('employees by hand: the administrator creates, edits and deletes; a sync from the HR system takes over', async () => {
+    const door = (await admin.post('/admin/access/doors', { siteId: ctx.milano.id, name: 'Ingresso manuale', externalId: 'MI-HAND' })).data;
+    const base = { firstName: 'Lucia', lastName: 'Ferri', email: 'lucia@e2e.test', department: 'Acquisti', badgeUid: '0A:0B:0C:0D', permissions: [{ door: 'MI-HAND', days: [1, 2, 3, 4, 5], from: '07:00', to: '20:00' }] };
+    assert.equal((await ctx.aud.post('/admin/access/employees', base)).status, 403, 'auditors only read');
+    const created = await admin.post('/admin/access/employees', base);
+    assert.equal(created.status, 201); assert.match(created.data.externalId, /^MAN-[A-Z0-9]{8}$/, 'a code is generated when none is given');
+    const find = async () => (await admin.get('/admin/access/employees')).data.find((e) => e.id === created.data.id);
+    let e = await find();
+    assert.equal(e.source, 'CONSOLE'); assert.equal(e.department, 'Acquisti'); assert.equal(e.badgeHint, '0C0D');
+    assert.deepEqual(e.permissions.map((p) => [p.doorExternalId, p.days, p.from, p.to]), [['MI-HAND', [1, 2, 3, 4, 5], '07:00', '20:00']]);
+
+    assert.equal((await admin.post('/admin/access/employees', { ...base, externalId: created.data.externalId, email: null, badgeUid: null })).data.message, 'EMPLOYEE_ID_EXISTS');
+    assert.equal((await admin.post('/admin/access/employees', { ...base, badgeUid: null, email: 'LUCIA@e2e.test' })).data.message, 'EMPLOYEE_EMAIL_IN_USE');
+    assert.equal((await admin.post('/admin/access/employees', { ...base, email: null })).data.message, 'BADGE_IN_USE');
+    assert.equal((await admin.post('/admin/access/employees', { ...base, email: null, badgeUid: null, permissions: [{ door: 'MI-HAND', from: '07:00' }] })).data.message, 'TIME_WINDOW_INCOMPLETE');
+
+    // Edit: the card stays when badgeUid is left out, goes away with null.
+    const { badgeUid, ...noBadge } = base;
+    assert.equal((await admin.put(`/admin/access/employees/${e.id}`, { ...noBadge, lastName: 'Ferri Rossi', email: 'lucia.ferri@e2e.test', permissions: [] })).status, 200);
+    e = await find();
+    assert.equal(e.lastName, 'Ferri Rossi'); assert.equal(e.email, 'lucia.ferri@e2e.test'); assert.equal(e.badgeHint, '0C0D'); assert.equal(e.permissions.length, 0);
+    await admin.put(`/admin/access/employees/${e.id}`, { ...noBadge, badgeUid: null });
+    assert.equal((await find()).badgeHint, null);
+    assert.equal((await admin.put('/admin/access/employees/00000000-0000-4000-8000-000000000000', noBadge)).status, 404);
+
+    // The HR system sends the same code: the record becomes its own again.
+    const { key } = (await admin.post('/admin/access/api-keys', { name: 'HR takeover' })).data;
+    const r = await fetch(`${BASE}/integration/v1/employees/${created.data.externalId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` }, body: JSON.stringify({ firstName: 'Lucia', lastName: 'Ferri', permissions: [] }) });
+    assert.equal(r.status, 200);
+    assert.equal((await find()).source, 'API');
+
+    assert.equal((await ctx.aud.del(`/admin/access/employees/${e.id}`)).status, 403);
+    assert.equal((await admin.del(`/admin/access/employees/${e.id}`)).status, 200);
+    assert.equal(await find(), undefined);
+    await admin.patch(`/admin/access/doors/${door.id}`, { active: false });
   });
 
   test('two-step verification: enrolment, login with code or recovery code, no replay, organisation policy, reset', async () => {

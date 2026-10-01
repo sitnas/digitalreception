@@ -5,7 +5,7 @@ import { DataSource, In, MoreThan, Repository } from 'typeorm';
 import { CryptoService } from '../common/crypto.service';
 import { MailService } from '../common/mail.service';
 import { TenantKeysService } from '../common/tenant-keys.service';
-import { AccessEvent, AccessMethod, AccessResult, AccessRule, CountryPolicy, Door, Employee, Host, Site, Tenant } from '../entities';
+import { AccessEvent, AccessMethod, AccessResult, AccessRule, CountryPolicy, Door, Employee, EmployeeSource, Host, Site, Tenant } from '../entities';
 import { WebhooksService } from '../common/webhooks.service';
 
 /** Phone badge QR: DRE1:<employeeId>.<time step>.<signature>; a new code every QR_STEP_S seconds. */
@@ -75,8 +75,11 @@ export class AccessService {
     return { created: !existing, door: saved };
   }
 
-  /** Creates or replaces an employee and all their permissions in one transaction (idempotent). */
-  async upsertEmployee(tenantId: string, externalId: string, dto: EmployeeInput) {
+  /**
+   * Creates or replaces an employee and all their permissions in one transaction (idempotent).
+   * Whoever writes last owns the record: a sync from the external system turns a hand-made employee into an API one.
+   */
+  async upsertEmployee(tenantId: string, externalId: string, dto: EmployeeInput, source: EmployeeSource = 'API') {
     const doorIds = [...new Set(dto.permissions.map((p) => p.door))];
     const doors = doorIds.length ? await this.doors.find({ where: { tenantId, externalId: In(doorIds) } }) : [];
     const missing = doorIds.filter((d) => !doors.some((x) => x.externalId === d));
@@ -100,7 +103,7 @@ export class AccessService {
         firstNameEnc: tc.encrypt(dto.firstName, 'employee.firstName'), lastNameEnc: tc.encrypt(dto.lastName, 'employee.lastName'),
         emailEnc: tc.encrypt(email, 'employee.email'), emailIndex: email ? tc.blindIndex(email, 'employee.email') : null,
         departmentEnc: tc.encrypt(dto.department || null, 'employee.department'), jobTitleEnc: tc.encrypt(dto.jobTitle || null, 'employee.jobTitle'),
-        active: dto.active ?? true,
+        active: dto.active ?? true, source,
         validFrom: dto.validFrom ? new Date(dto.validFrom) : null, validUntil: dto.validUntil ? new Date(dto.validUntil) : null,
       });
       // undefined leaves the badge as is, null removes it

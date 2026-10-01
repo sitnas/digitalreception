@@ -2,12 +2,13 @@ import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn, Update
 
 /**
  * Employee access control. Employees, doors and permissions are pushed by an external system
- * through the integration API; the app verifies QR codes and NFC badges at the doors and keeps a
+ * through the integration API (or entered by hand in the console); the app verifies QR codes and NFC badges at the doors and keeps a
  * short access log. Personal data is encrypted per tenant like visitor data.
  */
 
 export enum AccessMethod { QR = 'QR', NFC = 'NFC' }
 export enum AccessResult { GRANTED = 'GRANTED', DENIED = 'DENIED' }
+export type EmployeeSource = 'API' | 'CONSOLE';
 
 @Entity('employees')
 @Index('IDX_employees_external', ['tenantId', 'externalId'], { unique: true })
@@ -18,6 +19,8 @@ export class Employee {
   @Column({ type: 'uuid' }) tenantId: string;
   /** Identifier in the external system: every API call refers to it. */
   @Column({ type: 'varchar', length: 100 }) externalId: string;
+  /** API = sent by the external system (which overwrites it at every sync), CONSOLE = created and kept by hand. */
+  @Column({ type: 'varchar', length: 8, default: 'API' }) source: EmployeeSource;
   @Column({ type: 'text' }) firstNameEnc: string;
   @Column({ type: 'text' }) lastNameEnc: string;
   @Column({ type: 'text', nullable: true }) emailEnc: string | null;

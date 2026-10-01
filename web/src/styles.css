@@ -658,3 +658,13 @@ code.mfa-secret { font-size: 14px; overflow-wrap: anywhere; max-width: 100%; }
 .invite-list span:first-child { display: grid; gap: 2px; }
 .invite-list small { color: var(--ink-2); }
 .invite-code { margin: 0; font-size: 28px; font-weight: 700; letter-spacing: 4px; font-variant-numeric: tabular-nums; }
+
+/* employee permissions editor: door, days, hours, remove */
+.perm-row { display: grid; grid-template-columns: minmax(180px, 1.3fr) auto 120px 120px auto; gap: 12px; align-items: start; padding: 12px; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface-2); }
+.perm-row > .btn { align-self: center; margin-top: 18px; }
+.perm-row .segmented button { padding: 0 9px; }
+@media (max-width: 900px) {
+  .perm-row { grid-template-columns: 1fr 1fr; }
+  .perm-row > .field:first-child, .perm-row > fieldset { grid-column: 1 / -1; }
+  .perm-row > .btn { grid-column: 1 / -1; justify-self: start; margin-top: 0; }
+}
