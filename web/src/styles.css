@@ -1,5 +1,7 @@
-@import '@fontsource/atkinson-hyperlegible/400.css';
-@import '@fontsource/atkinson-hyperlegible/700.css';
+@import '@fontsource/ibm-plex-sans/400.css';
+@import '@fontsource/ibm-plex-sans/500.css';
+@import '@fontsource/ibm-plex-sans/600.css';
+@import '@fontsource/ibm-plex-sans/700.css';
 /* Fonts are bundled with the app: no request to third-party font CDNs (visitor IPs never leave the company). */
 
 /* ============================================================== TOKENS
@@ -36,7 +38,7 @@
   --r-sm: 6px; --r: 8px; --r-lg: 12px; --r-xl: 16px;
   --shadow-pop: 0 16px 40px -16px rgba(16, 16, 16, .28);
   --focus: 0 0 0 2px var(--surface), 0 0 0 4px var(--brand-strong);
-  --font: 'Atkinson Hyperlegible', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   color-scheme: light;
 }
 
@@ -655,4 +657,4 @@ code.mfa-secret { font-size: 14px; overflow-wrap: anywhere; max-width: 100%; }
 .invite-list button:hover { border-color: var(--ink-3); }
 .invite-list span:first-child { display: grid; gap: 2px; }
 .invite-list small { color: var(--ink-2); }
-.invite-code { margin: 0; font-size: 28px; font-weight: 800; letter-spacing: 4px; font-variant-numeric: tabular-nums; }
+.invite-code { margin: 0; font-size: 28px; font-weight: 700; letter-spacing: 4px; font-variant-numeric: tabular-nums; }
