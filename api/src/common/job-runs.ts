@@ -1,6 +1,6 @@
 import { DataSource } from 'typeorm';
 
-export type JobName = 'retention' | 'mail-outbox' | 'webhook-outbox';
+export type JobName = 'retention' | 'mail-outbox' | 'webhook-outbox' | 'push-outbox';
 
 /** Records that a background job ran (and how it ended), for /api/health/ops. Never throws. */
 export async function markJobRun(ds: DataSource, name: JobName, error?: unknown) {

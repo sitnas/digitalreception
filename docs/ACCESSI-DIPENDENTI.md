@@ -234,3 +234,14 @@ Un dipendente collegato che ha attivato il badge, nell'app *Il mio badge* o nell
 - dall'app può condividere codice e istruzioni, vedere chi aspetta e annullare.
 
 In console l'invito compare con l'etichetta "dall'app". L'app usa un token separato dal segreto del QR. Il token nasce con l'attivazione del badge e si revoca insieme al telefono (Dipendenti → *Revoca telefono*). Chi aveva attivato il badge prima di questa versione deve rimuoverlo e attivarlo di nuovo una volta.
+
+
+### Notifica quando arriva l'ospite
+
+Nella stessa schermata **I miei inviti**, sia nell'app sia sulla pagina `/badge`, c'è l'interruttore *Avvisami quando arriva un ospite*. Quando un ospite di quella persona fa check-in al tablet, sul telefono arriva "È arrivato il tuo ospite · Ti aspetta in reception, sede di Milano". Vale per tutti gli arrivi, con o senza invito.
+
+- **Nome dell'ospite**: escluso di default, perché la notifica compare sullo schermo bloccato. L'amministratore lo attiva in **Notifiche** → *Sul telefono di chi riceve la visita*.
+- **Pagina `/badge`**: funziona con Chrome, Edge e Firefox. Su iPhone solo dopo *Condividi → Aggiungi alla schermata Home*, aprendo il badge da lì (regola di Apple, iOS 16.4 o successivo).
+- **App**: vedi `APP-MOBILE.md` per Expo Go e per le chiavi di Android e iPhone.
+- Il telefono smette di ricevere quando il badge viene rimosso, disattivato in console (*Revoca telefono*), attivato su un altro telefono, o il dipendente viene eliminato. Se il browser o Expo dicono che il telefono non esiste più, il server lo dimentica da solo.
+- Una notifica non partita al primo colpo viene ritentata dopo 1 e 3 minuti; poi si rinuncia, perché un avviso di arrivo in ritardo non serve.

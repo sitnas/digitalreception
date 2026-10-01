@@ -21,6 +21,11 @@ export interface AppConfig {
   audit: { retentionDays: number };
   /** Outgoing notifications. allowPrivate (tests and development only) lets them reach local addresses over http. */
   webhooks: { allowPrivate: boolean };
+  /**
+   * Push to the visited employee. expoUrl and allowAnyEndpoint are overridable for tests only.
+   * VAPID keys (Web Push) come from WEB_PUSH_* or, when unset, are generated once and kept in the database.
+   */
+  push: { expoUrl: string; expoAccessToken?: string; vapid?: { publicKey: string; privateKey: string }; subject: string; allowAnyEndpoint: boolean };
   /** memory = each process counts on its own (one replica); database = shared by every replica. */
   throttleStore: 'memory' | 'database';
   /** Bearer token for /api/health/ops; unset = endpoint off. */
@@ -105,6 +110,13 @@ export function loadConfig(): AppConfig {
     access: { logRetentionDays: Math.max(1, Number(process.env.ACCESS_LOG_RETENTION_DAYS ?? 90)) },
     // Long enough to investigate an incident or answer an audit, not forever (it holds IPs and emails).
     webhooks: { allowPrivate: process.env.WEBHOOK_ALLOW_PRIVATE === 'true' },
+    push: {
+      expoUrl: process.env.EXPO_PUSH_URL?.trim() || 'https://exp.host/--/api/v2/push/send',
+      expoAccessToken: process.env.EXPO_ACCESS_TOKEN?.trim() || undefined,
+      vapid: process.env.WEB_PUSH_PUBLIC_KEY && process.env.WEB_PUSH_PRIVATE_KEY ? { publicKey: process.env.WEB_PUSH_PUBLIC_KEY.trim(), privateKey: process.env.WEB_PUSH_PRIVATE_KEY.trim() } : undefined,
+      subject: process.env.WEB_PUSH_SUBJECT?.trim() || `mailto:${/<([^>]+)>/.exec(process.env.MAIL_FROM ?? '')?.[1] ?? process.env.MAIL_FROM?.trim() ?? 'reception@example.invalid'}`,
+      allowAnyEndpoint: process.env.PUSH_ALLOW_ANY_ENDPOINT === 'true',
+    },
     throttleStore: process.env.THROTTLE_STORE === 'database' ? 'database' : 'memory',
     healthToken: process.env.HEALTH_TOKEN?.trim() || undefined,
     audit: { retentionDays: Math.max(90, Number(process.env.AUDIT_LOG_RETENTION_DAYS ?? 365)) },
@@ -133,6 +145,8 @@ export function loadConfig(): AppConfig {
   if (cfg.env === 'production' && cfg.db.synchronize) throw new Error('DB_SYNC=true is not allowed in production: use migrations');
   if (cfg.healthToken && cfg.healthToken.length < 24) throw new Error('HEALTH_TOKEN must be at least 24 characters');
   if (cfg.env === 'production' && cfg.webhooks.allowPrivate) throw new Error('WEBHOOK_ALLOW_PRIVATE=true is not allowed in production');
+  if (cfg.env === 'production' && (cfg.push.allowAnyEndpoint || process.env.EXPO_PUSH_URL)) throw new Error('PUSH_ALLOW_ANY_ENDPOINT and EXPO_PUSH_URL are for tests only, not allowed in production');
+  if (!/^(mailto:|https:\/\/)/.test(cfg.push.subject)) throw new Error('WEB_PUSH_SUBJECT must be a mailto: or https:// address');
   if (cfg.env === 'production' && !cfg.auth.cookieSecure) throw new Error('COOKIE_SECURE=false is not allowed in production');
   return cfg;
 }

@@ -39,5 +39,7 @@ export class Tenant {
   @Column({ type: 'datetime', precision: 3, nullable: true }) ssoLinkedAt: Date | null;
   /** Password sign-in refused except for users marked `ssoExempt` (emergency access). */
   @Column({ default: false }) ssoEnforced: boolean;
+  /** Push to the visited employee: show the guest's name on the lock screen too (off by default). */
+  @Column({ default: false }) pushIncludeNames: boolean;
   @CreateDateColumn({ type: 'datetime', precision: 3, default: () => 'CURRENT_TIMESTAMP(3)' }) createdAt: Date;
 }

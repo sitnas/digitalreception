@@ -1,3 +1,4 @@
+import { PlatformSecret, PushDevice, PushDelivery } from './push.entity';
 import { AccessEvent, AccessMethod, AccessResult, AccessRule, ApiKey, Door, DoorReader, Employee } from './access.entity';
 import { AuditLog } from './audit-log.entity';
 import { CountryPolicy } from './country-policy.entity';
@@ -14,8 +15,10 @@ import { Webhook, WebhookDelivery, WEBHOOK_EVENTS, type WebhookEvent, type Webho
 import { Visit } from './visit.entity';
 
 export * from './enums';
+export { PlatformSecret, PushDevice, PushDelivery };
 export { AccessEvent, AccessMethod, AccessResult, AccessRule, ApiKey, Door, DoorReader, Employee };
 export { Tenant, TenantStatus, AuditLog, CountryPolicy, Device, Host, Invitation, InvitationStatus, PairingCode, PrivacyNotice, Site, SsoRequest, StoredFile, User, Visit, Webhook, WebhookDelivery, WEBHOOK_EVENTS };
 export type { EmployeeSource } from './access.entity';
+export type { PushKind } from './push.entity';
 export type { WebhookEvent, WebhookKind };
-export const ENTITIES = [AccessEvent, AccessRule, ApiKey, Door, DoorReader, Employee, Tenant, AuditLog, CountryPolicy, Device, Host, Invitation, PairingCode, PrivacyNotice, Site, SsoRequest, StoredFile, User, Visit, Webhook, WebhookDelivery];
+export const ENTITIES = [PlatformSecret, PushDevice, PushDelivery, AccessEvent, AccessRule, ApiKey, Door, DoorReader, Employee, Tenant, AuditLog, CountryPolicy, Device, Host, Invitation, PairingCode, PrivacyNotice, Site, SsoRequest, StoredFile, User, Visit, Webhook, WebhookDelivery];

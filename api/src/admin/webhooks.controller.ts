@@ -10,7 +10,7 @@ import { AdminAuthGuard, CurrentUser, Roles } from '../common/guards';
 import { AppRequest, AuthUser } from '../common/request-context';
 import { TenantKeysService } from '../common/tenant-keys.service';
 import { WebhooksService } from '../common/webhooks.service';
-import { Role, Site, Webhook, WEBHOOK_EVENTS, type WebhookEvent, type WebhookKind } from '../entities';
+import { PushDevice, Role, Site, Tenant, Webhook, WEBHOOK_EVENTS, type WebhookEvent, type WebhookKind } from '../entities';
 
 const trim = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value);
 const KINDS: WebhookKind[] = ['teams', 'slack', 'generic'];
@@ -118,5 +118,32 @@ export class WebhooksController {
     const result = await this.webhooks.test(h, ['it', 'es', 'en'].includes(lang) ? lang : 'it');
     await this.audit.fromRequest(req, { action: 'WEBHOOK_TESTED', entityType: 'webhook', entityId: id, details: { result } });
     return { result };
+  }
+}
+
+export class PushSettingsDto {
+  @IsBoolean() includeNames: boolean;
+}
+
+/** "Your guest has arrived" on the employee's phone: one choice, whether the lock screen shows the guest's name. */
+@Controller('admin/push-settings')
+@UseGuards(AdminAuthGuard)
+@Roles(Role.SUPER_ADMIN)
+export class PushSettingsController {
+  constructor(@InjectRepository(Tenant) private readonly tenants: Repository<Tenant>, @InjectRepository(PushDevice) private readonly devices: Repository<PushDevice>, private readonly audit: AuditService) {}
+
+  @Get()
+  async get(@CurrentUser() user: AuthUser) {
+    const t = await this.tenants.findOneOrFail({ where: { id: user.tenantId }, select: { id: true, pushIncludeNames: true } });
+    // How many phones and browsers are signed up, so the administrator sees whether anyone uses it.
+    const devices = await this.devices.count({ where: { tenantId: user.tenantId } });
+    return { includeNames: t.pushIncludeNames, devices };
+  }
+
+  @Patch()
+  async update(@CurrentUser() user: AuthUser, @Body() dto: PushSettingsDto, @Req() req: AppRequest) {
+    await this.tenants.update(user.tenantId, { pushIncludeNames: dto.includeNames });
+    await this.audit.fromRequest(req, { action: 'PUSH_SETTINGS_UPDATED', details: { includeNames: dto.includeNames } });
+    return { includeNames: dto.includeNames };
   }
 }

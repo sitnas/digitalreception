@@ -154,3 +154,18 @@ test('webhook messages: names only when allowed, Teams gets an Adaptive Card, ge
   assert.equal(JSON.parse(g.body).data.visitor, undefined, 'no names unless allowed');
   assert.equal(g.headers['X-DR-Signature'], `sha256=${createHmac('sha256', 'whsec_test').update(`${g.headers['X-DR-Timestamp']}.${g.body}`).digest('hex')}`);
 });
+
+test('push: only real browser push services and well-formed Expo tokens are accepted', () => {
+  const { PushService } = require('../dist/common/push.service.js');
+  const svc = new PushService({ push: { allowAnyEndpoint: false } }, null, null, null, null, null, null);
+  const keys = { p256dh: 'x', auth: 'y' };
+  for (const ok of ['https://fcm.googleapis.com/fcm/send/abc', 'https://updates.push.services.mozilla.com/wpush/v2/abc', 'https://web.push.apple.com/QAbc', 'https://wns2-par02p.notify.windows.com/w/?token=abc']) {
+    assert.doesNotThrow(() => svc.checkWebSubscription({ endpoint: ok, keys }), ok);
+  }
+  for (const bad of ['http://fcm.googleapis.com/fcm/send/abc', 'https://fcm.googleapis.com.evil.example/x', 'https://evil.example/fcm.googleapis.com', 'https://169.254.169.254/latest', 'https://fcm.googleapis.com:8443/x', 'https://u:p@fcm.googleapis.com/x', 'not a url']) {
+    assert.throws(() => svc.checkWebSubscription({ endpoint: bad, keys }), /PUSH_ENDPOINT_INVALID/, bad);
+  }
+  assert.doesNotThrow(() => svc.checkExpoToken('ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]'));
+  assert.doesNotThrow(() => svc.checkExpoToken('ExpoPushToken[abcDEF123_-xyz]'));
+  for (const bad of ['ExponentPushToken[]', 'ExponentPushToken[a b]', 'https://exp.host', 'ExponentPushToken[x]x']) assert.throws(() => svc.checkExpoToken(bad), /PUSH_TOKEN_INVALID/, bad);
+});

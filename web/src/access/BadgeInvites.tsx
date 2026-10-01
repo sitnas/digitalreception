@@ -1,6 +1,7 @@
 import QRCode from 'qrcode';
 import { useCallback, useEffect, useState } from 'react';
 import { ApiError } from '../lib/api';
+import { ArrivalNotices } from './BadgePush';
 
 /**
  * Invitations on the "My badge" page, for employees who are also people to visit: the same
@@ -103,6 +104,7 @@ export function BadgeInvites({ token, profile, lang, onBack }: { token: string; 
       <button type="button" className="btn-link" style={{ justifySelf: 'start' }} onClick={onBack}>‹ {T.back}</button>
       <h1 style={{ margin: 0 }}>{T.title}</h1>
       <button type="button" className="btn btn-primary" onClick={() => setView({ kind: 'new' })}>{T.new}</button>
+      <ArrivalNotices token={token} lang={lang} />
       {error && <p className="alert" role="alert" style={{ margin: 0 }}>{error}</p>}
       {rows && rows.length === 0 && <p className="muted" style={{ margin: 0 }}>{T.none}</p>}
       {rows && rows.length > 0 && (

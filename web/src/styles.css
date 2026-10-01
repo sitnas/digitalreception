@@ -668,3 +668,12 @@ code.mfa-secret { font-size: 14px; overflow-wrap: anywhere; max-width: 100%; }
   .perm-row > .field:first-child, .perm-row > fieldset { grid-column: 1 / -1; }
   .perm-row > .btn { grid-column: 1 / -1; justify-self: start; margin-top: 0; }
 }
+
+/* "Tell me when a guest arrives" on /badge */
+.push-card { border: 1px solid var(--line); border-radius: var(--r); padding: 14px; gap: 10px; background: var(--surface); }
+.push-card p { margin: 0; font-size: 14px; }
+.push-toggle { align-items: flex-start; }
+.push-toggle input { margin-top: 3px; }
+.push-toggle span { display: grid; gap: 2px; }
+.push-toggle small { font-size: 13px; line-height: 1.4; }
+.push-card .btn-sm { justify-self: start; }

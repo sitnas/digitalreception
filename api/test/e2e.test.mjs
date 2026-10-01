@@ -33,6 +33,7 @@ const env = {
   DB_NAME: process.env.E2E_DB_NAME ?? 'reception', DB_USER: process.env.E2E_DB_USER ?? 'reception', DB_PASSWORD: process.env.E2E_DB_PASSWORD ?? 'reception',
   STORAGE_DRIVER: 'local', FILES_DIR: mkdtempSync(join(tmpdir(), 'e2e-files-')), COOKIE_SECURE: 'false', TRUST_PROXY: '1',
   SMTP_HOST: '', JOBS_ENABLED: 'false', WEBHOOK_ALLOW_PRIVATE: 'true', THROTTLE_STORE: 'database', HEALTH_TOKEN,
+  EXPO_PUSH_URL: `http://127.0.0.1:${HOOK_PORT}/expo`, PUSH_ALLOW_ANY_ENDPOINT: 'true',
   SSO_REDIRECT_URI: `http://127.0.0.1:${PORT}/api/auth/sso/callback`,
   SSO_MICROSOFT_CLIENT_ID: SSO_CLIENT.clientId, SSO_MICROSOFT_CLIENT_SECRET: SSO_CLIENT.clientSecret, SSO_MICROSOFT_ISSUER: `http://127.0.0.1:${IDP_PORT}/ms`,
   SSO_GOOGLE_CLIENT_ID: SSO_CLIENT.clientId, SSO_GOOGLE_CLIENT_SECRET: SSO_CLIENT.clientSecret, SSO_GOOGLE_ISSUER: `http://127.0.0.1:${IDP_PORT}/google`,
@@ -620,6 +621,94 @@ describe('end-to-end', { skip: !enabled && 'E2E_DB_HOST not set' }, () => {
     assert.equal((await api('DELETE', '/employees/H100')).status, 200);
     row = (await admin.get('/admin/hosts')).data.find((h) => h.id === host.data.id);
     assert.equal(row.employeeId, null); assert.equal(row.lastName, 'Verdi Neri');
+  });
+
+  test('push: the visited employee hears on the phone that the guest has arrived (Expo and Web Push)', async () => {
+    const { createServer } = await import('node:http');
+    const { createHash, createECDH } = await import('node:crypto');
+    const IP = '10.9.0.6';
+    const got = [];
+    const server = createServer((req, res) => {
+      const chunks = []; req.on('data', (c) => chunks.push(c));
+      req.on('end', () => {
+        got.push({ path: req.url, headers: req.headers, body: Buffer.concat(chunks) });
+        if (req.url === '/expo') res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ data: [{ status: 'ok', id: 'x' }] }));
+        else res.writeHead(req.url === '/web/gone' ? 410 : 201).end();
+      });
+    });
+    await new Promise((r) => server.listen(HOOK_PORT, '127.0.0.1', r));
+    const waitFor = async (pred) => { for (let i = 0; i < 40 && !got.some(pred); i++) await new Promise((r) => setTimeout(r, 100)); return got.find(pred); };
+    try {
+      const hr = (method, path, body) => fetch(`${BASE}/integration/v1${path}`, { method, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ctx.hrKey}` }, body: body && JSON.stringify(body) }).then((r) => r.json());
+      const created = await hr('PUT', '/employees/P200', { firstName: 'Sara', lastName: 'Push', email: 'sara.push@e2e.test', permissions: [] });
+      assert.equal(created.created, true);
+      const emp = (await admin.get('/admin/hosts/employees')).data.find((e) => e.externalId === 'P200');
+      const host = (await admin.post('/admin/hosts', { firstName: 'x', lastName: 'y', employeeId: emp.id, siteIds: [ctx.milano.id] })).data;
+      const mysql = require('mysql2/promise');
+      const db = await mysql.createConnection({ host: env.DB_HOST, port: Number(env.DB_PORT), user: env.DB_USER, password: env.DB_PASSWORD, database: env.DB_NAME });
+      const activate = async () => {
+        await db.query('UPDATE employees SET loginCodeHash = ?, loginCodeExpiresAt = DATE_ADD(UTC_TIMESTAMP(3), INTERVAL 5 MINUTE), loginCodeAttempts = 0 WHERE id = ?', [createHash('sha256').update(`${emp.id}|333444`).digest('hex'), emp.id]);
+        return (await new Client(IP).post('/badge/activate', { email: 'sara.push@e2e.test', code: '333444' })).data.appToken;
+      };
+      let token = await activate();
+      const me = (method, path, body) => new Client(IP).req(method, `/me${path}`, body, { bearer: token });
+      const devices = async () => Number((await db.query('SELECT COUNT(*) AS n FROM push_devices WHERE employeeId = ?', [emp.id]))[0][0].n);
+
+      const { webPushKey } = (await me('GET', '/push')).data;
+      assert.match(webPushKey, /^[A-Za-z0-9_-]{80,90}$/, 'VAPID public key, created once by the server');
+      assert.equal((await me('GET', '/push')).data.webPushKey, webPushKey, 'and kept');
+      assert.equal((await me('POST', '/push', { kind: 'expo', token: 'not-a-token' })).data.message, 'PUSH_TOKEN_INVALID');
+      const expoToken = 'ExponentPushToken[e2eAbcdefghijkl0123]';
+      assert.equal((await me('POST', '/push', { kind: 'expo', token: expoToken, locale: 'it' })).status, 200);
+      const ecdh = createECDH('prime256v1'); ecdh.generateKeys();
+      const keys = { p256dh: ecdh.getPublicKey('base64url'), auth: randomBytes(16).toString('base64url') };
+      const webEndpoint = `http://127.0.0.1:${HOOK_PORT}/web/1`;
+      assert.equal((await me('POST', '/push', { kind: 'web', subscription: { endpoint: webEndpoint, expirationTime: null, keys }, locale: 'en' })).status, 200);
+      assert.equal((await me('POST', '/push', { kind: 'web', subscription: { endpoint: `http://127.0.0.1:${HOOK_PORT}/web/gone`, keys }, locale: 'en' })).status, 200);
+      assert.equal(await devices(), 3);
+      assert.equal((await me('POST', '/push/test', { kind: 'expo', target: expoToken })).data.result, 'OK');
+      assert.equal(JSON.parse((await waitFor((g) => g.path === '/expo')).body)[0].title, 'Notifiche attive');
+
+      // A guest for her checks in at the Milan tablet: the notice leaves right away, without the guest's name.
+      got.length = 0;
+      assert.equal((await checkIn({ hostId: host.id, firstName: 'Ugo', lastName: 'Arrivato', company: 'Ospiti Srl' })).status, 201);
+      const expo = JSON.parse((await waitFor((g) => g.path === '/expo')).body)[0];
+      assert.equal(expo.to, expoToken); assert.equal(expo.title, 'È arrivato il tuo ospite'); assert.equal(expo.body, 'Ti aspetta in reception, sede di Milano.');
+      const web = await waitFor((g) => g.path === '/web/1');
+      assert.equal(web.headers['content-encoding'], 'aes128gcm', 'Web Push payload is encrypted for the browser');
+      assert.match(web.headers.authorization, /^vapid t=.+, k=/);
+      for (let i = 0; i < 20 && (await devices()) !== 2; i++) await new Promise((r) => setTimeout(r, 100));
+      assert.equal(await devices(), 2, 'a subscription the browser dropped (410) is forgotten');
+
+      // The administrator lets the name show on the lock screen.
+      assert.equal((await ctx.aud.patch('/admin/push-settings', { includeNames: true })).status, 403);
+      assert.equal((await admin.patch('/admin/push-settings', { includeNames: true })).status, 200);
+      assert.equal((await admin.get('/admin/push-settings')).data.devices >= 2, true);
+      got.length = 0;
+      await checkIn({ hostId: host.id, firstName: 'Ugo', lastName: 'Arrivato', company: 'Ospiti Srl' });
+      assert.equal(JSON.parse((await waitFor((g) => g.path === '/expo')).body)[0].body, 'Ugo Arrivato (Ospiti Srl) ti aspetta in reception, sede di Milano.');
+      await admin.patch('/admin/push-settings', { includeNames: false });
+
+      // A guest for somebody else: nothing for her.
+      got.length = 0;
+      await checkIn({});
+      await new Promise((r) => setTimeout(r, 800));
+      assert.equal(got.length, 0);
+
+      // Removed from this phone; then the badge is revoked: no devices left.
+      assert.equal((await me('DELETE', '/push', { kind: 'expo', target: expoToken })).status, 200);
+      assert.equal(await devices(), 1);
+      assert.equal((await admin.post(`/admin/access/employees/${emp.id}/revoke-phone`)).status, 200);
+      assert.equal(await devices(), 0);
+      token = await activate();
+      assert.equal((await me('POST', '/push', { kind: 'expo', token: expoToken, locale: 'es' })).status, 200);
+      assert.equal(await hr('DELETE', '/employees/P200').then((r) => r.deleted), true);
+      assert.equal(await devices(), 0, 'deleting the employee forgets the devices');
+      await db.end();
+    } finally {
+      server.closeAllConnections();
+      await new Promise((r) => server.close(r));
+    }
   });
 
   test('retention deletes audit entries older than AUDIT_LOG_RETENTION_DAYS, keeps recent ones', async () => {

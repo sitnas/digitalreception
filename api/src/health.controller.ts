@@ -8,7 +8,7 @@ import { APP_CONFIG, AppConfig } from './common/app-config';
 import { MailService } from './common/mail.service';
 
 /** Longest acceptable gap between two runs of each job (they run every 30 min / every minute). */
-const MAX_GAP_MIN = { retention: 90, 'mail-outbox': 10, 'webhook-outbox': 10 } as const;
+const MAX_GAP_MIN = { retention: 90, 'mail-outbox': 10, 'webhook-outbox': 10, 'push-outbox': 10 } as const;
 /** An email still waiting after this long means the outbox is stuck, not just busy. */
 const STUCK_MAIL_MIN = 15;
 const STARTED_AT = Date.now();
