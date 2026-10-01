@@ -19,6 +19,8 @@ export interface AppConfig {
   access: { logRetentionDays: number };
   /** Console audit trail (who did what, with IP): kept this many days, then deleted. */
   audit: { retentionDays: number };
+  /** Outgoing notifications. allowPrivate (tests and development only) lets them reach local addresses over http. */
+  webhooks: { allowPrivate: boolean };
   mail: { host?: string; port: number; secure: boolean; user?: string; pass?: string; from: string };
   jobs: { enabled: boolean };
   /** Sign-in with Microsoft / Google (OIDC). Apps registered once by the platform; each organisation links its own directory. */
@@ -98,6 +100,7 @@ export function loadConfig(): AppConfig {
     // Employee access log: kept short on purpose (worker monitoring rules, GDPR minimisation).
     access: { logRetentionDays: Math.max(1, Number(process.env.ACCESS_LOG_RETENTION_DAYS ?? 90)) },
     // Long enough to investigate an incident or answer an audit, not forever (it holds IPs and emails).
+    webhooks: { allowPrivate: process.env.WEBHOOK_ALLOW_PRIVATE === 'true' },
     audit: { retentionDays: Math.max(90, Number(process.env.AUDIT_LOG_RETENTION_DAYS ?? 365)) },
     mail: {
       host: process.env.SMTP_HOST || undefined,
@@ -122,6 +125,7 @@ export function loadConfig(): AppConfig {
   if (cfg.sso.redirectUri && !/^https?:\/\/[^/]+\/api\/auth\/sso\/callback$/.test(cfg.sso.redirectUri)) throw new Error('SSO_REDIRECT_URI must be https://<host>/api/auth/sso/callback');
 
   if (cfg.env === 'production' && cfg.db.synchronize) throw new Error('DB_SYNC=true is not allowed in production: use migrations');
+  if (cfg.env === 'production' && cfg.webhooks.allowPrivate) throw new Error('WEBHOOK_ALLOW_PRIVATE=true is not allowed in production');
   if (cfg.env === 'production' && !cfg.auth.cookieSecure) throw new Error('COOKIE_SECURE=false is not allowed in production');
   return cfg;
 }

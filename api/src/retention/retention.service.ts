@@ -8,7 +8,7 @@ import { withDbLock } from '../common/db-lock';
 import { FilesService } from '../common/files.service';
 import { addDays, startOfLocalDay } from '../common/time.util';
 import { VisitLifecycleService } from '../common/visit-lifecycle.service';
-import { AccessEvent, CountryPolicy, Invitation, Site, SsoRequest, StoredFile, Visit, VisitStatus } from '../entities';
+import { AccessEvent, CountryPolicy, Invitation, Site, SsoRequest, StoredFile, Visit, VisitStatus, WebhookDelivery } from '../entities';
 import { INVITATION_KEEP_DAYS } from '../invitations/invitations.service';
 
 const BATCH = 500;
@@ -21,7 +21,8 @@ const BATCH = 500;
  *  4. invitations are deleted INVITATION_KEEP_DAYS after their day (used, cancelled or not);
  *  5. employee access events are deleted after cfg.access.logRetentionDays;
  *  6. audit trail entries (they hold IPs and emails) are deleted after cfg.audit.retentionDays;
- *  7. single sign-on attempts left unfinished are deleted once expired.
+ *  7. single sign-on attempts left unfinished are deleted once expired;
+ *  8. webhook deliveries (they may hold visitor names) are deleted after 7 days.
  * Runs on one replica at a time (DB lock), in bounded batches so it scales with data volume.
  */
 @Injectable()
@@ -99,6 +100,7 @@ export class RetentionService {
     }
     if (auditDeleted) this.log.log(`Retention: ${auditDeleted} audit entries older than ${this.cfg.audit.retentionDays} days deleted`);
     await this.ds.getRepository(SsoRequest).delete({ expiresAt: LessThan(now) });
+    await this.ds.getRepository(WebhookDelivery).delete({ createdAt: LessThan(addDays(now, -7)) });
 
     for (const [tenantId, s] of stats) {
       await this.audit.system(tenantId, { action: 'RETENTION_RUN', details: { ...s } });

@@ -4,7 +4,7 @@ import type { AdminStrings } from './i18n';
 export const en: AdminStrings = {
   appName: 'Reception',
   openMenu: 'Open the menu', closeMenu: 'Close the menu',
-  nav: { employees: 'Employees', doors: 'Doors and readers', accessLog: 'Door log', integration: 'API integration', today: 'Today', invites: 'Invitations', history: 'History', stats: 'Statistics', devices: 'Tablets', sites: 'Sites', hosts: 'People to visit', users: 'Users', privacy: 'Privacy', audit: 'Audit log', org: 'Organisation' },
+  nav: { employees: 'Employees', doors: 'Doors and readers', accessLog: 'Door log', integration: 'API integration', today: 'Today', invites: 'Invitations', history: 'History', stats: 'Statistics', devices: 'Tablets', sites: 'Sites', hosts: 'People to visit', users: 'Users', privacy: 'Privacy', audit: 'Audit log', notifications: 'Notifications', org: 'Organisation' },
   navGroups: { visits: 'Visits', access: 'Employee access', setup: 'Setup', compliance: 'Privacy and oversight' },
   roles: { SUPER_ADMIN: 'Administrator', SITE_MANAGER: 'Site manager', RECEPTIONIST: 'Receptionist', AUDITOR: 'Auditor' },
   status: { OPEN: 'On site', CLOSED: 'Left', AUTO_CLOSED: 'Closed automatically', ERASED: 'Erased' },
@@ -86,6 +86,20 @@ export const en: AdminStrings = {
     exemptHelp: 'Can still sign in with a password when work-account sign-in is required. You need one in case Microsoft or Google don’t respond: keep one, with two-step verification.',
     bound: 'Linked to a work account',
   },
+  webhooks: {
+    title: 'Notifications', intro: 'Tell a Microsoft Teams or Slack channel, or another system, when a guest arrives or a door refuses a badge. Alerts go out within a minute and never slow the tablet down.',
+    add: 'New connection', name: 'Name', namePh: 'e.g. London reception', kind: 'Where', kinds: { teams: 'Microsoft Teams', slack: 'Slack', generic: 'Another system (HTTPS)' },
+    url: 'Webhook address',
+    urlHelp: { teams: 'In Teams, on the channel choose “Workflows” → “Send webhook alerts to a channel” and copy the address it gives you.', slack: 'In Slack, create an app with “Incoming Webhooks”, pick the channel and copy the address (it starts with https://hooks.slack.com/).', generic: 'Receives a signed JSON POST: check the X-DR-Signature header with the secret we show you after saving.' },
+    events: 'When to alert', eventNames: { 'visit.arrived': 'A guest arrives', 'access.denied': 'A door refuses a badge' },
+    site: 'Site', allSites: 'All sites', includeNames: 'Include guest and employee names',
+    includeNamesHelp: 'Off by default: lots of people read a channel and names are personal data. Without names the alert still says where and who the guest is for.',
+    save: 'Save connection', cancel: 'Cancel', saved: 'Saved.', none: 'No connections. Add one to get alerts in Teams or Slack.',
+    destination: 'Destination', lastResult: 'Last delivery', never: 'never', ok: 'delivered', names: 'Names', yes: 'yes', no: 'no',
+    test: 'Test', testOk: 'Test message sent: check the channel.', testFailed: 'Sending failed ({result}). Check the address.',
+    deactivate: 'Turn off', activate: 'Turn back on', inactive: 'Off', remove: 'Delete', removeConfirm: 'Delete “{name}”? Alerts stop straight away.',
+    secretTitle: 'Signing secret', secretHint: 'Copy it now and set it in the receiving system: you won’t see it again after this screen.', copy: 'Copy', copied: 'Copied',
+  },
   today: { title: 'Today', intro: 'Who’s on site now and today’s arrivals.', present: 'On site now', printList: 'Print who’s on site', noneInside: 'No visitors on site.', arrivals: 'Today’s arrivals', noArrivals: 'No arrivals today.', pickSite: 'Pick a site to see who’s there.', printedAt: 'List printed on', checkoutNow: 'Sign out' },
   history: { title: 'Visit history', intro: 'Searching by last name or email only finds exact matches, because the data is encrypted.', export: 'Export CSV', empty: 'No visits match these filters.', apply: 'Search', results: 'results', prev: 'Previous', next: 'Next', receptionistNote: 'Your role sees the last 7 days.' },
   detail: {
@@ -166,6 +180,7 @@ export const en: AdminStrings = {
   },
   audit: { title: 'Audit log', intro: 'Who did what, when and from where. Nobody can edit or delete it from the console.', when: 'When', actor: 'Who', action: 'Action', target: 'Item', ip: 'IP', details: 'Details', filterAction: 'Action', filterActor: 'User or tablet', export: 'Export CSV' },
   errors: {
+    WEBHOOK_URL_INVALID: 'Invalid address.', WEBHOOK_URL_HTTPS: 'The address must start with https://.', WEBHOOK_URL_PRIVATE: 'This address points inside the network: it isn’t allowed, for security.',
     EMPLOYEE_ALREADY_HOST: 'This employee is already among the people to visit.', EMPLOYEE_NOT_FOUND: 'Employee not found or not active.',
     SSO_SELF_FIRST: 'To make it mandatory you need to have signed in with your work account in this session.', SSO_EMERGENCY_ADMIN_REQUIRED: 'You need at least one active administrator marked as an emergency account.', SSO_NOT_LINKED: 'Link Microsoft or Google first.',
     DOOR_ID_EXISTS: 'A door with this external ID already exists.', INVALID_RANGE: 'Invalid range.', INVALID_DATE: 'Invalid date.',

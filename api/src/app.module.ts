@@ -15,6 +15,9 @@ import { IntegrationController } from './access/integration.controller';
 import { BadgeController, ReaderController } from './access/reader.controller';
 import { InvitationsService } from './invitations/invitations.service';
 import { VisitsController } from './admin/visits.controller';
+import { WebhooksController } from './admin/webhooks.controller';
+import { WebhooksService } from './common/webhooks.service';
+import { WebhookOutboxService } from './retention/webhook-outbox.service';
 import { VisitsService } from './admin/visits.service';
 import { AuthController } from './auth/auth.controller';
 import { SessionService } from './auth/session.service';
@@ -49,13 +52,13 @@ const JWT = { algorithm: 'HS256' as const, issuer: 'reception-api', audience: 'r
     ThrottlerModule.forRoot([{ name: 'default', ttl: 60_000, limit: 120 }]),
     ScheduleModule.forRoot(),
   ],
-  controllers: [HealthController, TenantController, AuthController, SsoController, KioskController, VisitsController, ManagementController, StatsController, InvitationsController, IntegrationController, ReaderController, BadgeController, AccessAdminController, EmployeeAppController],
+  controllers: [HealthController, TenantController, AuthController, SsoController, KioskController, VisitsController, ManagementController, StatsController, InvitationsController, IntegrationController, ReaderController, BadgeController, AccessAdminController, EmployeeAppController, WebhooksController],
   providers: [
     { provide: APP_CONFIG, useValue: config as AppConfig },
     { provide: STORAGE, useFactory: () => createStorage(config) },
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     CryptoService, TenantKeysService, InvitationsService, AccessService, ApiKeyGuard, ReaderGuard, EmployeeAppGuard, AuditService, FilesService, MailService, VisitLifecycleService,
-    SessionService, AdminAuthGuard, DeviceGuard, KioskService, VisitsService, RetentionService, MailOutboxService,
+    SessionService, AdminAuthGuard, DeviceGuard, KioskService, VisitsService, RetentionService, MailOutboxService, WebhooksService, WebhookOutboxService,
   ],
 })
 export class AppModule implements NestModule {

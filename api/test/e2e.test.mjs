@@ -19,6 +19,7 @@ const PORT = Number(process.env.E2E_PORT ?? 3199);
 const BASE = `http://127.0.0.1:${PORT}/api`;
 const SLUG = `e2e-${randomBytes(3).toString('hex')}`;
 const IDP_PORT = PORT - 1;
+const HOOK_PORT = PORT - 2;
 const SSO_CLIENT = { clientId: 'e2e-client', clientSecret: randomBytes(16).toString('hex') };
 const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
 
@@ -29,7 +30,7 @@ const env = {
   DB_TYPE: 'mysql', DB_HOST: process.env.E2E_DB_HOST, DB_PORT: process.env.E2E_DB_PORT ?? '3306',
   DB_NAME: process.env.E2E_DB_NAME ?? 'reception', DB_USER: process.env.E2E_DB_USER ?? 'reception', DB_PASSWORD: process.env.E2E_DB_PASSWORD ?? 'reception',
   STORAGE_DRIVER: 'local', FILES_DIR: mkdtempSync(join(tmpdir(), 'e2e-files-')), COOKIE_SECURE: 'false', TRUST_PROXY: '1',
-  SMTP_HOST: '', JOBS_ENABLED: 'false',
+  SMTP_HOST: '', JOBS_ENABLED: 'false', WEBHOOK_ALLOW_PRIVATE: 'true',
   SSO_REDIRECT_URI: `http://127.0.0.1:${PORT}/api/auth/sso/callback`,
   SSO_MICROSOFT_CLIENT_ID: SSO_CLIENT.clientId, SSO_MICROSOFT_CLIENT_SECRET: SSO_CLIENT.clientSecret, SSO_MICROSOFT_ISSUER: `http://127.0.0.1:${IDP_PORT}/ms`,
   SSO_GOOGLE_CLIENT_ID: SSO_CLIENT.clientId, SSO_GOOGLE_CLIENT_SECRET: SSO_CLIENT.clientSecret, SSO_GOOGLE_ISSUER: `http://127.0.0.1:${IDP_PORT}/google`,
@@ -590,6 +591,52 @@ describe('end-to-end', { skip: !enabled && 'E2E_DB_HOST not set' }, () => {
     const [rows] = await db.query("SELECT action FROM audit_logs WHERE tenantId = ? AND action LIKE 'E2E_%'", [t.id]);
     await db.end();
     assert.deepEqual(rows.map((r) => r.action), ['E2E_RECENT_ENTRY']);
+  });
+
+  test('webhooks: Slack and signed generic notifications for a denied badge, test message, validation', async () => {
+    const { createServer } = await import('node:http');
+    const { createHmac } = await import('node:crypto');
+    const got = [];
+    const server = createServer((req, res) => { let b = ''; req.on('data', (c) => { b += c; }); req.on('end', () => { got.push({ path: req.url, headers: req.headers, body: JSON.parse(b) }); res.writeHead(200).end('ok'); }); });
+    await new Promise((r) => server.listen(HOOK_PORT, '127.0.0.1', r));
+    try {
+      const base = `http://127.0.0.1:${HOOK_PORT}`;
+      assert.equal((await admin.post('/admin/webhooks', { name: 'Bad', kind: 'slack', url: 'ftp://x.example/y', events: ['visit.arrived'] })).data.message, 'WEBHOOK_URL_HTTPS');
+      assert.equal((await ctx.aud.post('/admin/webhooks', { name: 'No', kind: 'slack', url: `${base}/s`, events: ['visit.arrived'] })).status, 403, 'administrators only');
+      const slack = await admin.post('/admin/webhooks', { name: 'Reception Slack', kind: 'slack', url: `${base}/slack`, events: ['access.denied'], siteId: ctx.milano.id, includeNames: true });
+      assert.equal(slack.status, 201, JSON.stringify(slack.data)); assert.equal(slack.data.secret, null);
+      const generic = (await admin.post('/admin/webhooks', { name: 'SIEM', kind: 'generic', url: `${base}/generic`, events: ['access.denied', 'visit.arrived'] })).data;
+      assert.match(generic.secret, /^whsec_/);
+      const listed = (await admin.get('/admin/webhooks')).data;
+      assert.equal(listed.length, 2); assert.equal(listed[0].urlHost, `127.0.0.1:${HOOK_PORT}`); assert.equal(listed[0].urlEnc, undefined);
+
+      assert.equal((await admin.post(`/admin/webhooks/${slack.data.id}/test`)).data.result, 'OK');
+      assert.equal(got.at(-1).path, '/slack'); assert.match(got.at(-1).body.text, /Prova|Test|Prueba/);
+
+      // A denied badge at a Milan door: queued with the event, delivered by the worker.
+      const door = (await admin.post('/admin/access/doors', { siteId: ctx.milano.id, name: 'Magazzino hook', externalId: 'MI-HOOK' })).data;
+      const { code } = (await admin.post(`/admin/access/doors/${door.id}/reader-code`, { name: 'Lettore hook' })).data;
+      const token = (await new Client().post('/reader/pair', { code })).data.readerToken;
+      assert.equal((await new Client().post('/reader/verify', { nfc: 'DEADBEEF01' }, { bearer: token })).data.result, 'DENIED');
+      got.length = 0;
+      await run('node', ['dist/database/run-retention.js'], { env });
+      const s = got.find((g) => g.path === '/slack'), g = got.find((x) => x.path === '/generic');
+      assert.match(s.body.text, /Accesso negato alla porta Magazzino hook \(Milano\): badge non riconosciuto/);
+      assert.equal(g.body.event, 'access.denied'); assert.equal(g.body.data.door, 'Magazzino hook');
+      const raw = JSON.stringify(g.body);
+      assert.equal(g.headers['x-dr-signature'], `sha256=${createHmac('sha256', generic.secret).update(`${g.headers['x-dr-timestamp']}.${raw}`).digest('hex')}`);
+      assert.equal((await admin.get('/admin/webhooks')).data.find((h) => h.id === slack.data.id).lastResult, 'OK');
+
+      // Turned off: nothing more is sent.
+      assert.equal((await admin.patch(`/admin/webhooks/${slack.data.id}`, { active: false })).status, 200);
+      assert.equal((await admin.del(`/admin/webhooks/${generic.id}`)).status, 200);
+      await new Client().post('/reader/verify', { nfc: 'DEADBEEF02' }, { bearer: token });
+      got.length = 0;
+      await run('node', ['dist/database/run-retention.js'], { env });
+      assert.equal(got.length, 0);
+    } finally {
+      await new Promise((r) => server.close(r));
+    }
   });
 
   test('deleting the tenant removes its host directory too', async () => {
