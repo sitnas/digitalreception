@@ -23,6 +23,7 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "blockedPermissions": [
+        "android.permission.WRITE_SETTINGS",
         "android.permission.WRITE_SETTINGS"
       ],
       "predictiveBackGestureEnabled": false
@@ -43,6 +44,18 @@
     "platforms": [
       "ios",
       "android"
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "dd4c9046-f7f0-4b87-805b-fb8bae83e906"
+      }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/dd4c9046-f7f0-4b87-805b-fb8bae83e906"
+    }
   }
 }
