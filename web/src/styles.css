@@ -1,7 +1,7 @@
-@import '@fontsource/ibm-plex-sans/400.css';
-@import '@fontsource/ibm-plex-sans/500.css';
-@import '@fontsource/ibm-plex-sans/600.css';
-@import '@fontsource/ibm-plex-sans/700.css';
+@import '@fontsource/dm-sans/400.css';
+@import '@fontsource/dm-sans/500.css';
+@import '@fontsource/dm-sans/600.css';
+@import '@fontsource/dm-sans/700.css';
 /* Fonts are bundled with the app: no request to third-party font CDNs (visitor IPs never leave the company). */
 
 /* ============================================================== TOKENS
@@ -38,7 +38,7 @@
   --r-sm: 6px; --r: 8px; --r-lg: 12px; --r-xl: 16px;
   --shadow-pop: 0 16px 40px -16px rgba(16, 16, 16, .28);
   --focus: 0 0 0 2px var(--surface), 0 0 0 4px var(--brand-strong);
-  --font: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font: 'DM Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   color-scheme: light;
 }
 
