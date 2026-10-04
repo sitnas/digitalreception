@@ -101,7 +101,8 @@ export class MailService implements OnApplicationBootstrap {
     const primary = m.primaryColor ?? DEFAULT_PRIMARY;
     const secondary = m.secondaryColor ?? DEFAULT_SECONDARY;
     const subject = `${s.subject} - ${fromName}`;
-    const text = [s.hello.replace('{name}', m.visitorName), '', `${s.host}: ${m.hostName}`, `${s.when}: ${when}`, `${s.site}: ${m.siteName}`, `${s.code}: ${m.code}`, '', s.how, '', s.privacy.replace('{org}', fromName)].join('\n');
+    const text = [s.hello.replace('{name}', m.visitorName), '', `${s.host}: ${m.hostName}`, `${s.when}: ${when}`, `${s.site}: ${m.siteName}`, `${s.code}: ${m.code}`, '', s.how, ...(m.link ? ['', s.pre, m.link] : []), '', s.privacy.replace('{org}', fromName)].join('\n');
+    const pre = m.link ? `<div style="margin:18px 0 0;padding:14px;border-radius:12px;background:#F4F4F2"><p style="margin:0 0 12px">${esc(s.pre)}</p><a href="${esc(m.link)}" style="display:inline-block;background:${primary};color:${readableOn(primary)};text-decoration:none;font-weight:700;padding:10px 18px;border-radius:10px">${esc(s.preButton)}</a></div>` : '';
     const html = `<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;line-height:1.5;color:#1A1A1A">
 <div style="background:${secondary};color:${readableOn(secondary)};padding:14px 18px;border-radius:14px 14px 0 0;font-weight:700">${esc(fromName)}<br><span style="font-weight:400;opacity:.8">${esc(m.siteName)}</span></div>
 <div style="border:1px solid ${secondary};border-top:0;border-radius:0 0 14px 14px;padding:20px 18px">
@@ -113,7 +114,7 @@ export class MailService implements OnApplicationBootstrap {
 </table>
 <div style="text-align:center;margin:20px 0 8px"><div style="display:inline-block;background:#FFFFFF;border:4px solid ${primary};border-radius:12px;padding:8px;line-height:0"><img src="cid:invite-qr" width="200" height="200" alt="QR ${esc(m.code)}" style="display:block"></div>
 <div style="margin-top:8px;font-size:13px;color:#5C5C58">${esc(s.code)}: <strong style="font-family:'Courier New',monospace;letter-spacing:.12em;color:#1A1A1A">${esc(m.code)}</strong></div></div>
-<p style="margin:14px 0 0">${esc(s.how)}</p>
+<p style="margin:14px 0 0">${esc(s.how)}</p>${pre}
 </div>
 <p style="margin-top:16px;font-size:12px;color:#5C5C58">${esc(s.privacy.replace('{org}', fromName))}</p></div>`;
     const qr = await qrPng(inviteQrPayload(m.code));
@@ -148,7 +149,7 @@ export class MailService implements OnApplicationBootstrap {
 
 export interface BadgeMail { locale: string; timezone: string; siteName: string; visitorLabel: string; hostName: string; code: string; checkInAt: Date; primaryColor?: string | null; secondaryColor?: string | null }
 
-export interface InvitationMail { locale: string; timezone: string; siteName: string; visitorName: string; hostName: string; expectedAt: Date; code: string; primaryColor?: string | null; secondaryColor?: string | null }
+export interface InvitationMail { locale: string; timezone: string; siteName: string; visitorName: string; hostName: string; expectedAt: Date; code: string; link?: string | null; primaryColor?: string | null; secondaryColor?: string | null }
 
 export interface HostArrivalMail { locale: string; timezone: string; siteName: string; visitorName: string; company: string | null; purpose: string; checkInAt: Date; primaryColor?: string | null }
 
@@ -161,13 +162,16 @@ const BADGE_CODE_STRINGS = {
 const INVITE_STRINGS = {
   it: { subject: 'Il tuo invito', hello: 'Ciao {name}, ti aspettiamo in sede.', host: 'Ti aspetta', when: 'Quando', site: 'Sede', code: 'Codice invito',
     how: 'All’arrivo tocca “Ho un invito” sul tablet della reception e mostra questo QR alla fotocamera: i tuoi dati saranno già compilati, dovrai solo leggere l’informativa privacy e firmare.',
-    privacy: '{org} ha registrato nome, azienda ed email solo per preparare questa visita. Cancelliamo i dati dell’invito pochi giorni dopo la data prevista.' },
+    privacy: '{org} ha registrato nome, azienda ed email solo per preparare questa visita. Cancelliamo i dati dell’invito pochi giorni dopo la data prevista.',
+    pre: 'Vuoi fare prima? Completa la registrazione dal telefono: dati, informativa e firma. In reception poi basta mostrare il QR.', preButton: 'Registrati adesso' },
   es: { subject: 'Su invitación', hello: 'Hola {name}, le esperamos en nuestra sede.', host: 'Le espera', when: 'Cuándo', site: 'Sede', code: 'Código de invitación',
     how: 'Al llegar, pulse «Tengo una invitación» en la tableta de recepción y muestre este QR a la cámara: sus datos ya estarán completos, solo tendrá que leer la información de privacidad y firmar.',
-    privacy: '{org} ha registrado su nombre, empresa y correo solo para preparar esta visita. Los datos de la invitación se eliminan pocos días después de la fecha prevista.' },
+    privacy: '{org} ha registrado su nombre, empresa y correo solo para preparar esta visita. Los datos de la invitación se eliminan pocos días después de la fecha prevista.',
+    pre: '¿Quiere ganar tiempo? Complete el registro desde el teléfono: datos, información de privacidad y firma. En recepción solo tendrá que mostrar el QR.', preButton: 'Registrarme ahora' },
   en: { subject: 'Your invitation', hello: 'Hi {name}, we’re expecting you.', host: 'Meeting', when: 'When', site: 'Site', code: 'Invitation code',
     how: 'When you arrive, tap “I have an invitation” on the reception tablet and show this QR to the camera: your details will already be filled in, you will only need to read the privacy notice and sign.',
-    privacy: '{org} recorded your name, company and email only to prepare this visit. We delete the invitation data a few days after the expected date.' },
+    privacy: '{org} recorded your name, company and email only to prepare this visit. We delete the invitation data a few days after the expected date.',
+    pre: 'Want to save time? Complete your registration from your phone: details, privacy notice and signature. At reception you then just show the QR.', preButton: 'Register now' },
 };
 
 const ARRIVAL_STRINGS = {

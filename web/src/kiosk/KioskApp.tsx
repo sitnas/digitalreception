@@ -4,12 +4,13 @@ import { applyBrand } from '../lib/theme';
 import { dateTimeFormat } from '../lib/format';
 import { CheckIn, CheckInResult } from './CheckIn';
 import { CheckOut } from './CheckOut';
+import { Arrive } from './Arrive';
 import { InviteScan, type Invite } from './InviteScan';
 import { LOCALE_NAMES, Locale, STRINGS } from './strings';
 import type { KioskConfig } from './types';
 import { BrandBackdrop } from './BrandBackdrop';
 
-type Screen = { name: 'welcome' } | { name: 'checkin'; invite?: Invite } | { name: 'invite' } | { name: 'checkout' } | { name: 'done'; result: CheckInResult } | { name: 'outdone' };
+type Screen = { name: 'welcome' } | { name: 'checkin'; invite?: Invite } | { name: 'arrive'; invite: Invite } | { name: 'invite' } | { name: 'checkout' } | { name: 'done'; result: CheckInResult } | { name: 'outdone' };
 
 const IDLE_MS = 90_000;        // abandoned form: wipe everything typed so far
 const DONE_MS = 20_000;        // confirmation screens return home by themselves
@@ -120,7 +121,13 @@ export function KioskApp() {
         )}
 
         {screen.name === 'invite' && (
-          <InviteScan t={t} onCancel={goHome} onWithout={() => setScreen({ name: 'checkin' })} onFound={(invite) => setScreen({ name: 'checkin', invite })} />
+          <InviteScan t={t} onCancel={goHome} onWithout={() => setScreen({ name: 'checkin' })} onFound={(invite) => setScreen(invite.data.preregistered ? { name: 'arrive', invite } : { name: 'checkin', invite })} />
+        )}
+
+        {screen.name === 'arrive' && (
+          <Arrive cfg={cfg} invite={screen.invite} t={t} onCancel={goHome}
+            onFallback={() => setScreen({ name: 'checkin', invite: screen.invite })}
+            onDone={(result) => setScreen({ name: 'done', result })} />
         )}
 
         {screen.name === 'checkin' && (

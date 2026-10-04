@@ -6,6 +6,7 @@ import { ADMIN_STRINGS, AdminLocale, I18nContext, useI18n } from './i18n';
 import { AccountPage, MfaEnroll, RecoveryCodes } from './pages/Account';
 import { AuditPage } from './pages/Audit';
 import { DevicesPage } from './pages/Devices';
+import { DocumentsPage } from './pages/Documents';
 import { EvacuationPage } from './pages/Evacuation';
 import { HistoryPage } from './pages/History';
 import { InvitationsPage } from './pages/Invitations';
@@ -47,6 +48,7 @@ const NAV: { to: string; key: keyof typeof ADMIN_STRINGS.it.nav; group: NavGroup
   { to: 'hosts', key: 'hosts', group: 'setup', roles: ['SUPER_ADMIN', 'SITE_MANAGER'] },
   { to: 'users', key: 'users', group: 'setup', roles: ['SUPER_ADMIN'] },
   { to: 'privacy', key: 'privacy', group: 'compliance', roles: ['SUPER_ADMIN', 'SITE_MANAGER', 'AUDITOR'] },
+  { to: 'documents', key: 'documents', group: 'compliance', roles: ['SUPER_ADMIN', 'SITE_MANAGER', 'AUDITOR'] },
   { to: 'audit', key: 'audit', group: 'compliance', roles: ['SUPER_ADMIN', 'AUDITOR'] },
   { to: 'notifications', key: 'notifications', group: 'setup', roles: ['SUPER_ADMIN'] },
   { to: 'organisation', key: 'org', group: 'setup', roles: ['SUPER_ADMIN'] },
@@ -400,6 +402,7 @@ function Shell({ branding, me, onLogout }: { branding: Branding; me: Me; onLogou
           <Route index element={<Navigate to={home} replace />} />
           {items.some((i) => i.to === 'today') && <Route path="today" element={<TodayPage />} />}
           {items.some((i) => i.to === 'invites') && <Route path="invites" element={<InvitationsPage />} />}
+          {items.some((i) => i.to === 'documents') && <Route path="documents" element={<DocumentsPage />} />}
           {items.some((i) => i.to === 'evacuation') && <Route path="evacuation" element={<EvacuationPage />} />}
           {items.some((i) => i.to === 'employees') && <Route path="employees" element={<EmployeesPage />} />}
           {items.some((i) => i.to === 'doors') && <Route path="doors" element={<DoorsPage />} />}

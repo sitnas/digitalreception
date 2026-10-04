@@ -69,6 +69,18 @@ Dopo aver impostato le variabili, riavvia l'API: `docker compose up -d api`. Poi
 
 In GitHub Codespaces l'indirizzo di ritorno è `https://<nome-codespace>-8080.app.github.dev/api/auth/sso/callback` e la porta 8080 deve essere pubblica.
 
+## Pre-registrazione degli ospiti dal telefono
+
+Il link "Registrati adesso" nelle email di invito porta a `/guest#CODICE`. Perché compaia serve l'indirizzo pubblico del server:
+
+```
+PUBLIC_URL=https://reception.example.com
+```
+
+Senza `PUBLIC_URL` il sistema usa l'origine di `SSO_REDIRECT_URI`; se mancano tutte e due l'email resta com'era, con il solo QR. In modalità `subdomain` l'indirizzo diventa `https://<slug>.<BASE_DOMAIN>`. Il codice dell'invito viaggia dopo il `#`, quindi il browser non lo manda al server nei log né ad altri siti.
+
+Firma e foto del documento caricate dal telefono restano cifrate e legate all'invito; all'arrivo passano alla visita e prendono i tempi di conservazione della visita. Se l'invito viene annullato le cancelliamo subito, se l'ospite non arriva le cancella il job di retention 7 giorni dopo il giorno previsto.
+
 ## Notifiche push ai dipendenti
 
 Funzionano senza configurazione: la chiave per il Web Push (pagina `/badge`) viene creata al primo uso e salvata cifrata nel database. Servono soltanto:

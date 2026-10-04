@@ -8,7 +8,7 @@ const it = {
   checkInSub: 'Prima volta oggi in sede',
   checkOut: 'Sto uscendo',
   checkOutSub: 'Chiudi la tua visita',
-  steps: ['I tuoi dati', 'Informativa', 'Foto', 'Firma'],
+  steps: ['I tuoi dati', 'Informativa', 'Foto', 'Firma', 'Documenti'],
   stepOf: 'Passo {n} di {total}',
   firstName: 'Nome', lastName: 'Cognome', company: 'Azienda', companyHint: 'Facoltativo',
   email: 'Email', emailHint: 'Facoltativa: ti inviamo il badge di uscita e, se lo chiedi, l’informativa privacy',
@@ -24,6 +24,7 @@ const it = {
   noticeRead: 'Ho letto l’informativa privacy',
   sendNotice: 'Inviamela anche via email',
   noticeScroll: 'Scorri fino in fondo per continuare',
+  docsTitle: 'Documenti da accettare', docsHint: 'Leggi ogni documento fino in fondo e conferma.', docAccept: 'Ho letto e accetto', signHintDocs: 'Firmando confermi che i dati sono corretti, di aver ricevuto l’informativa e di accettare i documenti letti.',
   photoDocTitle: 'Foto del documento', photoDocHint: 'Inquadra solo il documento, su una superficie piana.',
   photoAssetTitle: 'Numero di serie del computer', photoAssetHint: 'Fotografa l’etichetta con il numero di serie del portatile che porti con te.',
   takePhoto: 'Scatta la foto', retakePhoto: 'Rifai la foto',
@@ -53,6 +54,7 @@ const it = {
   errors: {
     generic: 'Non è andata a buon fine. Riprova, e se succede di nuovo chiedi alla reception.',
     NOTICE_OUTDATED: 'L’informativa è stata aggiornata. Leggi la nuova versione e firma di nuovo.',
+    DOCUMENTS_OUTDATED: 'Un documento è stato aggiornato. Leggi la nuova versione e firma di nuovo.',
     VISIT_ALREADY_CLOSED: 'La tua uscita è già registrata: puoi andare.',
     INVITATION_NOT_FOUND: 'Invito non trovato o annullato. Puoi registrarti senza invito.',
     INVITATION_USED: 'Con questo invito qualcuno è già entrato oggi. Chiedi alla reception.',
@@ -61,6 +63,11 @@ const it = {
     offline: 'Il tablet non è connesso a internet. Chiedi alla reception.',
   },
   privacyFooter: 'Cifriamo i tuoi dati e li cancelliamo da soli quando scade il periodo previsto.',
+  preHello: 'Ciao {name}, la registrazione dal telefono è completa.', preHint: 'Non devi compilare altro: registra l’ingresso e ricevi il badge di uscita.', preAsset: 'Manca solo la foto del numero di serie del computer.',
+  guestTitle: 'Registrati prima di arrivare', guestWhen: 'Ti aspettiamo {when} a {site}.', guestHost: 'Ti incontra {host}.', guestHint: 'Bastano un paio di minuti: in reception poi mostri solo il QR dell’email.',
+  guestAlready: 'Hai già inviato la registrazione. Se qualcosa è cambiato puoi correggerla fino al tuo arrivo.', guestSubmit: 'Invia la registrazione',
+  guestDoneTitle: 'Registrazione inviata', guestDoneText: 'All’arrivo tocca “Ho un invito” sul tablet della reception e mostra il QR dell’email: registriamo l’ingresso senza farti compilare altro.', guestEdit: 'Correggi la registrazione',
+  guestNoCode: 'Apri questa pagina dal link nell’email di invito.', guestExpired: 'Il giorno di questo invito è passato.', guestNotFound: 'Invito non trovato o annullato. Controlla il link nell’email o chiedi a chi ti ha invitato.', guestUsed: 'Con questo invito l’ingresso è già registrato.',
 };
 
 type Dict = typeof it;
@@ -70,7 +77,7 @@ const es: Dict = {
   welcomeSub: 'Registre su entrada o su salida.',
   checkIn: 'Estoy entrando', checkInSub: 'Primera vez hoy en la sede',
   checkOut: 'Estoy saliendo', checkOutSub: 'Cierre su visita',
-  steps: ['Sus datos', 'Información', 'Fotos', 'Firma'],
+  steps: ['Sus datos', 'Información', 'Fotos', 'Firma', 'Documentos'],
   stepOf: 'Paso {n} de {total}',
   firstName: 'Nombre', lastName: 'Apellidos', company: 'Empresa', companyHint: 'Opcional',
   email: 'Correo electrónico', emailHint: 'Opcional: le enviamos la credencial de salida y, si lo pide, la información sobre privacidad',
@@ -86,6 +93,7 @@ const es: Dict = {
   noticeRead: 'He leído la información sobre privacidad',
   sendNotice: 'Enviármela también por correo',
   noticeScroll: 'Desplácese hasta el final para continuar',
+  docsTitle: 'Documentos que aceptar', docsHint: 'Lea cada documento hasta el final y confirme.', docAccept: 'He leído y acepto', signHintDocs: 'Al firmar confirma que sus datos son correctos, que ha recibido la información sobre privacidad y que acepta los documentos leídos.',
   photoDocTitle: 'Foto del documento', photoDocHint: 'Encuadre solo el documento, sobre una superficie plana.',
   photoAssetTitle: 'Número de serie del portátil', photoAssetHint: 'Fotografíe la etiqueta con el número de serie del portátil que trae.',
   takePhoto: 'Tomar la foto', retakePhoto: 'Repetir la foto',
@@ -115,6 +123,7 @@ const es: Dict = {
   errors: {
     generic: 'No ha funcionado. Inténtelo de nuevo y, si vuelve a pasar, pregunte en recepción.',
     NOTICE_OUTDATED: 'La información sobre privacidad se ha actualizado. Lea la nueva versión y firme de nuevo.',
+    DOCUMENTS_OUTDATED: 'Se ha actualizado un documento. Lea la nueva versión y firme de nuevo.',
     VISIT_ALREADY_CLOSED: 'Su salida ya está registrada: puede irse.',
     INVITATION_NOT_FOUND: 'Invitación no encontrada o anulada. Puede registrarse sin invitación.',
     INVITATION_USED: 'Alguien ya ha entrado hoy con esta invitación. Pregunte en recepción.',
@@ -123,6 +132,11 @@ const es: Dict = {
     offline: 'La tableta no tiene conexión. Solicite ayuda en recepción.',
   },
   privacyFooter: 'Ciframos sus datos y los borramos solos cuando vence el plazo previsto.',
+  preHello: 'Hola {name}, el registro desde el teléfono está completo.', preHint: 'No tiene que rellenar nada más: registre la entrada y reciba la credencial de salida.', preAsset: 'Solo falta la foto del número de serie del ordenador.',
+  guestTitle: 'Regístrese antes de llegar', guestWhen: 'Le esperamos {when} en {site}.', guestHost: 'Le recibe {host}.', guestHint: 'Son un par de minutos: en recepción solo tendrá que mostrar el QR del correo.',
+  guestAlready: 'Ya envió el registro. Si algo ha cambiado puede corregirlo hasta su llegada.', guestSubmit: 'Enviar el registro',
+  guestDoneTitle: 'Registro enviado', guestDoneText: 'Al llegar, pulse «Tengo una invitación» en la tableta de recepción y muestre el QR del correo: registramos la entrada sin que tenga que rellenar nada más.', guestEdit: 'Corregir el registro',
+  guestNoCode: 'Abra esta página desde el enlace del correo de invitación.', guestExpired: 'El día de esta invitación ya pasó.', guestNotFound: 'Invitación no encontrada o anulada. Revise el enlace del correo o pregunte a quien le invitó.', guestUsed: 'Con esta invitación la entrada ya está registrada.',
 };
 
 const en: Dict = {
@@ -130,7 +144,7 @@ const en: Dict = {
   welcomeSub: 'Sign in or sign out of the building.',
   checkIn: 'I’m arriving', checkInSub: 'First time on site today',
   checkOut: 'I’m leaving', checkOutSub: 'Close your visit',
-  steps: ['Your details', 'Privacy notice', 'Photos', 'Signature'],
+  steps: ['Your details', 'Privacy notice', 'Photos', 'Signature', 'Documents'],
   stepOf: 'Step {n} of {total}',
   firstName: 'First name', lastName: 'Last name', company: 'Company', companyHint: 'Optional',
   email: 'Email', emailHint: 'Optional: we send you your exit badge and, if you ask, the privacy notice',
@@ -146,6 +160,7 @@ const en: Dict = {
   noticeRead: 'I have read the privacy notice',
   sendNotice: 'Also send it to my email',
   noticeScroll: 'Scroll to the end to continue',
+  docsTitle: 'Documents to accept', docsHint: 'Read each document to the end and confirm.', docAccept: 'I have read and accept', signHintDocs: 'By signing you confirm your details are correct, that you received the privacy notice and that you accept the documents you read.',
   photoDocTitle: 'Photo of your document', photoDocHint: 'Frame only the document, on a flat surface.',
   photoAssetTitle: 'Laptop serial number', photoAssetHint: 'Take a photo of the serial-number label on the laptop you are bringing in.',
   takePhoto: 'Take photo', retakePhoto: 'Retake photo',
@@ -175,6 +190,7 @@ const en: Dict = {
   errors: {
     generic: 'That didn’t work. Try again, and if it happens again ask reception.',
     NOTICE_OUTDATED: 'The privacy notice has been updated. Read the new version and sign again.',
+    DOCUMENTS_OUTDATED: 'A document has been updated. Read the new version and sign again.',
     VISIT_ALREADY_CLOSED: 'You’re already signed out, so you can go.',
     INVITATION_NOT_FOUND: 'Invitation not found or cancelled. You can register without it.',
     INVITATION_USED: 'Someone has already signed in with this invitation. Ask reception.',
@@ -183,6 +199,11 @@ const en: Dict = {
     offline: 'The tablet is offline. Ask reception for help.',
   },
   privacyFooter: 'We encrypt your data and delete it on our own when its retention period ends.',
+  preHello: 'Hi {name}, your registration from the phone is complete.', preHint: 'There’s nothing else to fill in: check in and get your exit badge.', preAsset: 'We only need a photo of your laptop’s serial number.',
+  guestTitle: 'Register before you arrive', guestWhen: 'We’re expecting you {when} at {site}.', guestHost: 'You’re meeting {host}.', guestHint: 'It takes a couple of minutes: at reception you then just show the QR from the email.',
+  guestAlready: 'You’ve already sent your registration. If something changed you can correct it until you arrive.', guestSubmit: 'Send registration',
+  guestDoneTitle: 'Registration sent', guestDoneText: 'When you arrive, tap “I have an invitation” on the reception tablet and show the QR from the email: we check you in without asking anything else.', guestEdit: 'Correct my registration',
+  guestNoCode: 'Open this page from the link in your invitation email.', guestExpired: 'The day of this invitation has passed.', guestNotFound: 'Invitation not found or cancelled. Check the link in the email or ask the person who invited you.', guestUsed: 'You have already checked in with this invitation.',
 };
 
 export const STRINGS: Record<Locale, Dict> = { it, es, en };

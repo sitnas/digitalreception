@@ -11,7 +11,8 @@ const DISTANCES = ['UNDER_10_KM', 'FROM_10_TO_100_KM', 'OVER_100_KM'] as const;
 const NAME = /^[\p{L}\p{M}' .-]+$/u;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
-type StepKey = 'details' | 'notice' | 'photos' | 'sign';
+type StepKey = 'details' | 'notice' | 'docs' | 'photos' | 'sign';
+const STEP_LABEL: Record<StepKey, number> = { details: 0, notice: 1, photos: 2, sign: 3, docs: 4 };
 
 export interface CheckInResult { code: string; qrSvg: string; label: string; emailQueued: boolean; badgeEmailQueued: boolean; hostNotified: boolean }
 
@@ -21,8 +22,9 @@ export function CheckIn({ cfg, locale, t, onDone, onCancel, onReloadConfig, invi
   const { policy } = cfg;
   const hasDirectory = cfg.hosts.length > 0;
   // The document photo is taken together with the document data; the photos step is only for the laptop serial.
-  const steps = useMemo<StepKey[]>(() => ['details', 'notice', ...(policy.assetPhotosRequired ? ['photos' as const] : []), 'sign'], [policy]);
-  const labels = steps.map((s) => t.steps[['details', 'notice', 'photos', 'sign'].indexOf(s)]);
+  const documents = useMemo(() => cfg.documents?.[locale] ?? [], [cfg.documents, locale]);
+  const steps = useMemo<StepKey[]>(() => ['details', 'notice', ...(documents.length ? ['docs' as const] : []), ...(policy.assetPhotosRequired ? ['photos' as const] : []), 'sign'], [policy, documents.length]);
+  const labels = steps.map((s) => t.steps[STEP_LABEL[s]]);
   const [step, setStep] = useState(0);
   // An invitation fills what the staff already entered; the guest checks it and adds the rest.
   const pre = invite?.data;
@@ -35,6 +37,9 @@ export function CheckIn({ cfg, locale, t, onDone, onCancel, onReloadConfig, invi
   const [noticeRead, setNoticeRead] = useState(false);
   const [scrolledToEnd, setScrolledToEnd] = useState(false);
   const [sendEmail, setSendEmail] = useState(false);
+  // Version ids the guest scrolled to the end of, and accepted.
+  const [docsEnd, setDocsEnd] = useState<Set<string>>(() => new Set());
+  const [docsOk, setDocsOk] = useState<Set<string>>(() => new Set());
   const [docPhoto, setDocPhoto] = useState<string | null>(null);
   const [assetPhoto, setAssetPhoto] = useState<string | null>(null);
   const [signature, setSignature] = useState<string | null>(null);
@@ -65,6 +70,7 @@ export function CheckIn({ cfg, locale, t, onDone, onCancel, onReloadConfig, invi
   const canNext =
     key === 'details' ? Object.keys(errors).length === 0 && !docPhotoMissing :
     key === 'notice' ? noticeRead :
+    key === 'docs' ? documents.every((d) => docsOk.has(d.id)) :
     key === 'photos' ? !policy.assetPhotosRequired || !!assetPhoto :
     !!signature;
 
@@ -81,6 +87,7 @@ export function CheckIn({ cfg, locale, t, onDone, onCancel, onReloadConfig, invi
         documentType: policy.documentDataEnabled ? f.documentType : undefined,
         documentNumber: policy.documentDataEnabled ? f.documentNumber : undefined,
         privacyNoticeId: notice.id, privacyAccepted: true, signature,
+        acceptedDocuments: documents.map((d) => d.id),
         documentPhoto: policy.documentPhotoEnabled ? docPhoto : undefined,
         assetPhoto: policy.assetPhotosRequired ? assetPhoto : undefined,
         invitationCode: invite?.code,
@@ -92,6 +99,12 @@ export function CheckIn({ cfg, locale, t, onDone, onCancel, onReloadConfig, invi
         setNoticeRead(false); setScrolledToEnd(false); setSignature(null);
         setStep(steps.indexOf('notice'));
         setError(t.errors.NOTICE_OUTDATED);
+      } else if (e instanceof ApiError && e.code === 'DOCUMENTS_OUTDATED') {
+        // A document changed while the guest was reading: show the new texts and ask again.
+        await onReloadConfig();
+        setDocsEnd(new Set()); setDocsOk(new Set()); setSignature(null);
+        setStep(Math.max(0, steps.indexOf('docs')));
+        setError(t.errors.DOCUMENTS_OUTDATED);
       } else if (e instanceof ApiError && (e.code === 'HOST_NOT_FOUND' || e.code === 'HOST_REQUIRED')) {
         // The directory changed while the visitor was typing: reload it and ask to pick again.
         await onReloadConfig();
@@ -191,6 +204,32 @@ export function CheckIn({ cfg, locale, t, onDone, onCancel, onReloadConfig, invi
         </div>
       )}
 
+      {key === 'docs' && (
+        <div className="stack">
+          <div><h2 className="k-h2">{t.docsTitle}</h2><p className="muted" style={{ margin: 0 }}>{t.docsHint}</p></div>
+          {documents.map((d) => {
+            const end = docsEnd.has(d.id);
+            const reached = () => setDocsEnd((x) => (x.has(d.id) ? x : new Set(x).add(d.id)));
+            return (
+              <section key={d.id} className="stack" style={{ gap: 10 }} aria-label={d.title}>
+                <div className="k-notice k-doc" tabIndex={0} onScroll={(e) => { const el = e.currentTarget; if (el.scrollTop + el.clientHeight >= el.scrollHeight - 12) reached(); }}
+                  ref={(el) => { if (el && el.scrollHeight <= el.clientHeight + 12 && !end) reached(); }}>
+                  <h3>{d.title}</h3>
+                  {d.body.split('\n').filter(Boolean).map((p, i) => <p key={i}>{p}</p>)}
+                  <p className="muted" style={{ fontSize: 14 }}>v{d.version}</p>
+                </div>
+                {!end && <p className="muted" style={{ margin: 0 }}>{t.noticeScroll}</p>}
+                <label className="k-check" aria-disabled={!end}>
+                  <input type="checkbox" checked={docsOk.has(d.id)} disabled={!end}
+                    onChange={(e) => setDocsOk((x) => { const n = new Set(x); if (e.target.checked) n.add(d.id); else n.delete(d.id); return n; })} />
+                  {t.docAccept}: {d.title}
+                </label>
+              </section>
+            );
+          })}
+        </div>
+      )}
+
       {key === 'photos' && (
         <div className="stack">
           {policy.assetPhotosRequired && <PhotoCapture title={t.photoAssetTitle} hint={t.photoAssetHint} value={assetPhoto} onChange={setAssetPhoto} t={t} />}
@@ -199,7 +238,7 @@ export function CheckIn({ cfg, locale, t, onDone, onCancel, onReloadConfig, invi
 
       {key === 'sign' && (
         <div className="stack">
-          <div><h2 className="k-h2">{t.signTitle}</h2><p className="muted" style={{ margin: 0 }}>{t.signHint}</p></div>
+          <div><h2 className="k-h2">{t.signTitle}</h2><p className="muted" style={{ margin: 0 }}>{documents.length ? t.signHintDocs : t.signHint}</p></div>
           <SignaturePad onChange={setSignature} clearLabel={t.clear} />
         </div>
       )}

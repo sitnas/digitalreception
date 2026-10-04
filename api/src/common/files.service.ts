@@ -24,8 +24,10 @@ export class FilesService {
     return { mime: m[1], data };
   }
 
-  async store(em: EntityManager, tc: TenantCrypto, visitId: string, kind: FileKind, image: { mime: string; data: Buffer }, purgeAfter: Date): Promise<StoredFile> {
-    const saved = await em.save(em.create(StoredFile, { tenantId: tc.tenantId, visitId, kind, mime: image.mime, size: image.data.length, purgeAfter, purgedAt: null, keyId: '', storagePath: '' }));
+  /** Stores an image of a visit, or of a pre-registration (`{ invitationId }`) until the guest arrives. */
+  async store(em: EntityManager, tc: TenantCrypto, owner: string | { invitationId: string }, kind: FileKind, image: { mime: string; data: Buffer }, purgeAfter: Date): Promise<StoredFile> {
+    const link = typeof owner === 'string' ? { visitId: owner, invitationId: null } : { visitId: null, invitationId: owner.invitationId };
+    const saved = await em.save(em.create(StoredFile, { tenantId: tc.tenantId, ...link, kind, mime: image.mime, size: image.data.length, purgeAfter, purgedAt: null, keyId: '', storagePath: '' }));
     const now = new Date();
     const key = `${tc.tenantId}/${now.getUTCFullYear()}/${String(now.getUTCMonth() + 1).padStart(2, '0')}/${saved.id}.bin`;
     const { keyId, blob } = tc.encryptBuffer(image.data, `file:${saved.id}`);

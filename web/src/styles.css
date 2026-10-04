@@ -369,6 +369,13 @@ code.secret { font-size: 16px; padding: 6px 10px; letter-spacing: .04em; user-se
   .btn-danger:hover:not(:disabled) { background: #C9372A; }
 }
 
+/* Documents to accept */
+.doc-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.doc-card { margin-top: 16px; }
+.doc-card.is-off { opacity: .75; }
+.doc-meta { align-items: end; }
+.tag.tag-on { border-color: var(--pos); color: var(--pos); }
+
 /* Evacuation roll call: rows big enough to tick with a thumb while walking the assembly point. */
 .evac-banner { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding: 16px 20px; border-radius: var(--r); background: var(--danger); color: #fff; }
 .evac-banner strong { display: block; font-size: 18px; }
@@ -469,6 +476,7 @@ code.secret { font-size: 16px; padding: 6px 10px; letter-spacing: .04em; user-se
 .k-notice { background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 24px 28px; max-height: 46vh; overflow-y: auto; font-size: 18px; line-height: 1.6; user-select: text; }
 .k-notice h3 { margin: 0 0 12px; font-size: 22px; }
 .k-notice p { margin: 0 0 12px; max-width: 70ch; }
+.k-doc { max-height: 38vh; }
 .k-check { display: flex; gap: 14px; align-items: center; font-size: 20px; min-height: 56px; }
 .k-check input { width: 28px; height: 28px; accent-color: var(--brand-strong); flex: none; }
 .k-check[aria-disabled='true'] { color: var(--ink-3); }

@@ -61,6 +61,7 @@ export function VisitDrawer({ id, onClose, onChanged }: { id: string; onClose: (
               <dt>{t.detail.email}</dt><dd>{v.email ?? '—'}</dd>
               {v.documentType && <><dt>{t.detail.document}</dt><dd>{t.docTypes[v.documentType as keyof typeof t.docTypes]} {v.documentNumber}</dd></>}
               <dt>{t.detail.notice}</dt><dd>v{v.privacyNoticeVersion}, {fmtDateTime(v.privacyAcceptedAt, intl, tz)} ({v.locale.toUpperCase()})</dd>
+              {v.documents?.length > 0 && <><dt>{t.docs.accepted}</dt><dd>{v.documents.map((d) => <div key={d.versionId}>{d.title ?? '—'} v{d.version} ({d.locale?.toUpperCase()})</div>)}</dd></>}
               <dt>{t.detail.noticeEmail}</dt><dd>{t.emailStatus[v.noticeEmailStatus as keyof typeof t.emailStatus]}</dd>
               <dt>{t.detail.badgeEmail}</dt><dd>{t.emailStatus[v.badgeEmailStatus as keyof typeof t.emailStatus]}</dd>
               <dt>{t.detail.hostEmail}</dt><dd>{t.emailStatus[v.hostEmailStatus as keyof typeof t.emailStatus]}</dd>

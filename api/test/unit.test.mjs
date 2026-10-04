@@ -176,3 +176,10 @@ test('webhooks: the evacuation alert names the site and the counts, never people
   const { body } = svc.render({ kind: 'slack', includeNames: true }, { event: 'evacuation.started', at: new Date().toISOString(), data: { site: 'Milano', locale: 'it', guests: 3, employees: 12 } }, null);
   assert.match(JSON.parse(body).text, /Evacuazione avviata a Milano: 3 ospiti e 12 dipendenti/);
 });
+
+test('pre-registration link: per-organisation subdomain, code in the fragment, none without a public address', () => {
+  const { guestLink } = require('../dist/invitations/guest-link.js');
+  assert.equal(guestLink({ publicUrl: 'https://reception.example.com', tenancy: { mode: 'single' } }, 'acme', 'AB12CD34'), 'https://reception.example.com/guest#AB12CD34');
+  assert.equal(guestLink({ publicUrl: 'https://reception.example.com', tenancy: { mode: 'subdomain', baseDomain: 'reception.example.com' } }, 'acme', 'AB12CD34'), 'https://acme.reception.example.com/guest#AB12CD34');
+  assert.equal(guestLink({ publicUrl: null, tenancy: { mode: 'single' } }, 'acme', 'AB12CD34'), null);
+});

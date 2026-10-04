@@ -5,6 +5,7 @@ import { DataSource, Repository } from 'typeorm';
 import { APP_CONFIG, AppConfig } from '../common/app-config';
 import { withDbLock } from '../common/db-lock';
 import { markJobRun } from '../common/job-runs';
+import { guestLink } from '../invitations/guest-link';
 import { MailService } from '../common/mail.service';
 import { TenantKeysService } from '../common/tenant-keys.service';
 import { renderNotice } from '../kiosk/kiosk.service';
@@ -144,14 +145,14 @@ export class MailOutboxService {
       const lastName = tc.decrypt(inv.lastNameEnc, 'invitation.lastName');
       const site = await this.ds.getRepository(Site).findOne({ where: { id: inv.siteId, tenantId: inv.tenantId } });
       const host = await this.ds.getRepository(Host).findOne({ where: { id: inv.hostId, tenantId: inv.tenantId } });
-      const tenant = await this.ds.getRepository(Tenant).findOne({ where: { id: inv.tenantId }, select: { id: true, name: true, primaryColor: true, secondaryColor: true } });
+      const tenant = await this.ds.getRepository(Tenant).findOne({ where: { id: inv.tenantId }, select: { id: true, slug: true, name: true, primaryColor: true, secondaryColor: true } });
       if (!email || !code || !firstName || !lastName || !site || !host || !tenant) {
         await repo.update({ id: inv.id }, { emailStatus: NoticeEmailStatus.FAILED });
         continue;
       }
       const ok = await this.mail.sendInvitation(email, tenant.name, {
         locale: inv.locale, timezone: site.timezone, siteName: site.name, visitorName: `${firstName} ${lastName}`,
-        hostName: `${host.firstName} ${host.lastName}`, expectedAt: inv.expectedAt, code,
+        hostName: `${host.firstName} ${host.lastName}`, expectedAt: inv.expectedAt, code, link: guestLink(this.cfg, tenant.slug, code),
         primaryColor: tenant.primaryColor, secondaryColor: tenant.secondaryColor,
       });
       const attempts = inv.emailAttempts + 1;

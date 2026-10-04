@@ -10,6 +10,7 @@ export interface VisitDetail extends VisitRow {
   email: string | null; documentType: string | null; documentNumber: string | null; checkOutBy: string | null; locale: string;
   privacyNoticeVersion: number; privacyAcceptedAt: string; noticeEmailStatus: string; badgeEmailStatus: string; hostEmailStatus: string; anonymizedAt: string | null;
   files: { id: string; kind: string; available: boolean; purgeAfter: string; viewable: boolean }[];
+  documents: { documentId: string; versionId: string; title: string | null; version: number | null; locale: string | null; acceptedAt: string }[];
 }
 export interface Paged<T> { items: T[]; total: number; page: number; pageSize: number }
 export interface Device { id: string; siteId: string; site?: Site; name: string; createdAt: string; lastSeenAt: string | null; revokedAt: string | null }

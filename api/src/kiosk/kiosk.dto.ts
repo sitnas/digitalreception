@@ -1,5 +1,5 @@
 import { Transform } from 'class-transformer';
-import { Equals, IsBoolean, IsEmail, IsEnum, IsIn, IsOptional, IsString, IsUUID, Length, Matches, MaxLength } from 'class-validator';
+import { ArrayMaxSize, Equals, IsArray, IsBoolean, IsEmail, IsEnum, IsIn, IsOptional, IsString, IsUUID, Length, Matches, MaxLength } from 'class-validator';
 import { DocumentType, TravelDistance, VisitPurpose } from '../entities';
 
 export const SUPPORTED_LOCALES = ['it', 'es', 'en'] as const;
@@ -26,11 +26,19 @@ export class CheckInDto {
   @IsOptional() @Transform(trim) @IsString() @Length(3, 40) @Matches(/^[A-Za-z0-9 .\-/]+$/) documentNumber?: string;
   @IsUUID() privacyNoticeId: string;
   @Equals(true) privacyAccepted: boolean;
+  /** Versions of the site documents (safety rules, NDA) the guest accepted: all the current ones. */
+  @IsOptional() @IsArray() @ArrayMaxSize(20) @IsUUID('all', { each: true }) acceptedDocuments?: string[];
   @IsString() @MaxLength(5_000_000) signature: string;
   @IsOptional() @IsString() @MaxLength(5_000_000) documentPhoto?: string;
   @IsOptional() @IsString() @MaxLength(5_000_000) assetPhoto?: string;
   /** Code of the invitation scanned on arrival: the visit consumes it. */
   @IsOptional() @IsString() @Transform(({ value }) => (typeof value === 'string' ? value.toUpperCase().replace(/[^A-Z0-9]/g, '') : value)) @Length(8, 8) invitationCode?: string;
+}
+
+/** Arrival of a guest who pre-registered from the phone: only the invitation and, if asked, the laptop photo. */
+export class PreregisteredCheckInDto {
+  @IsString() @Transform(({ value }) => (typeof value === 'string' ? value.toUpperCase().replace(/[^A-Z0-9]/g, '') : value)) @Length(8, 8) invitationCode: string;
+  @IsOptional() @IsString() @MaxLength(5_000_000) assetPhoto?: string;
 }
 
 export class OpenVisitsQuery {
