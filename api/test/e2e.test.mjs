@@ -784,6 +784,47 @@ describe('end-to-end', { skip: !enabled && 'E2E_DB_HOST not set' }, () => {
     assert.equal((await admin.get(`/admin/evacuations/current?siteId=${siteId}`)).data.evacuation, null);
   });
 
+  test('site documents: safety rules and NDA accepted at check-in, version kept on the visit', async () => {
+    const BODY = 'In caso di allarme segui le indicazioni del personale e raggiungi il punto di raccolta.';
+    assert.equal((await ctx.aud.post('/admin/documents', { name: 'No', siteId: null })).status, 403, 'administrators only');
+    const safety = (await admin.post('/admin/documents', { name: 'Sicurezza (81/08)', siteId: null })).data;
+    const nda = (await admin.post('/admin/documents', { name: 'NDA Milano', siteId: ctx.milano.id })).data;
+    const other = (await admin.post('/admin/documents', { name: 'Regole Roma', siteId: ctx.roma.id })).data;
+    assert.equal((await admin.post('/admin/documents', { name: 'Altro', siteId: '00000000-0000-4000-8000-000000000000' })).data.message, 'SITE_NOT_FOUND');
+    assert.equal((await admin.post(`/admin/documents/${safety.id}/versions`, { locale: 'it', title: 'Informazioni di sicurezza', body: 'short' })).status, 400);
+    const s1 = (await admin.post(`/admin/documents/${safety.id}/versions`, { locale: 'it', title: 'Informazioni di sicurezza', body: BODY })).data;
+    assert.equal(s1.version, 1);
+    await admin.post(`/admin/documents/${nda.id}/versions`, { locale: 'it', title: 'Accordo di riservatezza', body: BODY });
+    await admin.post(`/admin/documents/${nda.id}/versions`, { locale: 'en', title: 'Non-disclosure agreement', body: BODY });
+    await admin.post(`/admin/documents/${other.id}/versions`, { locale: 'it', title: 'Regole di Roma', body: BODY });
+
+    const cfg = (await new Client().get('/kiosk/config', { bearer: ctx.token })).data;
+    assert.deepEqual(cfg.documents.it.map((d) => d.title), ['Informazioni di sicurezza', 'Accordo di riservatezza'], 'documents of every site and of this site, not of Rome');
+    if (cfg.documents.en) assert.deepEqual(cfg.documents.en.map((d) => d.locale), ['it', 'en'], 'a document without English falls back to the default language');
+
+    const missing = await checkIn({ lastName: 'Documenti' });
+    assert.equal(missing.status, 409); assert.equal(missing.data.message, 'DOCUMENTS_OUTDATED');
+    const ids = cfg.documents.it.map((d) => d.id);
+    // A new version published while the guest is reading: the old one is refused.
+    const s2 = (await admin.post(`/admin/documents/${safety.id}/versions`, { locale: 'it', title: 'Informazioni di sicurezza', body: `${BODY} Aggiornato.` })).data;
+    assert.equal(s2.version, 2);
+    assert.equal((await checkIn({ lastName: 'Documenti', acceptedDocuments: ids })).data.message, 'DOCUMENTS_OUTDATED');
+    const ok = await checkIn({ lastName: 'Documenti', acceptedDocuments: [s2.id, ids[1]] });
+    assert.equal(ok.status, 201, JSON.stringify(ok.data));
+    const visit = (await admin.get(`/admin/visits?siteId=${ctx.milano.id}`)).data.items.find((v) => v.lastName === 'Documenti');
+    const detail = (await admin.get(`/admin/visits/${visit.id}`)).data;
+    assert.deepEqual(detail.documents.map((d) => `${d.title} v${d.version}`), ['Informazioni di sicurezza v2', 'Accordo di riservatezza v1']);
+
+    const list = (await admin.get('/admin/documents')).data;
+    assert.equal(list.find((d) => d.id === safety.id).texts.it.version, 2);
+    assert.equal(list.find((d) => d.id === safety.id).acceptances, 1);
+    // Turned off: no longer asked.
+    assert.equal((await admin.patch(`/admin/documents/${nda.id}`, { active: false })).status, 200);
+    assert.equal((await admin.patch(`/admin/documents/${other.id}`, { active: false })).status, 200);
+    await admin.patch(`/admin/documents/${safety.id}`, { active: false });
+    assert.equal((await checkIn({ lastName: 'Documenti' })).status, 201, 'no documents, nothing to accept');
+  });
+
   test('retention deletes audit entries older than AUDIT_LOG_RETENTION_DAYS, keeps recent ones', async () => {
     const mysql = require('mysql2/promise');
     const db = await mysql.createConnection({ host: env.DB_HOST, port: Number(env.DB_PORT), user: env.DB_USER, password: env.DB_PASSWORD, database: env.DB_NAME });

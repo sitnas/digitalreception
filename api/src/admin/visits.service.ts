@@ -9,6 +9,7 @@ import { AppRequest, AuthUser } from '../common/request-context';
 import { TenantKeysService } from '../common/tenant-keys.service';
 import { addDays } from '../common/time.util';
 import { VisitLifecycleService } from '../common/visit-lifecycle.service';
+import { SiteDocumentsService } from '../common/site-documents.service';
 import { Role, Site, StoredFile, Visit, VisitStatus } from '../entities';
 import { EraseVisitDto, VisitQueryDto } from './admin.dto';
 import { csvCell } from './csv';
@@ -26,6 +27,7 @@ export class VisitsService {
     private readonly files: FilesService,
     private readonly lifecycle: VisitLifecycleService,
     private readonly audit: AuditService,
+    private readonly documents: SiteDocumentsService,
   ) {}
 
   /** Every query starts from the caller's tenant; site and time scoping follow the role. */
@@ -104,6 +106,7 @@ export class VisitsService {
       checkOutBy: v.checkOutBy, locale: v.locale, privacyNoticeVersion: v.privacyNoticeVersion, privacyAcceptedAt: v.privacyAcceptedAt,
       noticeEmailStatus: v.noticeEmailStatus, badgeEmailStatus: v.badgeEmailStatus, hostEmailStatus: v.hostEmailStatus, anonymizedAt: v.anonymizedAt,
       files: (v.files ?? []).map((f) => ({ id: f.id, kind: f.kind, available: !f.purgedAt, purgeAfter: f.purgeAfter, viewable: canSeeSensitive && !f.purgedAt })),
+      documents: await this.documents.ofVisit(user.tenantId, v.id),
     };
   }
 

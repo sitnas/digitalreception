@@ -11,6 +11,7 @@ import { addDays } from '../common/time.util';
 import { exitQrSvg } from '../common/exit-qr';
 import { InvitationsService } from '../invitations/invitations.service';
 import { PushService } from '../common/push.service';
+import { SiteDocumentsService } from '../common/site-documents.service';
 import { WebhooksService } from '../common/webhooks.service';
 import { CountryPolicy, Device, FileKind, Host, NoticeEmailStatus, PairingCode, PrivacyNotice, Site, Tenant, Visit, VisitStatus } from '../entities';
 import { CheckInDto, CheckOutDto } from './kiosk.dto';
@@ -46,6 +47,7 @@ export class KioskService {
     private readonly invitations: InvitationsService,
     private readonly webhooks: WebhooksService,
     private readonly push: PushService,
+    private readonly documents: SiteDocumentsService,
   ) {}
 
   async pair(tenant: AuthTenant, code: string, req: AppRequest) {
@@ -94,15 +96,17 @@ export class KioskService {
       const n = await this.latestNotice(device.tenantId, site.countryCode, locale);
       if (n) notices[locale] = { id: n.id, version: n.version, title: n.title, body: renderNotice(n.body, policy) };
     }
+    const locales = policy.locales.filter((l) => notices[l]);
     return {
       organisation: { name: tenant.name, logo: tenant.logoDataUrl, primaryColor: tenant.primaryColor, secondaryColor: tenant.secondaryColor },
       device: { name: device.name },
       site: { name: site.name, countryCode: site.countryCode, timezone: site.timezone },
       policy: {
-        locales: policy.locales.filter((l) => notices[l]), defaultLocale: policy.defaultLocale,
+        locales, defaultLocale: policy.defaultLocale,
         documentDataEnabled: policy.documentDataEnabled, documentPhotoEnabled: documentPhotoRequired(policy), assetPhotosRequired: policy.assetPhotosRequired,
       },
       notices,
+      documents: await this.documents.forSite(device.tenantId, site.id, locales, policy.defaultLocale),
       hosts: (await this.siteHosts(device)).map((h) => ({ id: h.id, firstName: h.firstName, lastName: h.lastName, department: h.department, jobTitle: h.jobTitle })),
       emailAvailable: this.mail.enabled,
     };
@@ -114,6 +118,8 @@ export class KioskService {
     // Only the current notice version can be accepted: a tablet showing stale text must reload.
     const notice = await this.latestNotice(device.tenantId, site.countryCode, dto.locale);
     if (!notice || notice.id !== dto.privacyNoticeId) throw new ConflictException('NOTICE_OUTDATED');
+    const documents = (await this.documents.forSite(device.tenantId, site.id, [dto.locale], policy.defaultLocale))[dto.locale];
+    this.documents.assertAccepted(documents, dto.acceptedDocuments);
 
     // Server-side data minimisation: fields not allowed by the country policy are discarded, never stored.
     if (policy.documentDataEnabled && (!dto.documentType || !dto.documentNumber)) throw new BadRequestException('DOCUMENT_REQUIRED');
@@ -178,6 +184,7 @@ export class KioskService {
       await this.files.store(em, tc, saved.id, FileKind.SIGNATURE, signature, addDays(now, policy.visitRetentionDays));
       if (docPhoto) await this.files.store(em, tc, saved.id, FileKind.DOCUMENT, docPhoto, addDays(now, Math.min(policy.documentPhotoRetentionDays, policy.visitRetentionDays)));
       if (assetPhoto) await this.files.store(em, tc, saved.id, FileKind.ASSET_IN, assetPhoto, addDays(now, Math.min(policy.assetPhotoRetentionDays, policy.visitRetentionDays)));
+      await this.documents.record(em, device.tenantId, saved.id, documents, now);
       if (dto.invitationCode) await this.invitations.consume(em, device, dto.invitationCode, saved.id);
       // Teams / Slack / HTTPS notification, queued with the visit: delivered by the outbox worker.
       await this.webhooks.enqueue(em, device.tenantId, site.id, 'visit.arrived', {
@@ -192,7 +199,7 @@ export class KioskService {
 
     await this.audit.fromRequest(req, {
       action: 'VISIT_CHECK_IN', entityType: 'visit', entityId: visit.id, siteId: site.id,
-      details: { noticeVersion: notice.version, locale: dto.locale, invitation: !!dto.invitationCode, documentPhoto: !!docPhoto, assetPhoto: !!assetPhoto, hostId, travelDistance: dto.travelDistance },
+      details: { noticeVersion: notice.version, documents: documents.map((d) => `${d.documentId}@${d.locale}v${d.version}`), locale: dto.locale, invitation: !!dto.invitationCode, documentPhoto: !!docPhoto, assetPhoto: !!assetPhoto, hostId, travelDistance: dto.travelDistance },
     });
     return { code: visit.code, qrSvg: await exitQrSvg(visit.code), checkInAt: visit.checkInAt, emailQueued: wantsEmail, badgeEmailQueued: wantsBadge, hostNotified: wantsHostNotice };
   }

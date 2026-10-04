@@ -1,5 +1,5 @@
 import { Transform } from 'class-transformer';
-import { Equals, IsBoolean, IsEmail, IsEnum, IsIn, IsOptional, IsString, IsUUID, Length, Matches, MaxLength } from 'class-validator';
+import { ArrayMaxSize, Equals, IsArray, IsBoolean, IsEmail, IsEnum, IsIn, IsOptional, IsString, IsUUID, Length, Matches, MaxLength } from 'class-validator';
 import { DocumentType, TravelDistance, VisitPurpose } from '../entities';
 
 export const SUPPORTED_LOCALES = ['it', 'es', 'en'] as const;
@@ -26,6 +26,8 @@ export class CheckInDto {
   @IsOptional() @Transform(trim) @IsString() @Length(3, 40) @Matches(/^[A-Za-z0-9 .\-/]+$/) documentNumber?: string;
   @IsUUID() privacyNoticeId: string;
   @Equals(true) privacyAccepted: boolean;
+  /** Versions of the site documents (safety rules, NDA) the guest accepted: all the current ones. */
+  @IsOptional() @IsArray() @ArrayMaxSize(20) @IsUUID('all', { each: true }) acceptedDocuments?: string[];
   @IsString() @MaxLength(5_000_000) signature: string;
   @IsOptional() @IsString() @MaxLength(5_000_000) documentPhoto?: string;
   @IsOptional() @IsString() @MaxLength(5_000_000) assetPhoto?: string;
