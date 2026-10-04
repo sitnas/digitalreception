@@ -28,6 +28,7 @@ const STRINGS = {
     nfcOff: 'Per usare il telefono come tessera attiva l’NFC.',
     nfcOpen: 'Attiva NFC',
     nfcDevBuild: 'Il telefono come tessera NFC funziona nell’app installata, non in Expo Go.',
+    ssoSignIn: 'Accedi con {provider}', ssoOr: 'oppure ricevi un codice via email', ssoHint: 'Usa l’account aziendale con cui entri in Outlook, Teams o Gmail.',
     activated: 'Badge attivo su questo telefono.', loading: 'Caricamento…',
     clock: 'L’ora del telefono sembra sbagliata: attiva data e ora automatiche, altrimenti il lettore rifiuta il QR.',
     invites: {
@@ -46,7 +47,7 @@ const STRINGS = {
       reactivate: 'Per invitare ospiti dall’app rimuovi il badge e attivalo di nuovo: serve una sola volta.',
       errors: { BAD_RESPONSE: 'Il server ha risposto in modo inatteso. Controlla l’indirizzo dell’organizzazione e la connessione, poi riprova.', name: 'Scrivi nome e cognome, solo lettere.', email: 'Email non valida.', time: 'Ora non valida: per esempio 9:30.', INVITATION_IN_PAST: 'Quel giorno è già passato.', INVITATION_TOO_FAR: 'Puoi invitare fino a 90 giorni in anticipo.', NOT_A_HOST: 'Non sei più tra le persone da visitare: chiedi alla reception.', NOT_A_HOST_HERE: 'In questa sede non ricevi visite.', INVITATION_USED: 'L’ospite è già arrivato.', INVITATION_CANCELLED: 'Invito già annullato.', INVITATION_EXPIRED: 'Invito scaduto.' },
     },
-    errors: { CODE_INVALID: 'Codice non valido o scaduto. Chiedine uno nuovo.', generic: 'Non è andata a buon fine. Riprova tra qualche secondo.', offline: 'Connessione non disponibile.', tooMany: 'Troppi tentativi: aspetta un minuto e riprova.', invalidEmail: 'Email non valida: controlla che sia scritta per intero, senza spazi.', detail: 'Dettaglio per l’assistenza' },
+    errors: { CANCELLED: 'Accesso annullato.', NO_EMPLOYEE: 'Il tuo account aziendale non risulta tra i dipendenti con badge: chiedi all’ufficio del personale.', OTHER_DIRECTORY: 'Hai usato l’account di un’altra organizzazione.', WRONG_ISSUER: 'Hai usato l’account di un’altra organizzazione.', NOT_A_WORK_ACCOUNT: 'Serve l’account di lavoro, non uno personale.', PROVIDER_REFUSED: 'L’accesso è stato rifiutato. Riprova; se succede ancora, chiedi all’IT.', PROVIDER_UNREACHABLE: 'Il servizio di accesso non risponde. Riprova tra poco.', SSO_NOT_CONFIGURED: 'La tua organizzazione non ha attivato l’accesso con l’account aziendale: usa il codice via email.', EXPIRED: 'Accesso scaduto. Riprova.', OTHER_APP: 'Accesso non riuscito. Riprova dall’app.', CODE_INVALID: 'Codice non valido o scaduto. Chiedine uno nuovo.', generic: 'Non è andata a buon fine. Riprova tra qualche secondo.', offline: 'Connessione non disponibile.', tooMany: 'Troppi tentativi: aspetta un minuto e riprova.', invalidEmail: 'Email non valida: controlla che sia scritta per intero, senza spazi.', detail: 'Dettaglio per l’assistenza' },
   },
   es: {
     title: 'Mi credencial',
@@ -75,6 +76,7 @@ const STRINGS = {
     nfcOff: 'Para usar el teléfono como tarjeta active el NFC.',
     nfcOpen: 'Activar NFC',
     nfcDevBuild: 'El teléfono como tarjeta NFC funciona en la aplicación instalada, no en Expo Go.',
+    ssoSignIn: 'Acceder con {provider}', ssoOr: 'o reciba un código por correo', ssoHint: 'Use la cuenta de la empresa con la que entra en Outlook, Teams o Gmail.',
     activated: 'Credencial activa en este teléfono.', loading: 'Cargando…',
     clock: 'La hora del teléfono parece incorrecta: active fecha y hora automáticas o el lector rechazará el QR.',
     invites: {
@@ -93,7 +95,7 @@ const STRINGS = {
       reactivate: 'Para invitar desde la app, quite la credencial y actívela de nuevo: solo una vez.',
       errors: { BAD_RESPONSE: 'El servidor ha respondido de forma inesperada. Revise la dirección de la organización y la conexión, y vuelva a intentarlo.', name: 'Escriba nombre y apellidos, solo letras.', email: 'Correo no válido.', time: 'Hora no válida: por ejemplo 9:30.', INVITATION_IN_PAST: 'Ese día ya ha pasado.', INVITATION_TOO_FAR: 'Puede invitar hasta 90 días antes.', NOT_A_HOST: 'Ya no está entre las personas a visitar: pregunte en recepción.', NOT_A_HOST_HERE: 'En esta sede no recibe visitas.', INVITATION_USED: 'El invitado ya llegó.', INVITATION_CANCELLED: 'Invitación ya cancelada.', INVITATION_EXPIRED: 'Invitación caducada.' },
     },
-    errors: { CODE_INVALID: 'Código no válido o caducado. Pida uno nuevo.', generic: 'No ha funcionado. Inténtelo de nuevo en unos segundos.', offline: 'Sin conexión.', tooMany: 'Demasiados intentos: espere un minuto y vuelva a intentarlo.', invalidEmail: 'Correo no válido: compruebe que esté completo y sin espacios.', detail: 'Detalle para soporte' },
+    errors: { CANCELLED: 'Acceso cancelado.', NO_EMPLOYEE: 'Su cuenta de empresa no figura entre los empleados con credencial: pregunte a recursos humanos.', OTHER_DIRECTORY: 'Ha usado la cuenta de otra organización.', WRONG_ISSUER: 'Ha usado la cuenta de otra organización.', NOT_A_WORK_ACCOUNT: 'Se necesita la cuenta de trabajo, no una personal.', PROVIDER_REFUSED: 'Se rechazó el acceso. Inténtelo de nuevo; si vuelve a pasar, pregunte a IT.', PROVIDER_UNREACHABLE: 'El servicio de acceso no responde. Inténtelo en un momento.', SSO_NOT_CONFIGURED: 'Su organización no ha activado el acceso con la cuenta de empresa: use el código por correo.', EXPIRED: 'Acceso caducado. Inténtelo de nuevo.', OTHER_APP: 'No se pudo acceder. Inténtelo de nuevo desde la app.', CODE_INVALID: 'Código no válido o caducado. Pida uno nuevo.', generic: 'No ha funcionado. Inténtelo de nuevo en unos segundos.', offline: 'Sin conexión.', tooMany: 'Demasiados intentos: espere un minuto y vuelva a intentarlo.', invalidEmail: 'Correo no válido: compruebe que esté completo y sin espacios.', detail: 'Detalle para soporte' },
   },
   en: {
     title: 'My badge',
@@ -122,6 +124,7 @@ const STRINGS = {
     nfcOff: 'Turn on NFC to use the phone as a card.',
     nfcOpen: 'Turn on NFC',
     nfcDevBuild: 'The phone works as an NFC card in the installed app, not in Expo Go.',
+    ssoSignIn: 'Sign in with {provider}', ssoOr: 'or get a code by email', ssoHint: 'Use the work account you sign in to Outlook, Teams or Gmail with.',
     activated: 'Badge active on this phone.', loading: 'Loading…',
     clock: 'The phone clock looks wrong: turn on automatic date and time, or the reader will refuse the QR.',
     invites: {
@@ -140,7 +143,7 @@ const STRINGS = {
       reactivate: 'To invite guests from the app, remove the badge and activate it again: only once.',
       errors: { BAD_RESPONSE: 'The server gave an unexpected answer. Check the organisation address and your connection, then try again.', name: 'Type first and last name, letters only.', email: 'Invalid email.', time: 'Invalid time: for example 9:30.', INVITATION_IN_PAST: 'That day has already passed.', INVITATION_TOO_FAR: 'You can invite up to 90 days ahead.', NOT_A_HOST: 'You are no longer among the people to visit: ask reception.', NOT_A_HOST_HERE: 'You do not receive visits at this site.', INVITATION_USED: 'The guest has already arrived.', INVITATION_CANCELLED: 'Invitation already cancelled.', INVITATION_EXPIRED: 'Invitation expired.' },
     },
-    errors: { CODE_INVALID: 'Invalid or expired code. Ask for a new one.', generic: 'That didn’t work. Try again in a few seconds.', offline: 'No connection.', tooMany: 'Too many attempts: wait a minute and try again.', invalidEmail: 'Invalid email: check it is complete and has no spaces.', detail: 'Detail for support' },
+    errors: { CANCELLED: 'Sign-in cancelled.', NO_EMPLOYEE: 'Your work account is not among the employees with a badge: ask HR.', OTHER_DIRECTORY: 'You used an account from another organisation.', WRONG_ISSUER: 'You used an account from another organisation.', NOT_A_WORK_ACCOUNT: 'A work account is needed, not a personal one.', PROVIDER_REFUSED: 'The sign-in was refused. Try again; if it happens again, ask IT.', PROVIDER_UNREACHABLE: 'The sign-in service is not answering. Try again in a moment.', SSO_NOT_CONFIGURED: 'Your organisation has not turned on work-account sign-in: use the email code.', EXPIRED: 'Sign-in expired. Try again.', OTHER_APP: 'Sign-in failed. Try again from the app.', CODE_INVALID: 'Invalid or expired code. Ask for a new one.', generic: 'That didn’t work. Try again in a few seconds.', offline: 'No connection.', tooMany: 'Too many attempts: wait a minute and try again.', invalidEmail: 'Invalid email: check it is complete and has no spaces.', detail: 'Detail for support' },
   },
 } as const;
 

@@ -173,6 +173,23 @@ export class AccessService {
     if (!took.affected) throw new BadRequestException('CODE_INVALID');
     const ok = timingSafeEqual(Buffer.from(e.loginCodeHash), Buffer.from(this.crypto.sha256(`${e.id}|${code}`)));
     if (!ok) throw new BadRequestException('CODE_INVALID');
+    return this.issueBadge(tenantId, e);
+  }
+
+  /**
+   * Activation with the company account: the organisation's directory has confirmed this email
+   * (pinned to the linked Entra tenant or Workspace domain), so no emailed code is needed.
+   */
+  async activateBadgeBySso(tenantId: string, email: string) {
+    const tc = await this.keys.forTenant(tenantId);
+    const e = await this.employees.findOne({ where: { tenantId, emailIndex: tc.blindIndex(email.trim().toLowerCase(), 'employee.email')!, active: true } });
+    if (!e) throw new BadRequestException('NO_EMPLOYEE');
+    return this.issueBadge(tenantId, e);
+  }
+
+  /** New QR secret and app token for this phone; any previous phone stops working. */
+  private async issueBadge(tenantId: string, e: Employee) {
+    const tc = await this.keys.forTenant(tenantId);
     const secret = randomBytes(32);
     // A second, separate secret for the app's own requests (invitations): the QR secret never leaves the phone.
     const appToken = `dra_${randomBytes(32).toString('base64url')}`;

@@ -198,6 +198,15 @@ Senza un gestionale, o per qualcuno che il gestionale non conosce (un consulente
 
 In elenco i dipendenti creati in console hanno l'etichetta "a mano". Vale l'ultimo che scrive: se il gestionale invia lo stesso codice esterno, sovrascrive il record, che da quel momento torna suo. Per questo modificando un dipendente arrivato dall'API la console avvisa che il prossimo invio annullerà le modifiche.
 
+## Attivare il badge con l'account aziendale
+
+Se l'organizzazione ha collegato Microsoft o Google (**Organizzazione → Accesso con l'account aziendale**), nell'app *Il mio badge* compare **Accedi con Microsoft** (o Google) subito dopo l'indirizzo dell'organizzazione. Il dipendente entra con l'account di lavoro nel browser del telefono e il badge si attiva, senza codice via email. Il codice via email resta disponibile come alternativa.
+
+- Il server accetta solo account della directory collegata (tenant Microsoft o dominio Workspace) e cerca il dipendente con **la stessa email**: chi non è tra i dipendenti riceve "non risulta tra i dipendenti".
+- Il ritorno nell'app è protetto come nelle app bancarie (PKCE): l'app tiene un segreto e manda solo la sua impronta. Un'altra app che intercettasse l'indirizzo `drbadge://` non potrebbe usare il codice.
+- Non serve registrare nulla di nuovo presso Microsoft o Google: si usa lo stesso indirizzo di ritorno della console.
+- Come con il codice, attivare il badge su un telefono nuovo disattiva quello vecchio.
+
 ## Come funziona il QR sul telefono
 
 - **Attivazione**: dopo il codice via email il server genera un segreto casuale di 32 byte. Lo salva cifrato con la chiave dell'organizzazione e lo consegna una sola volta al telefono.
