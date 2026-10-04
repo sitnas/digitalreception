@@ -7,6 +7,7 @@ import { CheckOut } from './CheckOut';
 import { InviteScan, type Invite } from './InviteScan';
 import { LOCALE_NAMES, Locale, STRINGS } from './strings';
 import type { KioskConfig } from './types';
+import { BrandBackdrop } from './BrandBackdrop';
 
 type Screen = { name: 'welcome' } | { name: 'checkin'; invite?: Invite } | { name: 'invite' } | { name: 'checkout' } | { name: 'done'; result: CheckInResult } | { name: 'outdone' };
 
@@ -78,6 +79,7 @@ export function KioskApp() {
   const langs = cfg.policy.locales;
   return (
     <div className="kiosk" lang={locale}>
+      {screen.name === 'welcome' && <BrandBackdrop />}
       <header className="k-top">
         <span className="k-site">
           {cfg.organisation.logo ? <img src={cfg.organisation.logo} alt={cfg.organisation.name} className="k-logo" /> : <span className="k-org">{cfg.organisation.name}</span>}
