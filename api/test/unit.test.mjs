@@ -169,3 +169,10 @@ test('push: only real browser push services and well-formed Expo tokens are acce
   assert.doesNotThrow(() => svc.checkExpoToken('ExpoPushToken[abcDEF123_-xyz]'));
   for (const bad of ['ExponentPushToken[]', 'ExponentPushToken[a b]', 'https://exp.host', 'ExponentPushToken[x]x']) assert.throws(() => svc.checkExpoToken(bad), /PUSH_TOKEN_INVALID/, bad);
 });
+
+test('webhooks: the evacuation alert names the site and the counts, never people', () => {
+  const { WebhooksService } = require('../dist/common/webhooks.service.js');
+  const svc = new WebhooksService({ webhooks: { allowPrivate: false } }, null, null, null);
+  const { body } = svc.render({ kind: 'slack', includeNames: true }, { event: 'evacuation.started', at: new Date().toISOString(), data: { site: 'Milano', locale: 'it', guests: 3, employees: 12 } }, null);
+  assert.match(JSON.parse(body).text, /Evacuazione avviata a Milano: 3 ospiti e 12 dipendenti/);
+});

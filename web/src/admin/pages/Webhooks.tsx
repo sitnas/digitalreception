@@ -6,8 +6,8 @@ import type { Site } from '../types';
 import { ErrorBox, PageHead, useAsync } from '../ui';
 
 type Kind = 'teams' | 'slack' | 'generic';
-type Event = 'visit.arrived' | 'access.denied';
-const EVENTS: Event[] = ['visit.arrived', 'access.denied'];
+type Event = 'visit.arrived' | 'access.denied' | 'evacuation.started';
+const EVENTS: Event[] = ['visit.arrived', 'access.denied', 'evacuation.started'];
 interface Hook { id: string; name: string; kind: Kind; urlHost: string; events: Event[]; siteId: string | null; includeNames: boolean; active: boolean; lastResult: string | null; lastAt: string | null }
 const empty = { name: '', kind: 'teams' as Kind, url: '', events: ['visit.arrived'] as Event[], siteId: '', includeNames: false };
 
