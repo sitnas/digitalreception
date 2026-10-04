@@ -36,22 +36,27 @@ export interface EventData {
   visitor?: string; company?: string | null; host?: string;
   /** access.denied */
   door?: string; reason?: string; employee?: string | null;
+  /** evacuation.started */
+  guests?: number; employees?: number;
 }
 
 const TEXT = {
   it: {
     arrived: (d: EventData, names: boolean) => names ? `Ospite arrivato a ${d.site}: ${d.visitor}${d.company ? ` (${d.company})` : ''}, per ${d.host}.` : `Un ospite per ${d.host} è arrivato a ${d.site}.`,
     denied: (d: EventData, names: boolean) => `Accesso negato alla porta ${d.door} (${d.site}): ${REASONS.it[d.reason as keyof typeof REASONS.it] ?? d.reason}${names && d.employee ? `, ${d.employee}` : ''}.`,
+    evacuation: (d: EventData) => `🚨 Evacuazione avviata a ${d.site}: ${d.guests} ospiti e ${d.employees} dipendenti passati oggi dalle porte. L'appello è in console, alla voce Evacuazione.`,
     test: 'Prova dal registro visitatori: se leggi questo messaggio il collegamento funziona.',
   },
   es: {
     arrived: (d: EventData, names: boolean) => names ? `Ha llegado una visita a ${d.site}: ${d.visitor}${d.company ? ` (${d.company})` : ''}, para ${d.host}.` : `Ha llegado una visita para ${d.host} a ${d.site}.`,
     denied: (d: EventData, names: boolean) => `Acceso denegado en la puerta ${d.door} (${d.site}): ${REASONS.es[d.reason as keyof typeof REASONS.es] ?? d.reason}${names && d.employee ? `, ${d.employee}` : ''}.`,
+    evacuation: (d: EventData) => `🚨 Evacuación iniciada en ${d.site}: ${d.guests} visitas y ${d.employees} empleados que pasaron hoy por las puertas. El recuento está en la consola, en Evacuación.`,
     test: 'Prueba desde el registro de visitas: si lee este mensaje, la conexión funciona.',
   },
   en: {
     arrived: (d: EventData, names: boolean) => names ? `Guest arrived at ${d.site}: ${d.visitor}${d.company ? ` (${d.company})` : ''}, here to see ${d.host}.` : `A guest for ${d.host} has arrived at ${d.site}.`,
     denied: (d: EventData, names: boolean) => `Access denied at door ${d.door} (${d.site}): ${REASONS.en[d.reason as keyof typeof REASONS.en] ?? d.reason}${names && d.employee ? `, ${d.employee}` : ''}.`,
+    evacuation: (d: EventData) => `🚨 Evacuation started at ${d.site}: ${d.guests} guests and ${d.employees} employees who passed a door today. The roll call is in the console, under Evacuation.`,
     test: 'Test from the visitor log: if you can read this, the connection works.',
   },
 };
@@ -140,7 +145,7 @@ export class WebhooksService {
   render(hook: Pick<Webhook, 'kind' | 'includeNames'>, payload: { event: string; at: string; data: EventData }, secret: string | null) {
     const lang = (['it', 'es', 'en'].includes(payload.data.locale) ? payload.data.locale : 'en') as keyof typeof TEXT;
     const d = payload.data, names = hook.includeNames;
-    const text = payload.event === 'visit.arrived' ? TEXT[lang].arrived(d, names) : payload.event === 'access.denied' ? TEXT[lang].denied(d, names) : TEXT[lang].test;
+    const text = payload.event === 'visit.arrived' ? TEXT[lang].arrived(d, names) : payload.event === 'access.denied' ? TEXT[lang].denied(d, names) : payload.event === 'evacuation.started' ? TEXT[lang].evacuation(d) : TEXT[lang].test;
     if (hook.kind === 'slack') return { body: JSON.stringify({ text }), headers: {} as Record<string, string> };
     if (hook.kind === 'teams') {
       // Teams "Workflows" webhooks (the old Office 365 connectors are retired) expect an Adaptive Card.

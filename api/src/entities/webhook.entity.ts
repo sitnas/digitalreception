@@ -1,8 +1,8 @@
 import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
 
 export type WebhookKind = 'teams' | 'slack' | 'generic';
-export type WebhookEvent = 'visit.arrived' | 'access.denied';
-export const WEBHOOK_EVENTS: WebhookEvent[] = ['visit.arrived', 'access.denied'];
+export type WebhookEvent = 'visit.arrived' | 'access.denied' | 'evacuation.started';
+export const WEBHOOK_EVENTS: WebhookEvent[] = ['visit.arrived', 'access.denied', 'evacuation.started'];
 
 /**
  * Where the organisation wants to be told about events: a Microsoft Teams or Slack channel, or any

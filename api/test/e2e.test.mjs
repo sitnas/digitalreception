@@ -751,6 +751,39 @@ describe('end-to-end', { skip: !enabled && 'E2E_DB_HOST not set' }, () => {
     }
   });
 
+  test('evacuation: people inside the site, roll call by the marshals, counts kept at the end', async () => {
+    const siteId = ctx.milano.id;
+    const before = (await admin.get(`/admin/evacuations/current?siteId=${siteId}`)).data;
+    assert.equal(before.evacuation, null);
+    const guests = before.people.filter((p) => p.kind === 'visit');
+    assert.ok(guests.length > 0, 'guests checked in earlier are inside');
+    assert.ok(guests.every((p) => p.name && p.safeAt === null));
+    assert.equal((await ctx.aud.post('/admin/evacuations', { siteId })).status, 403, 'auditors do not run evacuations');
+    assert.equal((await ctx.aud.get(`/admin/evacuations/current?siteId=${siteId}`)).status, 403);
+
+    const started = await admin.post('/admin/evacuations', { siteId });
+    assert.equal(started.status, 201, JSON.stringify(started.data));
+    assert.equal((await admin.post('/admin/evacuations', { siteId })).data.message, 'EVACUATION_RUNNING');
+    const id = started.data.id;
+    const person = guests[0];
+    assert.equal((await admin.post(`/admin/evacuations/${id}/checks`, { kind: 'visit', refId: person.id, safe: true })).status, 200);
+    assert.equal((await admin.post(`/admin/evacuations/${id}/checks`, { kind: 'visit', refId: person.id, safe: true })).status, 200, 'ticking twice is harmless');
+    let now = (await admin.get(`/admin/evacuations/current?siteId=${siteId}`)).data;
+    assert.equal(now.evacuation.id, id);
+    assert.ok(now.people.find((p) => p.id === person.id).safeAt);
+    await admin.post(`/admin/evacuations/${id}/checks`, { kind: 'visit', refId: person.id, safe: false });
+    now = (await admin.get(`/admin/evacuations/current?siteId=${siteId}`)).data;
+    assert.equal(now.people.find((p) => p.id === person.id).safeAt, null, 'a mistake can be undone');
+    await admin.post(`/admin/evacuations/${id}/checks`, { kind: 'visit', refId: person.id, safe: true });
+
+    const ended = (await admin.post(`/admin/evacuations/${id}/end`)).data;
+    assert.equal(ended.safeCount, 1); assert.equal(ended.peopleCount, now.people.length);
+    assert.equal((await admin.post(`/admin/evacuations/${id}/checks`, { kind: 'visit', refId: person.id, safe: true })).data.message, 'EVACUATION_ENDED');
+    const history = (await admin.get(`/admin/evacuations?siteId=${siteId}`)).data;
+    assert.equal(history[0].id, id); assert.ok(history[0].endedAt);
+    assert.equal((await admin.get(`/admin/evacuations/current?siteId=${siteId}`)).data.evacuation, null);
+  });
+
   test('retention deletes audit entries older than AUDIT_LOG_RETENTION_DAYS, keeps recent ones', async () => {
     const mysql = require('mysql2/promise');
     const db = await mysql.createConnection({ host: env.DB_HOST, port: Number(env.DB_PORT), user: env.DB_USER, password: env.DB_PASSWORD, database: env.DB_NAME });

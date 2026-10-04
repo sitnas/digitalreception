@@ -369,13 +369,31 @@ code.secret { font-size: 16px; padding: 6px 10px; letter-spacing: .04em; user-se
   .btn-danger:hover:not(:disabled) { background: #C9372A; }
 }
 
+/* Evacuation roll call: rows big enough to tick with a thumb while walking the assembly point. */
+.evac-banner { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding: 16px 20px; border-radius: var(--r); background: var(--danger); color: #fff; }
+.evac-banner strong { display: block; font-size: 18px; }
+.evac-banner .evac-count { font-variant-numeric: tabular-nums; }
+.evac-banner .btn-primary { background: #fff; color: #A82A1F; border-color: #fff; }
+.evac-idle { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.evac-start { min-height: 48px; padding: 0 24px; font-size: 16px; }
+.evac-group { margin-top: 24px; }
+.evac-group h2 { font-size: 16px; margin: 0 0 8px; }
+.evac-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.evac-row { display: flex; align-items: center; gap: 14px; min-height: 60px; padding: 10px 16px; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); cursor: pointer; }
+.evac-row input { width: 26px; height: 26px; flex: none; accent-color: #1F8A4C; }
+.evac-row.is-safe { background: var(--surface-2); }
+.evac-row.is-safe strong { color: var(--ink-2); }
+.evac-name { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.evac-name small, .evac-since { color: var(--ink-3); }
+.evac-row.is-safe .evac-since { color: #1F8A4C; font-weight: 700; }
+
 @media print {
   .a-side, .a-topbar, .a-scrim, .a-filters, .no-print, .btn { display: none !important; }
   .admin { display: block; }
   body { background: #fff; }
   .table-wrap { border: 0; }
 }
-@media print { [data-print-only] { display: block !important; } }
+@media print { [data-print-only] { display: block !important; } .evac-row { min-height: 0; padding: 6px 10px; break-inside: avoid; } }
 
 /* ================================================================== KIOSK
    Large touch targets, one decision per row, primary action always reachable. */
