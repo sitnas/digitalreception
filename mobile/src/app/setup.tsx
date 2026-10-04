@@ -63,7 +63,7 @@ export default function Setup() {
       const badge = { ...res, origin: org!.origin, primaryColor: org!.tenant.primaryColor };
       if (!isBadge(badge)) { setError(t.errors.generic); return; }
       await save(badge);
-      router.replace('/');
+      router.replace('/?activated=1');
     } catch (e) { fail(e); setCode(''); codeInput.current?.focus(); }
   });
 

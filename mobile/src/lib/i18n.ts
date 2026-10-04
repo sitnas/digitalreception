@@ -28,6 +28,7 @@ const STRINGS = {
     nfcOff: 'Per usare il telefono come tessera attiva l’NFC.',
     nfcOpen: 'Attiva NFC',
     nfcDevBuild: 'Il telefono come tessera NFC funziona nell’app installata, non in Expo Go.',
+    activated: 'Badge attivo su questo telefono.', loading: 'Caricamento…',
     clock: 'L’ora del telefono sembra sbagliata: attiva data e ora automatiche, altrimenti il lettore rifiuta il QR.',
     invites: {
       open: 'I miei inviti', title: 'Inviti', back: 'Indietro', new: 'Nuovo invito', none: 'Nessun ospite atteso. Crea un invito: l’ospite riceve un’email con un QR e alla reception tocca “Ho un invito”.',
@@ -74,6 +75,7 @@ const STRINGS = {
     nfcOff: 'Para usar el teléfono como tarjeta active el NFC.',
     nfcOpen: 'Activar NFC',
     nfcDevBuild: 'El teléfono como tarjeta NFC funciona en la aplicación instalada, no en Expo Go.',
+    activated: 'Credencial activa en este teléfono.', loading: 'Cargando…',
     clock: 'La hora del teléfono parece incorrecta: active fecha y hora automáticas o el lector rechazará el QR.',
     invites: {
       open: 'Mis invitaciones', title: 'Invitaciones', back: 'Atrás', new: 'Nueva invitación', none: 'No espera a nadie. Cree una invitación: el invitado recibe un correo con un QR y en recepción toca «Tengo una invitación».',
@@ -120,6 +122,7 @@ const STRINGS = {
     nfcOff: 'Turn on NFC to use the phone as a card.',
     nfcOpen: 'Turn on NFC',
     nfcDevBuild: 'The phone works as an NFC card in the installed app, not in Expo Go.',
+    activated: 'Badge active on this phone.', loading: 'Loading…',
     clock: 'The phone clock looks wrong: turn on automatic date and time, or the reader will refuse the QR.',
     invites: {
       open: 'My invitations', title: 'Invitations', back: 'Back', new: 'New invitation', none: 'No guests expected. Create an invitation: the guest receives an email with a QR and taps “I have an invitation” at reception.',
