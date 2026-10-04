@@ -35,6 +35,12 @@ export class CheckInDto {
   @IsOptional() @IsString() @Transform(({ value }) => (typeof value === 'string' ? value.toUpperCase().replace(/[^A-Z0-9]/g, '') : value)) @Length(8, 8) invitationCode?: string;
 }
 
+/** Arrival of a guest who pre-registered from the phone: only the invitation and, if asked, the laptop photo. */
+export class PreregisteredCheckInDto {
+  @IsString() @Transform(({ value }) => (typeof value === 'string' ? value.toUpperCase().replace(/[^A-Z0-9]/g, '') : value)) @Length(8, 8) invitationCode: string;
+  @IsOptional() @IsString() @MaxLength(5_000_000) assetPhoto?: string;
+}
+
 export class OpenVisitsQuery {
   @Transform(trim) @IsString() @Length(3, 40) q: string;
 }

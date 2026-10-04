@@ -63,6 +63,11 @@ const it = {
     offline: 'Il tablet non è connesso a internet. Chiedi alla reception.',
   },
   privacyFooter: 'Cifriamo i tuoi dati e li cancelliamo da soli quando scade il periodo previsto.',
+  preHello: 'Ciao {name}, la registrazione dal telefono è completa.', preHint: 'Non devi compilare altro: registra l’ingresso e ricevi il badge di uscita.', preAsset: 'Manca solo la foto del numero di serie del computer.',
+  guestTitle: 'Registrati prima di arrivare', guestWhen: 'Ti aspettiamo {when} a {site}.', guestHost: 'Ti incontra {host}.', guestHint: 'Bastano un paio di minuti: in reception poi mostri solo il QR dell’email.',
+  guestAlready: 'Hai già inviato la registrazione. Se qualcosa è cambiato puoi correggerla fino al tuo arrivo.', guestSubmit: 'Invia la registrazione',
+  guestDoneTitle: 'Registrazione inviata', guestDoneText: 'All’arrivo tocca “Ho un invito” sul tablet della reception e mostra il QR dell’email: registriamo l’ingresso senza farti compilare altro.', guestEdit: 'Correggi la registrazione',
+  guestNoCode: 'Apri questa pagina dal link nell’email di invito.', guestExpired: 'Il giorno di questo invito è passato.', guestNotFound: 'Invito non trovato o annullato. Controlla il link nell’email o chiedi a chi ti ha invitato.', guestUsed: 'Con questo invito l’ingresso è già registrato.',
 };
 
 type Dict = typeof it;
@@ -127,6 +132,11 @@ const es: Dict = {
     offline: 'La tableta no tiene conexión. Solicite ayuda en recepción.',
   },
   privacyFooter: 'Ciframos sus datos y los borramos solos cuando vence el plazo previsto.',
+  preHello: 'Hola {name}, el registro desde el teléfono está completo.', preHint: 'No tiene que rellenar nada más: registre la entrada y reciba la credencial de salida.', preAsset: 'Solo falta la foto del número de serie del ordenador.',
+  guestTitle: 'Regístrese antes de llegar', guestWhen: 'Le esperamos {when} en {site}.', guestHost: 'Le recibe {host}.', guestHint: 'Son un par de minutos: en recepción solo tendrá que mostrar el QR del correo.',
+  guestAlready: 'Ya envió el registro. Si algo ha cambiado puede corregirlo hasta su llegada.', guestSubmit: 'Enviar el registro',
+  guestDoneTitle: 'Registro enviado', guestDoneText: 'Al llegar, pulse «Tengo una invitación» en la tableta de recepción y muestre el QR del correo: registramos la entrada sin que tenga que rellenar nada más.', guestEdit: 'Corregir el registro',
+  guestNoCode: 'Abra esta página desde el enlace del correo de invitación.', guestExpired: 'El día de esta invitación ya pasó.', guestNotFound: 'Invitación no encontrada o anulada. Revise el enlace del correo o pregunte a quien le invitó.', guestUsed: 'Con esta invitación la entrada ya está registrada.',
 };
 
 const en: Dict = {
@@ -189,6 +199,11 @@ const en: Dict = {
     offline: 'The tablet is offline. Ask reception for help.',
   },
   privacyFooter: 'We encrypt your data and delete it on our own when its retention period ends.',
+  preHello: 'Hi {name}, your registration from the phone is complete.', preHint: 'There’s nothing else to fill in: check in and get your exit badge.', preAsset: 'We only need a photo of your laptop’s serial number.',
+  guestTitle: 'Register before you arrive', guestWhen: 'We’re expecting you {when} at {site}.', guestHost: 'You’re meeting {host}.', guestHint: 'It takes a couple of minutes: at reception you then just show the QR from the email.',
+  guestAlready: 'You’ve already sent your registration. If something changed you can correct it until you arrive.', guestSubmit: 'Send registration',
+  guestDoneTitle: 'Registration sent', guestDoneText: 'When you arrive, tap “I have an invitation” on the reception tablet and show the QR from the email: we check you in without asking anything else.', guestEdit: 'Correct my registration',
+  guestNoCode: 'Open this page from the link in your invitation email.', guestExpired: 'The day of this invitation has passed.', guestNotFound: 'Invitation not found or cancelled. Check the link in the email or ask the person who invited you.', guestUsed: 'You have already checked in with this invitation.',
 };
 
 export const STRINGS: Record<Locale, Dict> = { it, es, en };

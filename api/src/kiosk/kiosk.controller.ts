@@ -2,7 +2,7 @@ import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Query, Req
 import { Throttle } from '@nestjs/throttler';
 import { CurrentDevice, CurrentTenant, DeviceGuard } from '../common/guards';
 import { AppRequest, AuthDevice, AuthTenant } from '../common/request-context';
-import { CheckInDto, CheckOutDto, OpenVisitsQuery, PairDto } from './kiosk.dto';
+import { CheckInDto, CheckOutDto, OpenVisitsQuery, PairDto, PreregisteredCheckInDto } from './kiosk.dto';
 import { KioskService } from './kiosk.service';
 import { InvitationsService } from '../invitations/invitations.service';
 
@@ -31,12 +31,19 @@ export class KioskController {
     return this.kiosk.checkIn(device, dto, req);
   }
 
+  @Post('visits/preregistered')
+  @UseGuards(DeviceGuard)
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  checkInPreregistered(@CurrentDevice() device: AuthDevice, @Body() dto: PreregisteredCheckInDto, @Req() req: AppRequest) {
+    return this.kiosk.checkInPreregistered(device, dto, req);
+  }
+
   /** Invitation scanned on arrival: the guest's details, to confirm instead of typing them. */
   @Get('invitations/:code')
   @UseGuards(DeviceGuard)
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   invitation(@CurrentDevice() device: AuthDevice, @Param('code') code: string) {
-    return this.invitations.forKiosk(device, code.slice(0, 20));
+    return this.kiosk.invitation(device, code.slice(0, 20));
   }
 
   @Get('visits/open')

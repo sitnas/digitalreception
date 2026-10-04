@@ -825,6 +825,61 @@ describe('end-to-end', { skip: !enabled && 'E2E_DB_HOST not set' }, () => {
     assert.equal((await checkIn({ lastName: 'Documenti' })).status, 201, 'no documents, nothing to accept');
   });
 
+  test('pre-registration: the guest fills in details and signs from the phone, the tablet only confirms', async () => {
+    const at = () => {
+      const p = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Rome', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date()).map((x) => [x.type, x.value]));
+      return { date: `${p.year}-${p.month}-${p.day}`, time: `${p.hour}:${p.minute}` };
+    };
+    const inv = (await admin.post('/admin/invitations', { siteId: ctx.milano.id, hostId: ctx.mario.id, firstName: 'Bruno', lastName: 'Sala', company: 'Sala Spa', email: 'bruno@e2e.test', purpose: 'SUPPLIER', ...at() })).data;
+    const { code } = (await admin.get(`/admin/invitations/${inv.id}/qr`)).data;
+    const guest = new Client('198.51.100.40');
+    assert.equal((await guest.post('/guest/invitation/open', { code: 'ZZZZZZZZ' }, { csrf: false })).status, 404);
+    const open = (await guest.post('/guest/invitation/open', { code: code.toLowerCase() }, { csrf: false })).data;
+    assert.equal(open.guest.lastName, 'Sala'); assert.equal(open.host, 'Mario Rossi'); assert.equal(open.site.name, 'Milano');
+    assert.ok(open.notices.it); assert.equal(open.preregisteredAt, null);
+    assert.equal(open.policy.documentDataEnabled, true);
+
+    const form = { code, locale: 'it', firstName: 'Bruno', lastName: 'Sala', company: 'Sala Spa', travelDistance: 'FROM_10_TO_100_KM', documentType: 'PASSPORT', documentNumber: 'YB7654321', documentPhoto: PNG, privacyNoticeId: open.notices.it.id, privacyAccepted: true, signature: PNG };
+    assert.equal((await guest.post('/guest/invitation', { ...form, documentNumber: undefined }, { csrf: false })).data.message, 'DOCUMENT_REQUIRED');
+    assert.equal((await guest.post('/guest/invitation', { ...form, privacyNoticeId: ctx.milano.id }, { csrf: false })).data.message, 'NOTICE_OUTDATED');
+    const kiosk = (c) => new Client().get(`/kiosk/invitations/${c}`, { bearer: ctx.token });
+    assert.equal((await kiosk(code)).data.preregistered, false, 'not yet');
+    assert.equal((await new Client().post('/kiosk/visits/preregistered', { invitationCode: code }, { bearer: ctx.token })).data.message, 'PREREGISTRATION_INCOMPLETE');
+
+    assert.equal((await guest.post('/guest/invitation', form, { csrf: false })).status, 200);
+    const again = await guest.post('/guest/invitation', { ...form, company: 'Sala Group' }, { csrf: false });
+    assert.equal(again.status, 200, 'the guest can correct the details until arrival');
+    assert.ok((await admin.get('/admin/invitations')).data.find((r) => r.id === inv.id).preregisteredAt);
+    const k = (await kiosk(code)).data;
+    assert.equal(k.preregistered, true); assert.equal(k.lastName, 'Sala');
+
+    // A document added after the pre-registration: the guest goes through the tablet form instead.
+    const doc = (await admin.post('/admin/documents', { name: 'Nuovo', siteId: null })).data;
+    await admin.post(`/admin/documents/${doc.id}/versions`, { locale: 'it', title: 'Regole nuove', body: 'Testo delle regole nuove della sede, da accettare.' });
+    assert.equal((await kiosk(code)).data.preregistered, false);
+    await admin.patch(`/admin/documents/${doc.id}`, { active: false });
+
+    const arrived = await new Client().post('/kiosk/visits/preregistered', { invitationCode: code }, { bearer: ctx.token });
+    assert.equal(arrived.status, 201, JSON.stringify(arrived.data));
+    assert.match(arrived.data.code, /^[A-Z0-9]{5}$/);
+    assert.equal((await new Client().post('/kiosk/visits/preregistered', { invitationCode: code }, { bearer: ctx.token })).data.message, 'INVITATION_USED');
+    assert.equal((await guest.post('/guest/invitation/open', { code }, { csrf: false })).data.message, 'INVITATION_USED');
+
+    const visit = (await admin.get(`/admin/visits?siteId=${ctx.milano.id}&q=Sala`)).data.items[0];
+    const detail = (await admin.get(`/admin/visits/${visit.id}`)).data;
+    assert.equal(detail.company, 'Sala Group'); assert.equal(detail.documentNumber, 'YB7654321'); assert.equal(detail.travelDistance, 'FROM_10_TO_100_KM');
+    assert.equal(detail.privacyNoticeVersion, open.notices.it.version);
+    assert.deepEqual(detail.files.map((f) => f.kind).sort(), ['DOCUMENT', 'SIGNATURE'], 'the files taken on the phone moved to the visit, the replaced ones are gone');
+    assert.equal(detail.files.every((f) => f.available), true);
+
+    // Cancelling an invitation removes what the guest uploaded.
+    const inv2 = (await admin.post('/admin/invitations', { siteId: ctx.milano.id, hostId: ctx.mario.id, firstName: 'Carla', lastName: 'Riva', email: 'carla@e2e.test', purpose: 'MEETING', ...at() })).data;
+    const code2 = (await admin.get(`/admin/invitations/${inv2.id}/qr`)).data.code;
+    assert.equal((await guest.post('/guest/invitation', { ...form, code: code2, firstName: 'Carla', lastName: 'Riva' }, { csrf: false })).status, 200);
+    await admin.post(`/admin/invitations/${inv2.id}/cancel`);
+    assert.equal((await guest.post('/guest/invitation/open', { code: code2 }, { csrf: false })).status, 404);
+  });
+
   test('retention deletes audit entries older than AUDIT_LOG_RETENTION_DAYS, keeps recent ones', async () => {
     const mysql = require('mysql2/promise');
     const db = await mysql.createConnection({ host: env.DB_HOST, port: Number(env.DB_PORT), user: env.DB_USER, password: env.DB_PASSWORD, database: env.DB_NAME });

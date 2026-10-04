@@ -20,6 +20,7 @@ import { VisitsController } from './admin/visits.controller';
 import { PushSettingsController, WebhooksController } from './admin/webhooks.controller';
 import { EvacuationsController } from './admin/evacuations.controller';
 import { DocumentsController } from './admin/documents.controller';
+import { GuestController } from './invitations/guest.controller';
 import { SiteDocumentsService } from './common/site-documents.service';
 import { WebhooksService } from './common/webhooks.service';
 import { WebhookOutboxService } from './retention/webhook-outbox.service';
@@ -63,7 +64,7 @@ const JWT = { algorithm: 'HS256' as const, issuer: 'reception-api', audience: 'r
     }),
     ScheduleModule.forRoot(),
   ],
-  controllers: [HealthController, TenantController, AuthController, SsoController, KioskController, VisitsController, ManagementController, StatsController, InvitationsController, IntegrationController, ReaderController, BadgeController, AccessAdminController, EmployeeAppController, WebhooksController, PushSettingsController, EvacuationsController, DocumentsController],
+  controllers: [HealthController, TenantController, AuthController, SsoController, KioskController, VisitsController, ManagementController, StatsController, InvitationsController, IntegrationController, ReaderController, BadgeController, AccessAdminController, EmployeeAppController, WebhooksController, PushSettingsController, EvacuationsController, DocumentsController, GuestController],
   providers: [
     { provide: APP_CONFIG, useValue: config as AppConfig },
     { provide: STORAGE, useFactory: () => createStorage(config) },

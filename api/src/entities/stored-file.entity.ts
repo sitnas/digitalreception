@@ -8,8 +8,10 @@ import { Visit } from './visit.entity';
 export class StoredFile {
   @PrimaryGeneratedColumn('uuid') id: string;
   @Column({ type: 'uuid' }) tenantId: string;
-  @Column({ type: 'uuid' }) visitId: string;
+  /** Null only while the file belongs to a pre-registration (invitationId), before the guest arrives. */
+  @Column({ type: 'uuid', nullable: true }) visitId: string | null;
   @ManyToOne(() => Visit, (v) => v.files) @JoinColumn({ name: 'visitId' }) visit?: Visit;
+  @Index('IDX_stored_files_invitation') @Column({ type: 'uuid', nullable: true }) invitationId: string | null;
   @Column({ type: 'varchar', length: 16 }) kind: FileKind;
   @Column({ type: 'varchar', length: 8 }) keyId: string;
   @Column({ type: 'varchar', length: 32 }) mime: string;

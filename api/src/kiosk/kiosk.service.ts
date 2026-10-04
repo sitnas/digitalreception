@@ -13,8 +13,22 @@ import { InvitationsService } from '../invitations/invitations.service';
 import { PushService } from '../common/push.service';
 import { SiteDocumentsService } from '../common/site-documents.service';
 import { WebhooksService } from '../common/webhooks.service';
-import { CountryPolicy, Device, FileKind, Host, NoticeEmailStatus, PairingCode, PrivacyNotice, Site, Tenant, Visit, VisitStatus } from '../entities';
-import { CheckInDto, CheckOutDto } from './kiosk.dto';
+import { CountryPolicy, Device, DocumentType, FileKind, Host, NoticeEmailStatus, PairingCode, PrivacyNotice, Site, StoredFile, Tenant, TravelDistance, Visit, VisitPurpose, VisitStatus } from '../entities';
+import { CheckInDto, CheckOutDto, PreregisteredCheckInDto } from './kiosk.dto';
+
+type Image = { mime: string; data: Buffer };
+/** What the guest typed on the phone, kept encrypted on the invitation until arrival. */
+export interface PreregistrationData {
+  firstName: string; lastName: string; company: string | null; travelDistance: TravelDistance;
+  documentType: DocumentType | null; documentNumber: string | null;
+}
+interface NewVisit {
+  locale: string; firstName: string; lastName: string; company?: string; email?: string; sendNoticeEmail: boolean;
+  hostId?: string; host?: string; purpose: VisitPurpose; travelDistance: TravelDistance; documentType?: DocumentType; documentNumber?: string;
+  notice: { id: string; version: number }; acceptedAt: Date; documents: { documentId: string; versionId: string }[];
+  signature: Image | null; documentPhoto: Image | null; assetPhoto: Image | null;
+  invitationCode?: string; preregisteredFrom?: string;
+}
 
 const MAX_KIOSK_HOSTS = 2000;
 /** A check-out surname search must be this specific: broader prefixes return nothing (anti-enumeration). */
@@ -127,79 +141,152 @@ export class KioskService {
     if (policy.assetPhotosRequired && !dto.assetPhoto) throw new BadRequestException('ASSET_PHOTO_REQUIRED');
     if (dto.sendNoticeEmail && !dto.email) throw new BadRequestException('EMAIL_REQUIRED');
 
+    return this.persist(device, site, policy, {
+      locale: dto.locale, firstName: dto.firstName, lastName: dto.lastName, company: dto.company, email: dto.email,
+      sendNoticeEmail: dto.sendNoticeEmail, hostId: dto.hostId, host: dto.host, purpose: dto.purpose, travelDistance: dto.travelDistance,
+      documentType: dto.documentType, documentNumber: dto.documentNumber,
+      notice: { id: notice.id, version: notice.version }, acceptedAt: new Date(),
+      documents: documents.map((d) => ({ documentId: d.documentId, versionId: d.id })),
+      signature: this.files.parseImage(dto.signature, 'signature'),
+      documentPhoto: documentPhotoRequired(policy) && dto.documentPhoto ? this.files.parseImage(dto.documentPhoto, 'documentPhoto') : null,
+      assetPhoto: policy.assetPhotosRequired && dto.assetPhoto ? this.files.parseImage(dto.assetPhoto, 'assetPhoto') : null,
+      invitationCode: dto.invitationCode,
+    }, req);
+  }
+
+  /**
+   * The guest pre-registered from the phone: the tablet only confirms the arrival (and takes the
+   * laptop serial photo where the policy asks for it). Details, signature and acceptances come from
+   * the invitation; its files move to the visit.
+   */
+  async checkInPreregistered(device: AuthDevice, dto: PreregisteredCheckInDto, req: AppRequest) {
+    const { site, policy } = await this.siteAndPolicy(device);
+    const pre = await this.preregistration(device, site, policy, dto.invitationCode);
+    if (!pre) throw new ConflictException('PREREGISTRATION_INCOMPLETE');
+    if (policy.assetPhotosRequired && !dto.assetPhoto) throw new BadRequestException('ASSET_PHOTO_REQUIRED');
+    const { inv, data } = pre;
+    return this.persist(device, site, policy, {
+      locale: inv.preLocale!, firstName: data.firstName, lastName: data.lastName, company: data.company ?? undefined, email: pre.email ?? undefined,
+      sendNoticeEmail: false, hostId: inv.hostId, purpose: inv.purpose, travelDistance: data.travelDistance,
+      documentType: policy.documentDataEnabled ? data.documentType ?? undefined : undefined,
+      documentNumber: policy.documentDataEnabled ? data.documentNumber ?? undefined : undefined,
+      notice: { id: inv.preNoticeId!, version: inv.preNoticeVersion! }, acceptedAt: inv.preregisteredAt!,
+      documents: inv.preDocuments ?? [],
+      signature: null, documentPhoto: null,
+      assetPhoto: policy.assetPhotosRequired && dto.assetPhoto ? this.files.parseImage(dto.assetPhoto, 'assetPhoto') : null,
+      invitationCode: dto.invitationCode, preregisteredFrom: inv.id,
+    }, req);
+  }
+
+  /**
+   * The stored pre-registration of an invitation, if it still covers what the site asks today
+   * (documents added since, or a policy that now wants the identity document, send the guest
+   * through the normal form with the details prefilled).
+   */
+  private async preregistration(device: AuthDevice, site: Site, policy: CountryPolicy, code: string) {
+    const inv = await this.invitations.usable(device, code);
+    if (!inv.preregisteredAt || !inv.preDataEnc || !inv.preLocale || !inv.preNoticeId) return null;
+    const tc = await this.keys.forTenant(device.tenantId);
+    const data = JSON.parse(tc.decrypt(inv.preDataEnc, 'invitation.preregistration') ?? '{}') as PreregistrationData;
+    if (policy.documentDataEnabled && (!data.documentType || !data.documentNumber)) return null;
+    const files = await this.ds.getRepository(StoredFile).find({ where: { tenantId: device.tenantId, invitationId: inv.id, purgedAt: IsNull() } });
+    if (!files.some((f) => f.kind === FileKind.SIGNATURE)) return null;
+    if (documentPhotoRequired(policy) && !files.some((f) => f.kind === FileKind.DOCUMENT)) return null;
+    const required = (await this.documents.forSite(device.tenantId, site.id, [inv.preLocale], policy.defaultLocale))[inv.preLocale];
+    if (!this.documents.covers(required, inv.preDocuments)) return null;
+    return { inv, data, email: tc.decrypt(inv.emailEnc, 'invitation.email') };
+  }
+
+  /** Tablet lookup of an invitation, telling whether the guest already completed it from the phone. */
+  async invitation(device: AuthDevice, code: string) {
+    const { site, policy } = await this.siteAndPolicy(device);
+    const out = await this.invitations.forKiosk(device, code);
+    return { ...out, preregistered: !!(await this.preregistration(device, site, policy, code)) };
+  }
+
+  private async persist(device: AuthDevice, site: Site, policy: CountryPolicy, v: NewVisit, req: AppRequest) {
     // When the site has a host directory the visitor must pick from it; free text is accepted only without one.
     const directory = await this.siteHosts(device);
     let hostName: string;
     let hostId: string | null = null;
     let hostEmail: string | null = null;
     if (directory.length) {
-      const host = dto.hostId ? directory.find((h) => h.id === dto.hostId) : undefined;
-      if (!host) throw new BadRequestException(dto.hostId ? 'HOST_NOT_FOUND' : 'HOST_REQUIRED');
+      const host = v.hostId ? directory.find((h) => h.id === v.hostId) : undefined;
+      if (!host) throw new BadRequestException(v.hostId ? 'HOST_NOT_FOUND' : 'HOST_REQUIRED');
       hostName = `${host.firstName} ${host.lastName}`;
       hostId = host.id;
       hostEmail = host.email;
     } else {
-      if (!dto.host) throw new BadRequestException('HOST_REQUIRED');
-      hostName = dto.host;
+      if (!v.host) throw new BadRequestException('HOST_REQUIRED');
+      hostName = v.host;
     }
-
-    const signature = this.files.parseImage(dto.signature, 'signature');
-    const docPhoto = documentPhotoRequired(policy) && dto.documentPhoto ? this.files.parseImage(dto.documentPhoto, 'documentPhoto') : null;
-    const assetPhoto = policy.assetPhotosRequired && dto.assetPhoto ? this.files.parseImage(dto.assetPhoto, 'assetPhoto') : null;
 
     const tc = await this.keys.forTenant(device.tenantId);
     const now = new Date();
-    const wantsEmail = dto.sendNoticeEmail && this.mail.enabled;
+    const wantsEmail = v.sendNoticeEmail && this.mail.enabled;
     // Whoever leaves an email address receives the exit badge (visit code) there.
-    const wantsBadge = !!dto.email && this.mail.enabled;
+    const wantsBadge = !!v.email && this.mail.enabled;
     // The host picked from the directory is told that their visitor has arrived.
     const wantsHostNotice = !!hostEmail && this.mail.enabled;
 
     let pushQueued = false;
+    let movedDocPhoto = false;
     const visit = await this.ds.transaction(async (em) => {
       const saved = await em.save(em.create(Visit, {
         tenantId: device.tenantId, siteId: site.id, status: VisitStatus.OPEN, code: await this.uniqueCode(device.tenantId, site.id),
         checkInAt: now, checkOutAt: null, checkInDeviceId: device.id, checkOutBy: null,
-        firstNameEnc: tc.encrypt(dto.firstName, 'visit.firstName'),
-        lastNameEnc: tc.encrypt(dto.lastName, 'visit.lastName'),
-        lastNameIndex: tc.blindIndex(dto.lastName, 'visit.lastName'),
-        companyEnc: tc.encrypt(dto.company, 'visit.company'),
-        emailEnc: tc.encrypt(dto.email, 'visit.email'),
-        emailIndex: tc.blindIndex(dto.email, 'visit.email'),
+        firstNameEnc: tc.encrypt(v.firstName, 'visit.firstName'),
+        lastNameEnc: tc.encrypt(v.lastName, 'visit.lastName'),
+        lastNameIndex: tc.blindIndex(v.lastName, 'visit.lastName'),
+        companyEnc: tc.encrypt(v.company, 'visit.company'),
+        emailEnc: tc.encrypt(v.email, 'visit.email'),
+        emailIndex: tc.blindIndex(v.email, 'visit.email'),
         hostEnc: tc.encrypt(hostName, 'visit.host'),
         hostId,
-        purpose: dto.purpose,
-        travelDistance: dto.travelDistance,
-        documentType: policy.documentDataEnabled ? dto.documentType! : null,
-        documentNumberEnc: policy.documentDataEnabled ? tc.encrypt(dto.documentNumber, 'visit.documentNumber') : null,
-        locale: dto.locale, privacyNoticeId: notice.id, privacyNoticeVersion: notice.version, privacyAcceptedAt: now,
+        purpose: v.purpose,
+        travelDistance: v.travelDistance,
+        documentType: policy.documentDataEnabled ? v.documentType! : null,
+        documentNumberEnc: policy.documentDataEnabled ? tc.encrypt(v.documentNumber, 'visit.documentNumber') : null,
+        locale: v.locale, privacyNoticeId: v.notice.id, privacyNoticeVersion: v.notice.version, privacyAcceptedAt: v.acceptedAt,
         // PENDING = queued in the transactional outbox; the mail worker delivers it (retries survive restarts).
-        noticeEmailStatus: dto.sendNoticeEmail ? (wantsEmail ? NoticeEmailStatus.PENDING : NoticeEmailStatus.SKIPPED) : NoticeEmailStatus.NOT_REQUESTED,
+        noticeEmailStatus: v.sendNoticeEmail ? (wantsEmail ? NoticeEmailStatus.PENDING : NoticeEmailStatus.SKIPPED) : NoticeEmailStatus.NOT_REQUESTED,
         noticeEmailAttempts: 0,
-        badgeEmailStatus: dto.email ? (wantsBadge ? NoticeEmailStatus.PENDING : NoticeEmailStatus.SKIPPED) : NoticeEmailStatus.NOT_REQUESTED,
+        badgeEmailStatus: v.email ? (wantsBadge ? NoticeEmailStatus.PENDING : NoticeEmailStatus.SKIPPED) : NoticeEmailStatus.NOT_REQUESTED,
         badgeEmailAttempts: 0,
         hostEmailStatus: hostEmail ? (wantsHostNotice ? NoticeEmailStatus.PENDING : NoticeEmailStatus.SKIPPED) : NoticeEmailStatus.NOT_REQUESTED,
         hostEmailAttempts: 0, anonymizedAt: null,
       }));
-      await this.files.store(em, tc, saved.id, FileKind.SIGNATURE, signature, addDays(now, policy.visitRetentionDays));
-      if (docPhoto) await this.files.store(em, tc, saved.id, FileKind.DOCUMENT, docPhoto, addDays(now, Math.min(policy.documentPhotoRetentionDays, policy.visitRetentionDays)));
-      if (assetPhoto) await this.files.store(em, tc, saved.id, FileKind.ASSET_IN, assetPhoto, addDays(now, Math.min(policy.assetPhotoRetentionDays, policy.visitRetentionDays)));
-      await this.documents.record(em, device.tenantId, saved.id, documents, now);
-      if (dto.invitationCode) await this.invitations.consume(em, device, dto.invitationCode, saved.id);
+      if (v.signature) await this.files.store(em, tc, saved.id, FileKind.SIGNATURE, v.signature, addDays(now, policy.visitRetentionDays));
+      if (v.documentPhoto) await this.files.store(em, tc, saved.id, FileKind.DOCUMENT, v.documentPhoto, addDays(now, Math.min(policy.documentPhotoRetentionDays, policy.visitRetentionDays)));
+      if (v.preregisteredFrom) {
+        // Signature and document photo taken on the phone now belong to the visit, with the visit's retention.
+        const files = await em.find(StoredFile, { where: { tenantId: device.tenantId, invitationId: v.preregisteredFrom, purgedAt: IsNull() } });
+        for (const f of files) {
+          const keep = f.kind === FileKind.DOCUMENT ? (documentPhotoRequired(policy) ? Math.min(policy.documentPhotoRetentionDays, policy.visitRetentionDays) : 0) : policy.visitRetentionDays;
+          await em.update(StoredFile, { id: f.id }, { visitId: saved.id, invitationId: null, purgeAfter: addDays(now, keep) });
+          if (f.kind === FileKind.DOCUMENT && keep > 0) movedDocPhoto = true;
+        }
+      }
+      if (v.assetPhoto) await this.files.store(em, tc, saved.id, FileKind.ASSET_IN, v.assetPhoto, addDays(now, Math.min(policy.assetPhotoRetentionDays, policy.visitRetentionDays)));
+      await this.documents.record(em, device.tenantId, saved.id, v.documents, v.acceptedAt);
+      if (v.invitationCode) await this.invitations.consume(em, device, v.invitationCode, saved.id);
       // Teams / Slack / HTTPS notification, queued with the visit: delivered by the outbox worker.
       await this.webhooks.enqueue(em, device.tenantId, site.id, 'visit.arrived', {
         site: site.name, locale: policy.defaultLocale, host: hostName,
-        visitor: `${dto.firstName} ${dto.lastName}`, company: dto.company || null,
+        visitor: `${v.firstName} ${v.lastName}`, company: v.company || null,
       });
       // Push to the phone of the visited employee, if they turned it on in the app or on /badge.
-      pushQueued = await this.push.enqueueArrival(em, device.tenantId, hostId, { site: site.name, visitor: `${dto.firstName} ${dto.lastName}`, company: dto.company || null });
+      pushQueued = await this.push.enqueueArrival(em, device.tenantId, hostId, { site: site.name, visitor: `${v.firstName} ${v.lastName}`, company: v.company || null });
       return saved;
     });
     if (pushQueued) this.push.kick();
 
     await this.audit.fromRequest(req, {
       action: 'VISIT_CHECK_IN', entityType: 'visit', entityId: visit.id, siteId: site.id,
-      details: { noticeVersion: notice.version, documents: documents.map((d) => `${d.documentId}@${d.locale}v${d.version}`), locale: dto.locale, invitation: !!dto.invitationCode, documentPhoto: !!docPhoto, assetPhoto: !!assetPhoto, hostId, travelDistance: dto.travelDistance },
+      details: {
+        noticeVersion: v.notice.version, documents: v.documents.map((d) => d.versionId), locale: v.locale, invitation: !!v.invitationCode,
+        preregistered: !!v.preregisteredFrom, documentPhoto: !!v.documentPhoto || movedDocPhoto, assetPhoto: !!v.assetPhoto, hostId, travelDistance: v.travelDistance,
+      },
     });
     return { code: visit.code, qrSvg: await exitQrSvg(visit.code), checkInAt: visit.checkInAt, emailQueued: wantsEmail, badgeEmailQueued: wantsBadge, hostNotified: wantsHostNotice };
   }

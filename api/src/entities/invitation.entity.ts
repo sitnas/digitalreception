@@ -39,5 +39,16 @@ export class Invitation {
   /** A console user, or the visited employee from the phone app. */
   @Column({ type: 'uuid', nullable: true }) createdByUserId: string | null;
   @Column({ type: 'uuid', nullable: true }) createdByEmployeeId: string | null;
+  /**
+   * Pre-registration from the guest's phone (link in the invitation email): the details the tablet
+   * would ask, encrypted as one JSON blob, plus the notice and documents accepted. Signature and
+   * document photo are stored files linked to the invitation until the check-in moves them to the visit.
+   */
+  @Column({ type: 'datetime', precision: 3, nullable: true }) preregisteredAt: Date | null;
+  @Column({ type: 'text', nullable: true }) preDataEnc: string | null;
+  @Column({ type: 'varchar', length: 5, nullable: true }) preLocale: string | null;
+  @Column({ type: 'uuid', nullable: true }) preNoticeId: string | null;
+  @Column({ type: 'int', nullable: true }) preNoticeVersion: number | null;
+  @Column({ type: 'simple-json', nullable: true }) preDocuments: { documentId: string; versionId: string }[] | null;
   @CreateDateColumn({ type: 'datetime', precision: 3, default: () => 'CURRENT_TIMESTAMP(3)' }) createdAt: Date;
 }

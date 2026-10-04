@@ -9,6 +9,11 @@ export interface AppConfig {
   port: number;
   trustProxy: number;
   tenancy: { mode: TenancyMode; baseDomain?: string; defaultSlug?: string };
+  /**
+   * Public address of the web app, for links in emails (pre-registration). In subdomain mode the
+   * organisation's subdomain replaces the host. Null = emails carry no link, only the QR.
+   */
+  publicUrl: string | null;
   db: { type: 'mysql' | 'mariadb'; host: string; port: number; user: string; password: string; name: string; synchronize: boolean; poolSize: number };
   /** Master key-encryption keys (KEK). They never touch data directly: they only wrap each tenant's own keys. */
   masterKeys: { keys: Map<string, Buffer>; activeKeyId: string };
@@ -46,6 +51,16 @@ function req(name: string): string {
   const v = process.env[name];
   if (!v || !v.trim()) throw new Error(`Missing required environment variable ${name}`);
   return v.trim();
+}
+
+/** PUBLIC_URL, or the origin of SSO_REDIRECT_URI as a fallback: an http(s) origin without path. */
+function publicUrl(): string | null {
+  const raw = process.env.PUBLIC_URL?.trim() || process.env.SSO_REDIRECT_URI?.trim();
+  if (!raw) return null;
+  let u: URL;
+  try { u = new URL(raw); } catch { throw new Error('PUBLIC_URL must be an absolute URL, e.g. https://reception.example.com'); }
+  if (u.protocol !== 'https:' && u.protocol !== 'http:') throw new Error('PUBLIC_URL must start with https://');
+  return u.origin;
 }
 
 export function parseKeyring(name: string, raw: string): { keys: Map<string, Buffer>; activeKeyId: string } {
@@ -87,6 +102,7 @@ export function loadConfig(): AppConfig {
       baseDomain: mode === 'subdomain' ? req('BASE_DOMAIN').toLowerCase() : undefined,
       defaultSlug: mode === 'single' ? req('DEFAULT_TENANT_SLUG') : process.env.DEFAULT_TENANT_SLUG || undefined,
     },
+    publicUrl: publicUrl(),
     db: {
       type: (process.env.DB_TYPE as 'mysql' | 'mariadb') ?? 'mysql',
       host: req('DB_HOST'),

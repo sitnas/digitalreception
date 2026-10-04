@@ -41,9 +41,14 @@ export class SiteDocumentsService {
     if (required.some((d) => !got.has(d.id)) || got.size !== required.length) throw new ConflictException('DOCUMENTS_OUTDATED');
   }
 
-  record(em: EntityManager, tenantId: string, visitId: string, docs: GuestDocument[], acceptedAt: Date) {
+  record(em: EntityManager, tenantId: string, visitId: string, docs: { documentId: string; versionId: string }[], acceptedAt: Date) {
     if (!docs.length) return Promise.resolve();
-    return em.insert(VisitDocument, docs.map((d) => ({ tenantId, visitId, documentId: d.documentId, versionId: d.id, acceptedAt })));
+    return em.insert(VisitDocument, docs.map((d) => ({ tenantId, visitId, documentId: d.documentId, versionId: d.versionId, acceptedAt })));
+  }
+
+  /** A pre-registration still covers what the site asks today: every current document, in any version. */
+  covers(required: GuestDocument[], accepted: { documentId: string }[] | null) {
+    return required.every((d) => (accepted ?? []).some((a) => a.documentId === d.documentId));
   }
 
   /** What a visit accepted, with the exact version, for the console. */
@@ -51,6 +56,10 @@ export class SiteDocumentsService {
     const rows = await this.versions.manager.find(VisitDocument, { where: { tenantId, visitId }, order: { acceptedAt: 'ASC' } });
     if (!rows.length) return [];
     const versions = await this.versions.find({ where: { tenantId, id: In(rows.map((r) => r.versionId)) } });
+    // Same order as the guest read them: rows accepted together share the timestamp.
+    const docs = await this.docs.find({ where: { tenantId, id: In(rows.map((r) => r.documentId)) } });
+    const rank = (id: string) => { const d = docs.find((x) => x.id === id); return d ? [d.position, d.createdAt.getTime()] : [Infinity, 0]; };
+    rows.sort((a, b) => a.acceptedAt.getTime() - b.acceptedAt.getTime() || rank(a.documentId)[0] - rank(b.documentId)[0] || rank(a.documentId)[1] - rank(b.documentId)[1]);
     return rows.map((r) => {
       const v = versions.find((x) => x.id === r.versionId);
       return { documentId: r.documentId, versionId: r.versionId, title: v?.title ?? null, version: v?.version ?? null, locale: v?.locale ?? null, acceptedAt: r.acceptedAt };

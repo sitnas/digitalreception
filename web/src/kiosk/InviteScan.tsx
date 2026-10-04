@@ -5,6 +5,8 @@ import type { Strings } from './strings';
 
 export interface InvitePrefill {
   firstName: string; lastName: string; company: string | null; email: string; hostId: string; purpose: string; locale: string; expectedAt: string;
+  /** The guest completed the registration from the phone: the tablet only confirms. */
+  preregistered?: boolean;
 }
 export interface Invite { code: string; data: InvitePrefill }
 

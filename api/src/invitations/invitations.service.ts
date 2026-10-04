@@ -1,13 +1,14 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { EntityManager, In, LessThan, MoreThanOrEqual, Repository } from 'typeorm';
+import { EntityManager, In, IsNull, LessThan, MoreThanOrEqual, Repository } from 'typeorm';
 import { CryptoService } from '../common/crypto.service';
+import { FilesService } from '../common/files.service';
 import { inviteQrPayload, qrSvg } from '../common/exit-qr';
 import { MailService } from '../common/mail.service';
 import { AuthDevice } from '../common/request-context';
 import { TenantKeysService } from '../common/tenant-keys.service';
 import { addDays, localDateToUtc, startOfLocalDay } from '../common/time.util';
-import { CountryPolicy, Host, Invitation, InvitationStatus, NoticeEmailStatus, Site, VisitPurpose } from '../entities';
+import { CountryPolicy, Host, Invitation, InvitationStatus, NoticeEmailStatus, Site, StoredFile, VisitPurpose } from '../entities';
 
 export const INVITE_CODE_LENGTH = 8;
 const MAX_DAYS_AHEAD = 90;
@@ -35,6 +36,7 @@ export class InvitationsService {
     private readonly keys: TenantKeysService,
     private readonly crypto: CryptoService,
     private readonly mail: MailService,
+    private readonly files: FilesService,
   ) {}
 
   /** Local day of the site that contains `at`, as [start, end). */
@@ -121,7 +123,7 @@ export class InvitationsService {
       firstName: tc.decrypt(r.firstNameEnc, 'invitation.firstName'), lastName: tc.decrypt(r.lastNameEnc, 'invitation.lastName'),
       company: tc.decrypt(r.companyEnc, 'invitation.company'), email: tc.decrypt(r.emailEnc, 'invitation.email'),
       status: r.status === InvitationStatus.PENDING && r.validUntil < now ? 'EXPIRED' : r.status,
-      emailStatus: r.emailStatus, visitId: r.visitId, usedAt: r.usedAt, fromApp: !!r.createdByEmployeeId,
+      emailStatus: r.emailStatus, visitId: r.visitId, usedAt: r.usedAt, fromApp: !!r.createdByEmployeeId, preregisteredAt: r.preregisteredAt,
     }));
   }
 
@@ -142,6 +144,9 @@ export class InvitationsService {
     const inv = await this.own(user, id);
     this.assertOpen(inv);
     await this.invitations.update({ id: inv.id, status: InvitationStatus.PENDING }, { status: InvitationStatus.CANCELLED });
+    // Signature and document photo of a pre-registration have no reason to stay.
+    const files = await this.invitations.manager.find(StoredFile, { where: { tenantId: user.tenantId, invitationId: inv.id, purgedAt: IsNull() } });
+    for (const f of files) await this.files.purge(f);
     return inv;
   }
 
@@ -174,6 +179,13 @@ export class InvitationsService {
       company: tc.decrypt(inv!.companyEnc, 'invitation.company'), email: tc.decrypt(inv!.emailEnc, 'invitation.email'),
       hostId: inv!.hostId, purpose: inv!.purpose, locale: inv!.locale, expectedAt: inv!.expectedAt,
     };
+  }
+
+  /** The invitation for this tablet, today, not used yet. */
+  async usable(device: AuthDevice, rawCode: string) {
+    const inv = await this.invitations.findOne({ where: { tenantId: device.tenantId, codeHash: this.crypto.sha256(normaliseInviteCode(rawCode)) } });
+    this.assertUsableAt(inv, device);
+    return inv;
   }
 
   private assertUsableAt(inv: Invitation | null, device: AuthDevice): asserts inv is Invitation {
