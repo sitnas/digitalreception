@@ -13,12 +13,18 @@ export class SsoRequest {
   @PrimaryGeneratedColumn('uuid') id: string;
   @Column({ type: 'uuid' }) tenantId: string;
   @Column({ type: 'varchar', length: 12 }) provider: 'microsoft' | 'google';
-  /** login = open a session; link = a SUPER_ADMIN connects the organisation's directory. */
-  @Column({ type: 'varchar', length: 8 }) mode: 'login' | 'link';
+  /**
+   * login = open a session; link = a SUPER_ADMIN connects the organisation's directory;
+   * badge = the phone app activates the employee's badge (PKCE challenge in browserHash).
+   */
+  @Column({ type: 'varchar', length: 8 }) mode: 'login' | 'link' | 'badge';
   /** The SUPER_ADMIN who started a link. */
   @Column({ type: 'uuid', nullable: true }) userId: string | null;
   @Column({ type: 'char', length: 64 }) stateHash: string;
+  /** login/link: hash of the browser cookie; badge: SHA-256 of the verifier only the app knows. */
   @Column({ type: 'char', length: 64 }) browserHash: string;
+  /** badge: the app's own address (drbadge://…, exp://… in development) that receives the hand-off code. */
+  @Column({ type: 'varchar', length: 300, nullable: true }) returnTo: string | null;
   @Column({ type: 'varchar', length: 64 }) nonce: string;
   @Column({ type: 'varchar', length: 128 }) codeVerifier: string;
   /** Filled by the callback: what the provider confirmed, and the one-time code the browser brings back. */

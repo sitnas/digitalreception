@@ -1,7 +1,7 @@
-import { BadRequestException, Controller, Get, Inject, Logger, Query, Req, Res, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, HttpCode, Inject, Logger, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
-import { IsEmail, IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsEmail, IsIn, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
 import { randomBytes, timingSafeEqual } from 'crypto';
 import { Response } from 'express';
 import { DataSource, IsNull, LessThan, MoreThan, Repository } from 'typeorm';
@@ -10,6 +10,7 @@ import { AuditService } from '../common/audit.service';
 import { CryptoService } from '../common/crypto.service';
 import { AdminAuthGuard, CurrentUser, Roles } from '../common/guards';
 import { AppRequest, AuthUser } from '../common/request-context';
+import { AccessService } from '../access/access.service';
 import { Role, SsoRequest, Tenant, User } from '../entities';
 import { OidcProvider, SsoError } from './oidc';
 import { SessionService } from './session.service';
@@ -25,6 +26,17 @@ export class SsoStartQuery {
 }
 export class SsoFinishQuery {
   @IsString() @MaxLength(200) code: string;
+}
+/** The app's own address; only app schemes, never a web page (it is not an open redirect). */
+const APP_RETURN = /^(drbadge|exps?):\/\/[A-Za-z0-9._~:/?#@!$&'()*+,;=%-]{0,280}$/;
+export class BadgeSsoStartQuery {
+  /** Hex SHA-256 of a random verifier kept by the app (PKCE): only the app that started can redeem. */
+  @Matches(/^[0-9a-f]{64}$/) challenge: string;
+  @IsString() @Matches(APP_RETURN) return: string;
+}
+export class BadgeSsoRedeemDto {
+  @IsString() @MaxLength(200) code: string;
+  @IsString() @Matches(/^[A-Za-z0-9_-]{43,128}$/) verifier: string;
 }
 
 /**
@@ -55,6 +67,7 @@ export class SsoController {
     private readonly crypto: CryptoService,
     private readonly sessions: SessionService,
     private readonly audit: AuditService,
+    private readonly access: AccessService,
   ) {
     for (const id of PROVIDERS) {
       const p = cfg.sso.providers[id];
@@ -69,6 +82,11 @@ export class SsoController {
     return `${u.protocol}//${slug}.${this.cfg.tenancy.baseDomain}${u.port ? `:${u.port}` : ''}`;
   }
 
+  /** Back into the phone app (system browser → app scheme), with the hand-off code or an error. */
+  private toApp(res: Response, returnTo: string, params: Record<string, string>) {
+    res.redirect(302, `${returnTo}${returnTo.includes('?') ? '&' : '?'}${new URLSearchParams(params)}`);
+  }
+
   private back(res: Response, path: string, error?: string) {
     res.redirect(302, error ? `${path}?sso_error=${encodeURIComponent(error)}` : path);
   }
@@ -78,9 +96,10 @@ export class SsoController {
     return { httpOnly: true, secure: this.cfg.auth.cookieSecure, sameSite: 'lax' as const, path: '/api/auth/sso', maxAge: REQUEST_TTL_MS };
   }
 
-  private async begin(req: AppRequest, res: Response, t: Pick<Tenant, 'id' | 'ssoOrgId'>, provider: SsoProviderId, mode: 'login' | 'link', userId: string | null, loginHint?: string) {
+  private async begin(req: AppRequest, res: Response, t: Pick<Tenant, 'id' | 'ssoOrgId'>, provider: SsoProviderId, mode: 'login' | 'link' | 'badge', userId: string | null, loginHint?: string, app?: { challenge: string; returnTo: string }) {
     const oidc = this.providers.get(provider);
-    if (!oidc) return this.back(res, mode === 'link' ? '/admin/organisation' : '/admin/', 'SSO_NOT_CONFIGURED');
+    const fail = (error: string) => (app ? this.toApp(res, app.returnTo, { error }) : this.back(res, mode === 'link' ? '/admin/organisation' : '/admin/', error));
+    if (!oidc) return fail('SSO_NOT_CONFIGURED');
     await this.requests.delete({ expiresAt: LessThan(new Date()) });
     const state = randomBytes(32).toString('base64url'), browser = randomBytes(32).toString('base64url');
     const nonce = randomBytes(24).toString('base64url'), codeVerifier = randomBytes(48).toString('base64url');
@@ -88,14 +107,16 @@ export class SsoController {
     let url: string;
     try { url = await oidc.authorizeUrl({ orgId, state, nonce, codeVerifier, loginHint }); } catch (e) {
       this.log.error(`${provider} discovery failed: ${(e as Error).message}`);
-      return this.back(res, mode === 'link' ? '/admin/organisation' : '/admin/', 'PROVIDER_UNREACHABLE');
+      return fail('PROVIDER_UNREACHABLE');
     }
     await this.requests.insert({
-      tenantId: t.id, provider, mode, userId, stateHash: this.crypto.sha256(state), browserHash: this.crypto.sha256(browser),
+      tenantId: t.id, provider, mode, userId, stateHash: this.crypto.sha256(state),
+      // The app proves it is the one that started with its verifier, not with a cookie: its browser is not its own.
+      browserHash: app ? app.challenge : this.crypto.sha256(browser), returnTo: app?.returnTo ?? null,
       nonce, codeVerifier, handoffHash: null, subject: null, orgId: null, orgLabel: null, email: null, error: null,
       expiresAt: new Date(Date.now() + REQUEST_TTL_MS),
     });
-    res.cookie(SSO_BROWSER_COOKIE, browser, this.cookieOptions());
+    if (!app) res.cookie(SSO_BROWSER_COOKIE, browser, this.cookieOptions());
     res.redirect(302, url);
   }
 
@@ -117,6 +138,45 @@ export class SsoController {
   async link(@CurrentUser() me: AuthUser, @Query() q: SsoStartQuery, @Req() req: AppRequest, @Res() res: Response) {
     if (!q.provider) throw new BadRequestException('provider required');
     return this.begin(req, res, { id: me.tenantId, ssoOrgId: null }, q.provider, 'link', me.id);
+  }
+
+  /**
+   * The phone app activates the badge with the company account. It opens this address in the system
+   * browser with the hash of a secret verifier; after the provider, the browser is sent back into the
+   * app with a one-time code, which the app redeems together with the verifier.
+   */
+  @Get('badge')
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  async badgeStart(@Query() q: BadgeSsoStartQuery, @Req() req: AppRequest, @Res() res: Response) {
+    const t = await this.tenants.findOneOrFail({ where: { id: req.tenant!.id }, select: { id: true, ssoProvider: true, ssoOrgId: true } });
+    if (!t.ssoProvider || !t.ssoOrgId) return this.toApp(res, q.return, { error: 'SSO_NOT_CONFIGURED' });
+    return this.begin(req, res, t, t.ssoProvider, 'badge', null, undefined, { challenge: q.challenge, returnTo: q.return });
+  }
+
+  /** The app trades the one-time code + its verifier for the badge (same answer as /badge/activate). */
+  @Post('badge/redeem')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  async badgeRedeem(@Body() dto: BadgeSsoRedeemDto, @Req() req: AppRequest) {
+    const tenantId = req.tenant!.id;
+    const r = await this.requests.findOne({ where: { handoffHash: this.crypto.sha256(dto.code), tenantId, mode: 'badge', expiresAt: MoreThan(new Date()) } });
+    if (!r) throw new BadRequestException('EXPIRED');
+    // One use: whoever deletes the row first wins.
+    const del = await this.requests.delete({ id: r.id, handoffHash: r.handoffHash! });
+    if (!del.affected) throw new BadRequestException('EXPIRED');
+    const fail = async (reason: string) => {
+      await this.audit.fromRequest(req, { action: 'SSO_FAILED', details: { provider: r.provider, mode: 'badge', reason } });
+      return new BadRequestException(reason);
+    };
+    if (!timingSafeEqual(Buffer.from(this.crypto.sha256(dto.verifier)), Buffer.from(r.browserHash))) throw await fail('OTHER_APP');
+    if (r.error) throw await fail(r.error);
+    const t = await this.tenants.findOneOrFail({ where: { id: tenantId }, select: { id: true, ssoProvider: true, ssoOrgId: true } });
+    if (t.ssoProvider !== r.provider || t.ssoOrgId !== r.orgId) throw await fail('OTHER_DIRECTORY');
+    let badge: Awaited<ReturnType<AccessService['activateBadgeBySso']>>;
+    try { badge = await this.access.activateBadgeBySso(tenantId, r.email!); }
+    catch (e) { if (e instanceof BadRequestException) throw await fail(e.message); throw e; }
+    await this.audit.fromRequest(req, { action: 'PHONE_BADGE_ACTIVATED', entityType: 'employee', entityId: badge.employeeId, details: { sso: r.provider } });
+    return badge;
   }
 
   /** The provider sends the browser here. No organisation in the address: the state says which one. */
@@ -148,6 +208,7 @@ export class SsoController {
     // Conditional on "not yet handed off": a replayed callback cannot overwrite the first outcome.
     const upd = await this.requests.update({ id: r.id, handoffHash: IsNull() }, { ...outcome, handoffHash: this.crypto.sha256(handoff) });
     if (!upd.affected) { res.status(400).type('text/plain').send('Accesso già completato.'); return; }
+    if (r.mode === 'badge') return this.toApp(res, r.returnTo!, { code: handoff });
     res.redirect(302, `${this.origin(t.slug)}/api/auth/sso/finish?code=${handoff}`);
   }
 

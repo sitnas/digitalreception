@@ -523,6 +523,38 @@ describe('end-to-end', { skip: !enabled && 'E2E_DB_HOST not set' }, () => {
     assert.equal((await replay.go(first.location)).location, '/admin/?sso_error=EXPIRED', 'hand-off code used once');
     assert.equal((await replay.go('/auth/sso/callback?state=unknown&code=x')).status, 400);
 
+    // The phone app activates the badge with the company account (PKCE: code + verifier only the app knows).
+    {
+      const { createHash } = await import('node:crypto');
+      const bea = (await admin.post('/admin/access/employees', { firstName: 'Bea', lastName: 'Sso', email: 'bea@contoso.com', permissions: [] })).data;
+      const verifier = randomBytes(32).toString('base64url');
+      const challenge = createHash('sha256').update(verifier).digest('hex');
+      const RET = 'drbadge://sso';
+      const startApp = (ret = RET) => new Browser(IP).go(`/auth/sso/badge?challenge=${challenge}&return=${encodeURIComponent(ret)}`);
+      assert.equal((await startApp('https://evil.example/steal')).status, 400, 'only app addresses, never a web page');
+      const appTrip = async (claims, opts = {}) => {
+        const s = await startApp();
+        assert.equal(s.status, 302, s.body);
+        const cb = await new Browser(IP).go(`/auth/sso/callback?${idp.issueCode(s.location, claims, { issuer: ms(opts.tid ?? TID) })}`);
+        assert.match(cb.location, /^drbadge:\/\/sso\?code=/);
+        const code = new URL(cb.location).searchParams.get('code');
+        const redeem = () => new Client(IP).post('/auth/sso/badge/redeem', { code, verifier: opts.verifier ?? verifier }, { csrf: false });
+        return { res: await redeem(), redeem };
+      };
+      const ok = await appTrip({ tid: TID, oid: 'o-bea', preferred_username: 'Bea@Contoso.com' });
+      assert.equal(ok.res.status, 200, JSON.stringify(ok.res.data));
+      assert.equal(ok.res.data.employeeId, bea.id); assert.equal(ok.res.data.firstName, 'Bea');
+      assert.match(ok.res.data.appToken, /^dra_/); assert.equal(Buffer.from(ok.res.data.secret, 'base64').length, 32);
+      assert.equal((await ok.redeem()).data.message, 'EXPIRED', 'the code works once');
+      assert.equal((await new Client(IP).get('/me', { bearer: ok.res.data.appToken })).status, 200);
+      assert.equal((await appTrip({ tid: TID, oid: 'o-bea', preferred_username: 'bea@contoso.com' }, { verifier: randomBytes(32).toString('base64url') })).res.data.message, 'OTHER_APP',
+        'another app that caught the redirect cannot use the code');
+      assert.equal((await appTrip({ tid: TID, oid: 'o-ghost', preferred_username: 'ghost@contoso.com' })).res.data.message, 'NO_EMPLOYEE');
+      const other = await appTrip({ tid: '99999999-2222-3333-4444-555555555555', oid: 'o-bea', preferred_username: 'bea@contoso.com' }, { tid: '99999999-2222-3333-4444-555555555555' });
+      assert.equal(other.res.status, 400, 'another directory is refused');
+      assert.equal((await admin.del(`/admin/access/employees/${bea.id}`)).status, 200);
+    }
+
     // Obligation: proven by signing in through the directory, and only with an emergency account kept.
     assert.equal((await admin.patch('/admin/organisation', { ssoEnforced: true })).data.message, 'SSO_SELF_FIRST');
     assert.equal((await ssoAdmin.patch('/admin/organisation', { ssoEnforced: true })).data.message, 'SSO_EMERGENCY_ADMIN_REQUIRED');

@@ -26,7 +26,7 @@ async function call<R>(origin: string, path: string, init?: RequestInit): Promis
   return data as R;
 }
 
-export interface Tenant { name: string; logo: string | null; primaryColor: string | null; secondaryColor: string | null }
+export interface Tenant { name: string; logo: string | null; primaryColor: string | null; secondaryColor: string | null; sso?: { provider: 'microsoft' | 'google'; enforced: boolean } | null }
 
 /** Public branding of the organisation: also proves the address really is a digitalreception server. */
 export const getTenant = (origin: string) => call<Tenant>(origin, '/tenant');
@@ -36,6 +36,10 @@ export const requestCode = (origin: string, email: string, locale: string) =>
 
 export const activate = (origin: string, email: string, code: string) =>
   call<Omit<Badge, 'origin' | 'primaryColor'>>(origin, '/badge/activate', { method: 'POST', body: JSON.stringify({ email, code }) });
+
+/** Company-account activation: the one-time code from the browser + the app's verifier give the badge. */
+export const ssoRedeem = (origin: string, code: string, verifier: string) =>
+  call<Omit<Badge, 'origin' | 'primaryColor'>>(origin, '/auth/sso/badge/redeem', { method: 'POST', body: JSON.stringify({ code, verifier }) });
 
 /** Server time from the Date header, to warn when the phone clock is off (the QR depends on it). */
 export async function serverClockOffsetMs(origin: string): Promise<number | null> {

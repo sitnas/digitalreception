@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Field } from '../components/ui';
 import { ApiError, activate, getTenant, requestCode, type Tenant } from '../lib/api';
 import { isBadge, normaliseOrigin } from '../lib/badge';
+import { activateWithSso } from '../lib/sso';
 import { useBadge } from '../lib/badge-context';
 import { lang, t } from '../lib/i18n';
 import { useTheme } from '../lib/theme';
@@ -57,15 +58,22 @@ export default function Setup() {
   const submitEmail = () => run(async () => {
     try { await requestCode(org!.origin, cleanEmail(), lang); setSent(true); setStep('code'); } catch (e) { fail(e); }
   });
+  const finish = async (res: Awaited<ReturnType<typeof activate>>) => {
+    const badge = { ...res, origin: org!.origin, primaryColor: org!.tenant.primaryColor };
+    if (!isBadge(badge)) { setError(t.errors.generic); return; }
+    await save(badge);
+    router.replace('/?activated=1');
+  };
   const submitCode = () => run(async () => {
-    try {
-      const res = await activate(org!.origin, cleanEmail(), code);
-      const badge = { ...res, origin: org!.origin, primaryColor: org!.tenant.primaryColor };
-      if (!isBadge(badge)) { setError(t.errors.generic); return; }
-      await save(badge);
-      router.replace('/?activated=1');
-    } catch (e) { fail(e); setCode(''); codeInput.current?.focus(); }
+    try { await finish(await activate(org!.origin, cleanEmail(), code)); }
+    catch (e) { fail(e); setCode(''); codeInput.current?.focus(); }
   });
+  // Company account: no code to wait for. null = the person closed the browser.
+  const submitSso = () => run(async () => {
+    try { const res = await activateWithSso(org!.origin); if (res) await finish(res); } catch (e) { fail(e); }
+  });
+  const sso = org?.tenant.sso;
+  const providerName = sso?.provider === 'microsoft' ? 'Microsoft' : 'Google';
 
   return (
     <SafeAreaView style={[styles.screen, { backgroundColor: theme.ground }]}>
@@ -83,10 +91,17 @@ export default function Setup() {
             </View>
           ) : step === 'email' ? (
             <View style={styles.form}>
+              {sso ? (
+                <>
+                  <Button label={t.ssoSignIn.replace('{provider}', providerName)} theme={theme} busy={busy} onPress={submitSso} />
+                  <Text style={[styles.hint, { color: theme.ink2 }]}>{t.ssoHint}</Text>
+                  <Text style={[styles.or, { color: theme.ink2 }]}>{t.ssoOr}</Text>
+                </>
+              ) : null}
               <Field label={t.email} theme={theme} error={error} value={email} onChangeText={setEmail}
                 autoCapitalize="none" autoCorrect={false} keyboardType="email-address" textContentType="emailAddress" autoComplete="email"
                 returnKeyType="send" onSubmitEditing={submitEmail} />
-              <Button label={t.send} theme={theme} busy={busy} onPress={submitEmail} />
+              <Button label={t.send} kind={sso ? 'ghost' : 'primary'} theme={theme} busy={busy} onPress={submitEmail} />
               <Button label={t.changeOrg} kind="ghost" theme={theme} onPress={() => { setStep('org'); setError(null); }} />
             </View>
           ) : (
@@ -111,5 +126,7 @@ const styles = StyleSheet.create({
   title: { fontSize: 28, fontWeight: '800' },
   intro: { fontSize: 16, lineHeight: 22 },
   form: { gap: 14, marginTop: 8 },
+  hint: { fontSize: 14, lineHeight: 20, textAlign: 'center' },
+  or: { fontSize: 14, fontWeight: '700', textAlign: 'center', textTransform: 'uppercase', letterSpacing: 0.6, marginTop: 8 },
   codeInput: { fontSize: 26, letterSpacing: 8, fontVariant: ['tabular-nums'], textAlign: 'center' },
 });
