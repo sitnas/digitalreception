@@ -1,6 +1,7 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { Badge } from './badge';
-import { disablePush, forgetPushToken } from './push';
+import { revokeBadge } from './api';
+import { disablePush, forgetPushToken, syncPush } from './push';
 import { clearBadge, loadBadge, saveBadge } from './storage';
 
 interface BadgeState {
@@ -17,7 +18,18 @@ export function BadgeProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => { loadBadge().then(setBadge); }, []);
   // A new activation makes the server forget this phone's notices: start again from "off".
   const save = useCallback(async (b: Badge) => { await forgetPushToken(); await saveBadge(b); setBadge(b); }, []);
-  const remove = useCallback(async () => { if (badge) await disablePush(badge); await clearBadge(); setBadge(null); }, [badge]);
+  // The phone forgets the badge whatever happens; the server is told too, so nothing issued to this
+  // phone keeps working (offline: the administrator can still revoke it from the console).
+  const remove = useCallback(async () => {
+    if (badge) {
+      await disablePush(badge);
+      if (badge.appToken) await revokeBadge(badge).catch(() => {});
+    }
+    await clearBadge(); setBadge(null);
+  }, [badge]);
+  // Once per start: keep the arrival notices pointing at this phone's current token.
+  const synced = useRef(false);
+  useEffect(() => { if (badge && !synced.current) { synced.current = true; syncPush(badge); } }, [badge]);
   const value = useMemo(() => ({ badge, save, remove }), [badge, save, remove]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

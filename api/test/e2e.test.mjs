@@ -702,6 +702,14 @@ describe('end-to-end', { skip: !enabled && 'E2E_DB_HOST not set' }, () => {
       assert.equal(await devices(), 0);
       token = await activate();
       assert.equal((await me('POST', '/push', { kind: 'expo', token: expoToken, locale: 'es' })).status, 200);
+      // "Remove the badge from this phone": the server forgets the phone too.
+      assert.equal((await me('POST', '/revoke', {})).status, 200);
+      assert.equal(await devices(), 0);
+      assert.equal((await me('GET', '')).status, 401, 'the app token stops working');
+      const [[cred]] = await db.query('SELECT credentialSecretEnc FROM employees WHERE id = ?', [emp.id]);
+      assert.equal(cred.credentialSecretEnc, null, 'and so does the QR secret');
+      token = await activate();
+      assert.equal((await me('POST', '/push', { kind: 'expo', token: expoToken, locale: 'es' })).status, 200);
       assert.equal(await hr('DELETE', '/employees/P200').then((r) => r.deleted), true);
       assert.equal(await devices(), 0, 'deleting the employee forgets the devices');
       await db.end();

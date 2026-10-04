@@ -41,6 +41,8 @@ export default function NewInviteScreen() {
     if (!isName(f.firstName) || !isName(f.lastName)) e.name = t.invites.errors.name;
     if (!isEmail(f.email)) e.email = t.invites.errors.email;
     if (!time) e.time = t.invites.errors.time;
+    // No site left means this person is no longer someone who can be visited: say so instead of doing nothing.
+    if (!site) e.form = t.invites.errors.NOT_A_HOST;
     setErrors(e);
     if (Object.keys(e).length || !site) return;
     setBusy(true);

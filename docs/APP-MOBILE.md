@@ -44,6 +44,10 @@ Le app si compilano nel cloud con **EAS** (non servono Xcode né Android Studio)
 3. Android di prova (APK da installare direttamente): `npx eas-cli@latest build --profile preview --platform android`.
 4. Store: `npx eas-cli@latest build --profile production --platform all`, poi `npx eas-cli@latest submit`. Servono un account Google Play Console (25 $ una tantum) e un Apple Developer Program (99 $/anno).
 
+### Aggiornamenti senza nuova build (EAS Update)
+
+`npx eas-cli@latest update --channel production` manda il nuovo JavaScript alle app già installate. La versione di runtime è calcolata con `fingerprint`: cambia da sola quando cambiano le parti native (un nuovo modulo Expo, un permesso, il modulo NFC). Un aggiornamento arriva quindi solo alle build compatibili, e quelle vecchie non ricevono codice che cerca moduli che non hanno. Dopo un cambiamento nativo serve una build nuova, `npx eas-cli@latest build`. Il comando `npx expo-updates fingerprint:generate` mostra il fingerprint attuale.
+
 ## Notifica "è arrivato il tuo ospite"
 
 Chi è tra le *persone da visitare* trova in **I miei inviti** l'interruttore *Avvisami quando arriva un ospite*. Al check-in del suo ospite al tablet il telefono riceve una notifica, di solito entro un paio di secondi. *Manda una prova* verifica subito che arrivi.

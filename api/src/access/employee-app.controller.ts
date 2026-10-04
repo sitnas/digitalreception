@@ -87,6 +87,21 @@ export class EmployeeAppController {
     return h;
   }
 
+  /**
+   * "Remove the badge from this phone": the phone forgets its secrets, and so does the server, so
+   * nothing issued to this phone keeps working (QR, NFC, app token, arrival notices).
+   */
+  @Post('revoke')
+  @HttpCode(200)
+  async revoke(@CurrentEmployee() me: AuthEmployee, @Req() req: AppRequest) {
+    await this.employees.manager.transaction(async (em) => {
+      await em.update(Employee, { id: me.id, tenantId: me.tenantId }, { credentialSecretEnc: null, credentialIssuedAt: null, appTokenHash: null });
+      await em.delete(PushDevice, { tenantId: me.tenantId, employeeId: me.id });
+    });
+    await this.audit.fromRequest(req, { action: 'PHONE_BADGE_REMOVED', entityType: 'employee', entityId: me.id });
+    return { ok: true };
+  }
+
   @Get()
   async profile(@CurrentEmployee() me: AuthEmployee) {
     const e = await this.employees.findOneOrFail({ where: { id: me.id, tenantId: me.tenantId } });
