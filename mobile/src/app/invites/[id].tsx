@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, Share, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { SuccessCheck } from '../../components/motion';
 import { Button, ScreenHeader } from '../../components/ui';
 import { ApiError, cancelInvite, inviteQr, listInvites } from '../../lib/api';
 import { useBadge } from '../../lib/badge-context';
@@ -55,9 +56,12 @@ export default function InviteScreen() {
       <ScreenHeader title={t.invites.title} backLabel={t.invites.back} onBack={() => (router.canGoBack() ? router.back() : router.replace('/invites'))} theme={theme} />
       <ScrollView contentContainerStyle={styles.content}>
         {created ? (
-          <View accessibilityRole="alert" style={[styles.notice, { borderColor: theme.primary, backgroundColor: theme.surface }]}>
-            <Text style={[styles.noticeTitle, { color: theme.ink }]}>{t.invites.created}</Text>
-            <Text style={[styles.meta, { color: theme.ink2 }]}>{created === 'SKIPPED' ? t.invites.emailOff : t.invites.emailSent}</Text>
+          <View accessibilityRole="alert" style={[styles.notice, styles.noticeRow, { borderColor: theme.primary, backgroundColor: theme.surface }]}>
+            <SuccessCheck theme={theme} size={44} />
+            <View style={{ flex: 1, gap: 4 }}>
+              <Text style={[styles.noticeTitle, { color: theme.ink }]}>{t.invites.created}</Text>
+              <Text style={[styles.meta, { color: theme.ink2 }]}>{created === 'SKIPPED' ? t.invites.emailOff : t.invites.emailSent}</Text>
+            </View>
           </View>
         ) : null}
         {error ? <Text accessibilityRole="alert" style={[styles.error, { color: theme.danger }]}>{error}</Text> : null}
@@ -92,6 +96,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1 },
   content: { padding: 20, gap: 14 },
   notice: { borderWidth: 1, borderLeftWidth: 4, borderRadius: 12, padding: 14, gap: 4 },
+  noticeRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   noticeTitle: { fontSize: 16, fontWeight: '800' },
   error: { fontSize: 15, fontWeight: '700' },
   card: { borderWidth: 1, borderRadius: 20, padding: 22, alignItems: 'center', gap: 6 },

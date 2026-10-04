@@ -3,7 +3,7 @@ import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { router, useFocusEffect } from 'expo-router';
 import { allowScreenCaptureAsync, preventScreenCaptureAsync } from 'expo-screen-capture';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, AppState, Platform, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Alert, Animated, AppState, Platform, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BadgeNfc } from '../../modules/badge-nfc';
@@ -12,6 +12,7 @@ import { qrPayload, stepAt, type Badge } from '../lib/badge';
 import { useBadge } from '../lib/badge-context';
 import { t } from '../lib/i18n';
 import { useTheme } from '../lib/theme';
+import { QrRing, SquaresBand, SuccessCheck } from './motion';
 import { Button } from './ui';
 
 /** Seconds of clock difference with the server beyond which the reader may refuse the QR. */
@@ -75,7 +76,25 @@ function useNfcCard(value: string): [NfcState, () => void] {
   return [state, () => BadgeNfc?.openSettings()];
 }
 
-export function BadgeScreen({ badge }: { badge: Badge }) {
+/** Right after activation: a tick and a line that fade away by themselves. */
+function Activated({ theme }: { theme: ReturnType<typeof useTheme> }) {
+  const fade = useRef(new Animated.Value(1)).current;
+  const [gone, setGone] = useState(false);
+  useEffect(() => {
+    const a = Animated.timing(fade, { toValue: 0, duration: 400, delay: 2200, useNativeDriver: true });
+    a.start(({ finished }) => finished && setGone(true));
+    return () => a.stop();
+  }, [fade]);
+  if (gone) return null;
+  return (
+    <Animated.View style={[styles.activated, { opacity: fade }]} accessibilityRole="alert" accessibilityLabel={t.activated}>
+      <SuccessCheck theme={theme} size={40} />
+      <Text style={[styles.activatedText, { color: theme.ink }]}>{t.activated}</Text>
+    </Animated.View>
+  );
+}
+
+export function BadgeScreen({ badge, justActivated = false }: { badge: Badge; justActivated?: boolean }) {
   const theme = useTheme(badge.primaryColor);
   const { remove } = useBadge();
   const { width } = useWindowDimensions();
@@ -94,7 +113,7 @@ export function BadgeScreen({ badge }: { badge: Badge }) {
   const [clockOff, setClockOff] = useState(false);
   useEffect(() => { serverClockOffsetMs(badge.origin).then((ms) => setClockOff(ms !== null && Math.abs(ms) > CLOCK_TOLERANCE_S * 1000)); }, [badge.origin]);
 
-  const qrSize = Math.min(width - 96, 300);
+  const qrSize = Math.min(width - 116, 300);
   const confirmRemove = () => Alert.alert(t.removeTitle, t.removeText, [
     { text: t.cancel, style: 'cancel' },
     { text: t.removeConfirm, style: 'destructive', onPress: () => { remove(); } },
@@ -103,16 +122,18 @@ export function BadgeScreen({ badge }: { badge: Badge }) {
   return (
     <SafeAreaView style={[styles.screen, { backgroundColor: theme.ground }]}>
       <ScrollView contentContainerStyle={styles.content}>
+        {justActivated ? <Activated theme={theme} /> : null}
         <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.line }]}>
+          <SquaresBand theme={theme} />
           <Text style={[styles.org, { color: theme.ink2 }]} accessibilityRole="header">{badge.organisation}</Text>
           <Text style={[styles.name, { color: theme.ink }]}>{badge.firstName} {badge.lastName}</Text>
           {/* Always black on white with a quiet zone: the reader camera needs contrast, also in dark mode. */}
-          <View style={styles.qrBox} accessible accessibilityLabel={t.hint}>
-            <QRCode value={value} size={qrSize} color="#000000" backgroundColor="#FFFFFF" quietZone={12} ecl="M" />
-          </View>
-          <View style={[styles.timer, { backgroundColor: theme.line }]} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-            <View style={[styles.timerBar, { width: `${(left / badge.step) * 100}%`, backgroundColor: theme.primary }]} />
-          </View>
+          {/* The ring drains during the 30 seconds: it stays outside the QR's white quiet zone. */}
+          <QrRing codeStep={step} left={left} step={badge.step} theme={theme}>
+            <View style={styles.qrBox} accessible accessibilityLabel={t.hint}>
+              <QRCode value={value} size={qrSize} color="#000000" backgroundColor="#FFFFFF" quietZone={12} ecl="M" />
+            </View>
+          </QrRing>
           <Text style={[styles.small, { color: theme.ink2 }]}>{t.next.replace('{n}', String(left))}</Text>
           <Text style={[styles.hint, { color: theme.ink }]}>{t.hint}</Text>
           {nfc === 'ready' ? <Text style={[styles.nfc, { color: theme.ink }]}>{t.nfcReady}</Text> : null}
@@ -136,12 +157,12 @@ export function BadgeScreen({ badge }: { badge: Badge }) {
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   content: { padding: 20, gap: 16, flexGrow: 1, justifyContent: 'center' },
-  card: { borderWidth: 1, borderRadius: 20, padding: 24, alignItems: 'center', gap: 10 },
+  card: { borderWidth: 1, borderRadius: 20, padding: 24, alignItems: 'center', gap: 10, overflow: 'hidden' },
+  activated: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12 },
+  activatedText: { fontSize: 17, fontWeight: '700' },
   org: { fontSize: 14, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.6 },
   name: { fontSize: 24, fontWeight: '800', textAlign: 'center' },
-  qrBox: { marginTop: 8, backgroundColor: '#FFFFFF', borderRadius: 12, padding: 4 },
-  timer: { width: '100%', height: 6, borderRadius: 3, overflow: 'hidden', marginTop: 6 },
-  timerBar: { height: 6, borderRadius: 3 },
+  qrBox: { backgroundColor: '#FFFFFF', borderRadius: 12, padding: 4 },
   small: { fontSize: 14, fontVariant: ['tabular-nums'] },
   hint: { fontSize: 16, textAlign: 'center', lineHeight: 22 },
   warn: { fontSize: 14, fontWeight: '700', textAlign: 'center' },
