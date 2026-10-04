@@ -1,5 +1,5 @@
 import * as Haptics from 'expo-haptics';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AccessibilityInfo, Animated, Easing, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import type { Theme } from '../lib/theme';
@@ -92,30 +92,53 @@ export function SuccessCheck({ theme, size = 64 }: { theme: Theme; size?: number
 }
 
 /**
- * The tablet's twinkling squares, frozen: a band in the brand colour at the top of the badge card,
- * fading towards the name. Still on purpose, nothing moves next to the QR.
+ * The tablet's twinkling squares at the top of the badge card, in the brand colour, fading towards
+ * the name. Each square breathes on its own slow loop, run by the native driver: after the start no
+ * JavaScript runs per frame, so the QR and its timer are not slowed down. Still with reduced motion.
  */
 export function SquaresBand({ theme, height = 64 }: { theme: Theme; height?: number }) {
+  const reduced = useReducedMotion();
   const [width, setWidth] = useState(0);
-  const CELL = 14, FILL = 0.62, MAX_ALPHA = theme.dark ? 0.3 : 0.24;
+  const CELL = 14, FILL = 0.62, MAX_ALPHA = theme.dark ? 0.34 : 0.28;
   const cols = Math.ceil(width / CELL), rows = Math.ceil(height / CELL);
-  const squares: React.ReactNode[] = [];
-  for (let y = 0; y < rows; y++) {
-    const envelope = Math.pow(1 - y / rows, 1.8);
-    for (let x = 0; x < cols; x++) {
-      const i = y * cols + x;
-      const s = Math.sin(i * 12.9898 + 78.233) * 43758.5453;
-      const a = envelope * (s - Math.floor(s)) * MAX_ALPHA;
-      if (a < 0.02) continue;
-      squares.push(<Rect key={i} x={x * CELL + (CELL * (1 - FILL)) / 2} y={y * CELL + (CELL * (1 - FILL)) / 2} width={CELL * FILL} height={CELL * FILL} fill={theme.primary} opacity={a} />);
+
+  // Deterministic per square (no jumps on re-render): position, peak brightness, rhythm.
+  const squares = useMemo(() => {
+    const out: { key: number; x: number; y: number; peak: number; period: number; delay: number }[] = [];
+    const rnd = (i: number, a: number, b: number, c: number) => { const v = Math.sin(i * a + b) * c; return v - Math.floor(v); };
+    for (let y = 0; y < rows; y++) {
+      const envelope = Math.pow(1 - y / rows, 1.8);
+      for (let x = 0; x < cols; x++) {
+        const i = y * cols + x;
+        const peak = envelope * (0.35 + 0.65 * rnd(i, 12.9898, 78.233, 43758.5453)) * MAX_ALPHA;
+        if (peak < 0.03) continue;
+        out.push({ key: i, x: x * CELL + (CELL * (1 - FILL)) / 2, y: y * CELL + (CELL * (1 - FILL)) / 2, peak,
+          period: 1400 + rnd(i, 7.137, 33.71, 12345.6789) * 2200, delay: rnd(i, 3.51, 5.91, 9876.54321) * 2400 });
+      }
     }
-  }
+    return out;
+  }, [cols, rows, MAX_ALPHA]);
+
   return (
     <View pointerEvents="none" style={[StyleSheet.absoluteFill, { height }]} onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
       accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-      {width > 0 ? <Svg width={width} height={height}>{squares}</Svg> : null}
+      {squares.map(({ key, ...q }) => <Twinkle key={key} {...q} size={CELL * FILL} color={theme.primary} still={reduced} />)}
     </View>
   );
+}
+
+function Twinkle({ x, y, size, color, peak, period, delay, still }: { x: number; y: number; size: number; color: string; peak: number; period: number; delay: number; still: boolean }) {
+  const opacity = useRef(new Animated.Value(peak * 0.6)).current;
+  useEffect(() => {
+    if (still) { opacity.setValue(peak * 0.6); return; }
+    const loop = Animated.loop(Animated.sequence([
+      Animated.timing(opacity, { toValue: peak, duration: period / 2, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      Animated.timing(opacity, { toValue: peak * 0.12, duration: period / 2, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+    ]));
+    const t = setTimeout(() => loop.start(), delay);
+    return () => { clearTimeout(t); loop.stop(); };
+  }, [opacity, peak, period, delay, still]);
+  return <Animated.View style={{ position: 'absolute', left: x, top: y, width: size, height: size, backgroundColor: color, opacity }} />;
 }
 
 /** Grey rows that breathe while a list loads, shaped like the rows that will replace them. */

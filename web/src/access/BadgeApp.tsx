@@ -41,6 +41,12 @@ async function sign(secretB64: string, message: string): Promise<string> {
   return [...sig].map((b) => b.toString(16).padStart(2, '0')).join('').slice(0, 16);
 }
 
+/** The page forgets the badge at once; the server is told too (best effort), so nothing issued here keeps working. */
+async function removeBadge(token: string | undefined) {
+  await forgetWebPush(token);
+  if (token) await me(token, '/revoke', { method: 'POST', body: '{}' }).catch(() => undefined);
+}
+
 export function BadgeApp() {
   const [badge, setBadge] = useState<Badge | null>(load);
   // People who can be visited also invite their guests from here.
@@ -66,7 +72,7 @@ export function BadgeApp() {
     <div className="badge-app">
       {!badge ? <Activate onDone={(b) => { save(b); setBadge(b); }} />
         : inviting && profile?.canInvite && badge.appToken ? <BadgeInvites token={badge.appToken} profile={profile} lang={lang} onBack={() => setInviting(false)} />
-        : <BadgeView badge={badge} canInvite={!!profile?.canInvite} onInvites={() => setInviting(true)} onRemove={() => { forgetWebPush(badge.appToken); save(null); setBadge(null); setInviting(false); }} />}
+        : <BadgeView badge={badge} canInvite={!!profile?.canInvite} onInvites={() => setInviting(true)} onRemove={() => { removeBadge(badge.appToken); save(null); setBadge(null); setInviting(false); }} />}
     </div>
   );
 }
