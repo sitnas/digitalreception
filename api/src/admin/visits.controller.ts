@@ -1,3 +1,4 @@
+import { RequireApp } from '../common/apps';
 import { Body, Controller, Delete, Get, Header, HttpCode, Param, ParseUUIDPipe, Post, Query, Req, Res, StreamableFile, UseGuards } from '@nestjs/common';
 import { Response } from 'express';
 import { AdminAuthGuard, CurrentUser, Roles } from '../common/guards';
@@ -13,6 +14,7 @@ const SENSITIVE_READERS = [Role.SUPER_ADMIN, Role.SITE_MANAGER, Role.AUDITOR];
 const VISIT_WRITERS = [Role.SUPER_ADMIN, Role.SITE_MANAGER, Role.RECEPTIONIST];
 
 @Controller('admin/visits')
+@RequireApp('reception')
 @UseGuards(AdminAuthGuard)
 export class VisitsController {
   constructor(private readonly visits: VisitsService) {}

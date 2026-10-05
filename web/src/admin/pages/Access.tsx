@@ -4,7 +4,7 @@ import { api } from '../../lib/api';
 import { dayEnd, dayStart, fmtDateTime, todayIso } from '../../lib/format';
 import { useMe } from '../AdminApp';
 import { errorText, useI18n } from '../i18n';
-import type { Site } from '../types';
+import { APP_KEYS, type AppKey, type Site } from '../types';
 import { ErrorBox, PageHead, SiteSelect, useAsync } from '../ui';
 import type { ProjectRow } from './Projects';
 import { CopyButton } from './Users';
@@ -14,6 +14,7 @@ interface EmployeeRow {
   id: string; externalId: string; source: 'API' | 'CONSOLE'; firstName: string; lastName: string; email: string | null; department: string | null; jobTitle: string | null; active: boolean;
   validFrom: string | null; validUntil: string | null; badgeHint: string | null; phoneBadge: boolean; phoneBadgeIssuedAt: string | null; permissions: Permission[];
   project: { id: string; code: string; name: string } | null;
+  appsOff: AppKey[];
 }
 interface ReaderRow { id: string; name: string; lastSeenAt: string | null; createdAt: string }
 interface DoorRow { id: string; externalId: string; name: string; active: boolean; siteId: string; siteName: string; readers: ReaderRow[] }
@@ -26,12 +27,13 @@ interface PermissionForm { door: string; days: number[]; from: string; to: strin
 interface EmployeeForm {
   id: string | null; source: 'API' | 'CONSOLE'; externalId: string; firstName: string; lastName: string; email: string; department: string; jobTitle: string; project: string;
   badgeHint: string | null; badgeUid: string; removeBadge: boolean; active: boolean; validFrom: string; validUntil: string; permissions: PermissionForm[];
+  appsOff: AppKey[];
 }
 const NAME_PATTERN = "[\\p{L}\\p{M}' .\\-]+";
 const localDate = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const emptyEmployee = (): EmployeeForm => ({
   id: null, source: 'CONSOLE', externalId: '', firstName: '', lastName: '', email: '', department: '', jobTitle: '', project: '',
-  badgeHint: null, badgeUid: '', removeBadge: false, active: true, validFrom: '', validUntil: '', permissions: [],
+  badgeHint: null, badgeUid: '', removeBadge: false, active: true, validFrom: '', validUntil: '', permissions: [], appsOff: [],
 });
 const toForm = (e: EmployeeRow): EmployeeForm => ({
   id: e.id, source: e.source, externalId: e.externalId, firstName: e.firstName, lastName: e.lastName, email: e.email ?? '', department: e.department ?? '', jobTitle: e.jobTitle ?? '', project: e.project?.code ?? '',
@@ -39,6 +41,7 @@ const toForm = (e: EmployeeRow): EmployeeForm => ({
   // The end of validity is exclusive (midnight after the last day): show the last day included.
   validFrom: e.validFrom ? localDate(new Date(e.validFrom)) : '', validUntil: e.validUntil ? localDate(new Date(new Date(e.validUntil).getTime() - 1)) : '',
   permissions: e.permissions.map((p) => ({ door: p.doorExternalId, days: p.days ?? [], from: p.from ?? '', to: p.to ?? '' })),
+  appsOff: e.appsOff ?? [],
 });
 
 /** Employees from the external system or added by hand; the administrator edits them here. */
@@ -47,7 +50,8 @@ export function EmployeesPage() {
   const me = useMe();
   const canEdit = me.role === 'SUPER_ADMIN';
   const list = useAsync(() => api.get<EmployeeRow[]>('/admin/access/employees'), []);
-  const doors = useAsync(() => (canEdit ? api.get<DoorRow[]>('/admin/access/doors') : Promise.resolve([] as DoorRow[])), [canEdit]);
+  const doorsOn = me.apps.includes('access');
+  const doors = useAsync(() => (canEdit && doorsOn ? api.get<DoorRow[]>('/admin/access/doors') : Promise.resolve([] as DoorRow[])), [canEdit, doorsOn]);
   const projects = useAsync(() => api.get<ProjectRow[]>('/admin/access/projects'), []);
   // ?project=… from the Projects page: the people of that job.
   const [params, setParams] = useSearchParams();
@@ -80,8 +84,12 @@ export function EmployeesPage() {
     };
     setBusy(true); setMsg(null);
     try {
-      if (form.id) await api.put(`/admin/access/employees/${form.id}`, body);
-      else await api.post('/admin/access/employees', { ...body, ...(form.externalId.trim() ? { externalId: form.externalId.trim() } : {}) });
+      let id = form.id;
+      if (id) await api.put(`/admin/access/employees/${id}`, body);
+      else id = (await api.post<{ id: string }>('/admin/access/employees', { ...body, ...(form.externalId.trim() ? { externalId: form.externalId.trim() } : {}) })).id;
+      // The apps turned off for the person: a separate call, the HR system never sends it.
+      const before = (list.data ?? []).find((e) => e.id === id)?.appsOff ?? [];
+      if (before.join() !== form.appsOff.join()) await api.put(`/admin/access/employees/${id}/apps`, { appsOff: form.appsOff });
       setForm(null); setMsg({ ok: true, text: t.access.employeeSaved }); list.reload();
     } catch (err) { setMsg({ ok: false, text: errorText(t, err) }); } finally { setBusy(false); }
   };
@@ -98,7 +106,7 @@ export function EmployeesPage() {
         actions={canEdit && !form && <button type="button" className="btn btn-primary" onClick={() => open(emptyEmployee())}>{t.access.addEmployee}</button>} />
       <ErrorBox error={list.error ?? doors.error} />
       <div role="status" aria-live="polite">{msg && <p className={msg.ok ? 'alert alert-info' : 'alert'}>{msg.text}</p>}</div>
-      {form && <EmployeeEditor form={form} setForm={setForm} doors={doors.data ?? []} projects={projects.data ?? []} busy={busy} onSubmit={save} onDelete={remove} />}
+      {form && <EmployeeEditor form={form} setForm={setForm} doors={doors.data ?? []} projects={projects.data ?? []} apps={me.apps} busy={busy} onSubmit={save} onDelete={remove} />}
       <div className="a-card inline" style={{ justifyContent: 'space-between', marginBottom: 16 }}>
         <span>{t.access.badgePage}: <code translate="no">{origin()}/badge</code></span>
         <CopyButton text={`${origin()}/badge`} />
@@ -172,8 +180,8 @@ function SelfRemoveSetting({ canEdit }: { canEdit: boolean }) {
   );
 }
 
-function EmployeeEditor({ form, setForm, doors, projects, busy, onSubmit, onDelete }: {
-  form: EmployeeForm; setForm: (f: EmployeeForm | null) => void; doors: DoorRow[]; projects: ProjectRow[]; busy: boolean; onSubmit: (e: React.FormEvent) => void; onDelete: () => void;
+function EmployeeEditor({ form, setForm, doors, projects, apps, busy, onSubmit, onDelete }: {
+  form: EmployeeForm; setForm: (f: EmployeeForm | null) => void; doors: DoorRow[]; projects: ProjectRow[]; apps: AppKey[]; busy: boolean; onSubmit: (e: React.FormEvent) => void; onDelete: () => void;
 }) {
   const { t } = useI18n();
   const A = t.access;
@@ -220,7 +228,20 @@ function EmployeeEditor({ form, setForm, doors, projects, busy, onSubmit, onDele
       </div>
       <label className="toggle"><input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} />{A.activeLabel}</label>
 
-      <fieldset className="field" style={{ border: 0, padding: 0, margin: 0 }}>
+      {apps.length > 0 && (
+        <fieldset className="field" style={{ border: 0, padding: 0, margin: 0 }}>
+          <legend className="label" style={{ fontWeight: 700, marginBottom: 8 }}>{A.appsTitle}</legend>
+          <div className="app-checks">
+            {APP_KEYS.filter((a) => apps.includes(a)).map((a) => (
+              <label key={a} className="toggle"><input type="checkbox" name={`emp-app-${a}`} checked={!form.appsOff.includes(a)}
+                onChange={(e) => setForm({ ...form, appsOff: e.target.checked ? form.appsOff.filter((x) => x !== a) : [...form.appsOff, a] })} />{t.apps.items[a].name}</label>
+            ))}
+          </div>
+          <span className="hint">{A.appsHint}</span>
+        </fieldset>
+      )}
+
+      {apps.includes('access') && <fieldset className="field" style={{ border: 0, padding: 0, margin: 0 }}>
         <legend className="label" style={{ fontWeight: 700, marginBottom: 8 }}>{A.permissionsTitle}</legend>
         {usable.length === 0 && <p className="muted" style={{ margin: 0 }}>{A.noDoorsToAssign}</p>}
         <div className="stack" style={{ gap: 12 }}>
@@ -252,7 +273,7 @@ function EmployeeEditor({ form, setForm, doors, projects, busy, onSubmit, onDele
           <div><button type="button" className="btn btn-ghost btn-sm" style={{ marginTop: 8 }}
             onClick={() => setForm({ ...form, permissions: [...form.permissions, { door: free[0].externalId, days: [], from: '', to: '' }] })}>{A.addPermission}</button></div>
         )}
-      </fieldset>
+      </fieldset>}
 
       <div className="inline" style={{ justifyContent: 'space-between' }}>
         <div className="inline">

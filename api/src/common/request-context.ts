@@ -1,3 +1,4 @@
+import type { AppKey } from './app-keys';
 import { Request } from 'express';
 import { Role, TenantStatus } from '../entities';
 
@@ -6,7 +7,9 @@ export interface AuthUser { id: string; tenantId: string; email: string; display
   /** Two-step verification is on for this user / required by the organisation but not yet set up. */
   mfaEnabled: boolean; mfaSetupRequired: boolean;
   /** This session was opened with single sign-on. */
-  sso: boolean }
+  sso: boolean;
+  /** Apps of the portal turned on for the organisation: the console shows only their pages. */
+  apps: AppKey[] }
 export interface AuthDevice { id: string; tenantId: string; name: string; siteId: string }
 /** An employee using the phone app (token issued with the phone badge). */
 export interface AuthEmployee { id: string; tenantId: string }

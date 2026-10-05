@@ -1,6 +1,11 @@
 export type Role = 'SUPER_ADMIN' | 'SITE_MANAGER' | 'RECEPTIONIST' | 'AUDITOR';
 export type VisitStatus = 'OPEN' | 'CLOSED' | 'AUTO_CLOSED' | 'ERASED';
-export interface Me { id: string; tenantId: string; email: string; displayName: string; role: Role; siteIds: string[]; mustChangePassword: boolean; mfaEnabled: boolean; mfaSetupRequired: boolean; sso: boolean }
+export interface Me { id: string; tenantId: string; email: string; displayName: string; role: Role; siteIds: string[]; mustChangePassword: boolean; mfaEnabled: boolean; mfaSetupRequired: boolean; sso: boolean;
+  /** Apps of the portal turned on for the organisation. */
+  apps: AppKey[] }
+/** Apps of the portal (the shared data, like employees and sites, is always there). */
+export type AppKey = 'reception' | 'access' | 'parcels';
+export const APP_KEYS: AppKey[] = ['reception', 'access', 'parcels'];
 export interface Site { id: string; code: string; name: string; countryCode: string; timezone: string; active: boolean }
 export interface VisitRow {
   id: string; code: string; status: VisitStatus; siteId: string; siteName: string | null; siteTimezone: string | null; checkInAt: string; checkOutAt: string | null;

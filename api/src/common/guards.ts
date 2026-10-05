@@ -56,12 +56,13 @@ export class AdminAuthGuard implements CanActivate {
     if (!user || !user.active || user.sessionVersion !== claims.sv) throw new UnauthorizedException();
     // Read from the DB (not the 60 s tenant cache) so that turning the policy on applies at once.
     const sso = claims.via === 'sso';
-    const mfaSetupRequired = !sso && !user.mfaEnabledAt && (await this.tenants.exist({ where: { id: user.tenantId, mfaRequired: true } }));
+    const tenant = await this.tenants.findOneOrFail({ where: { id: user.tenantId }, select: { id: true, mfaRequired: true, apps: true } });
+    const mfaSetupRequired = !sso && !user.mfaEnabledAt && tenant.mfaRequired;
 
     const authUser: AuthUser = {
       id: user.id, tenantId: user.tenantId, email: user.email, displayName: user.displayName, role: user.role,
       siteIds: user.sites.map((s) => s.id), mustChangePassword: !sso && user.mustChangePassword,
-      mfaEnabled: !!user.mfaEnabledAt, mfaSetupRequired, sso,
+      mfaEnabled: !!user.mfaEnabledAt, mfaSetupRequired, sso, apps: tenant.apps,
     };
     req.user = authUser;
 

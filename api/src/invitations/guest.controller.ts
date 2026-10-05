@@ -1,3 +1,4 @@
+import { RequireApp } from '../common/apps';
 import { BadRequestException, Body, ConflictException, Controller, HttpCode, NotFoundException, Post, Req } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { Throttle } from '@nestjs/throttler';
@@ -46,6 +47,7 @@ export class GuestPreregisterDto extends GuestCodeDto {
  * (their own details, who they are meeting, when and where).
  */
 @Controller('guest/invitation')
+@RequireApp('reception')
 export class GuestController {
   constructor(
     @InjectDataSource() private readonly ds: DataSource,

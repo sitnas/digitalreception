@@ -4,7 +4,7 @@ import type { Theme } from '../lib/theme';
 import { useReducedMotion } from './motion';
 
 /** A press you can feel: the control shrinks a little and springs back (native driver, still with reduced motion). */
-function usePressScale(to = 0.97) {
+export function usePressScale(to = 0.97) {
   const reduced = useReducedMotion();
   const scale = useRef(new Animated.Value(1)).current;
   const spring = (v: number) => { if (!reduced) Animated.spring(scale, { toValue: v, speed: 40, bounciness: v === 1 ? 8 : 0, useNativeDriver: true }).start(); };

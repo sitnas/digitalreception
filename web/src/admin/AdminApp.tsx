@@ -21,7 +21,8 @@ import { SitesPage } from './pages/Sites';
 import { StatsPage } from './pages/Stats';
 import { TodayPage } from './pages/Today';
 import { UsersPage } from './pages/Users';
-import type { Me, Role } from './types';
+import type { AppKey, Me, Role } from './types';
+import { AppsPage } from './pages/Apps';
 
 interface Branding { name: string; logo: string | null; primaryColor: string | null; secondaryColor: string | null; sso: { provider: 'microsoft' | 'google'; enforced: boolean } | null }
 const MeContext = createContext<Me | null>(null);
@@ -35,28 +36,38 @@ function initialLocale(): AdminLocale {
 }
 
 type NavGroup = keyof typeof ADMIN_STRINGS.it.navGroups;
-const NAV: { to: string; key: keyof typeof ADMIN_STRINGS.it.nav; group: NavGroup; roles: Role[] }[] = [
-  { to: 'today', key: 'today', group: 'visits', roles: ['SUPER_ADMIN', 'SITE_MANAGER', 'RECEPTIONIST', 'AUDITOR'] },
-  { to: 'invites', key: 'invites', group: 'visits', roles: ['SUPER_ADMIN', 'SITE_MANAGER', 'RECEPTIONIST', 'AUDITOR'] },
-  { to: 'history', key: 'history', group: 'visits', roles: ['SUPER_ADMIN', 'SITE_MANAGER', 'RECEPTIONIST', 'AUDITOR'] },
-  { to: 'parcels', key: 'parcels', group: 'visits', roles: ['SUPER_ADMIN', 'SITE_MANAGER', 'RECEPTIONIST', 'AUDITOR'] },
-  { to: 'evacuation', key: 'evacuation', group: 'visits', roles: ['SUPER_ADMIN', 'SITE_MANAGER', 'RECEPTIONIST'] },
-  { to: 'stats', key: 'stats', group: 'visits', roles: ['SUPER_ADMIN', 'SITE_MANAGER', 'AUDITOR'] },
-  { to: 'employees', key: 'employees', group: 'access', roles: ['SUPER_ADMIN', 'SITE_MANAGER', 'AUDITOR'] },
-  { to: 'projects', key: 'projects', group: 'access', roles: ['SUPER_ADMIN', 'SITE_MANAGER', 'AUDITOR'] },
-  { to: 'doors', key: 'doors', group: 'access', roles: ['SUPER_ADMIN', 'SITE_MANAGER', 'AUDITOR'] },
-  { to: 'access-log', key: 'accessLog', group: 'access', roles: ['SUPER_ADMIN', 'SITE_MANAGER', 'AUDITOR'] },
-  { to: 'integration', key: 'integration', group: 'access', roles: ['SUPER_ADMIN'] },
-  { to: 'sites', key: 'sites', group: 'setup', roles: ['SUPER_ADMIN'] },
-  { to: 'devices', key: 'devices', group: 'setup', roles: ['SUPER_ADMIN', 'SITE_MANAGER'] },
-  { to: 'hosts', key: 'hosts', group: 'setup', roles: ['SUPER_ADMIN', 'SITE_MANAGER'] },
-  { to: 'users', key: 'users', group: 'setup', roles: ['SUPER_ADMIN'] },
+/**
+ * The console as a portal: the shared data first (employees, jobs, sites, users), then one group per
+ * app, shown only while the organisation has that app on, then settings and oversight.
+ */
+const NAV: { to: string; key: keyof typeof ADMIN_STRINGS.it.nav; group: NavGroup; roles: Role[]; app?: AppKey }[] = [
+  { to: 'employees', key: 'employees', group: 'data', roles: ['SUPER_ADMIN', 'SITE_MANAGER', 'AUDITOR'] },
+  { to: 'projects', key: 'projects', group: 'data', roles: ['SUPER_ADMIN', 'SITE_MANAGER', 'AUDITOR'] },
+  { to: 'sites', key: 'sites', group: 'data', roles: ['SUPER_ADMIN'] },
+  { to: 'users', key: 'users', group: 'data', roles: ['SUPER_ADMIN'] },
+  { to: 'integration', key: 'integration', group: 'data', roles: ['SUPER_ADMIN'] },
+  { to: 'today', key: 'today', group: 'reception', app: 'reception', roles: ['SUPER_ADMIN', 'SITE_MANAGER', 'RECEPTIONIST', 'AUDITOR'] },
+  { to: 'invites', key: 'invites', group: 'reception', app: 'reception', roles: ['SUPER_ADMIN', 'SITE_MANAGER', 'RECEPTIONIST', 'AUDITOR'] },
+  { to: 'history', key: 'history', group: 'reception', app: 'reception', roles: ['SUPER_ADMIN', 'SITE_MANAGER', 'RECEPTIONIST', 'AUDITOR'] },
+  { to: 'evacuation', key: 'evacuation', group: 'reception', app: 'reception', roles: ['SUPER_ADMIN', 'SITE_MANAGER', 'RECEPTIONIST'] },
+  { to: 'stats', key: 'stats', group: 'reception', app: 'reception', roles: ['SUPER_ADMIN', 'SITE_MANAGER', 'AUDITOR'] },
+  { to: 'hosts', key: 'hosts', group: 'reception', app: 'reception', roles: ['SUPER_ADMIN', 'SITE_MANAGER'] },
+  { to: 'devices', key: 'devices', group: 'reception', app: 'reception', roles: ['SUPER_ADMIN', 'SITE_MANAGER'] },
+  { to: 'documents', key: 'documents', group: 'reception', app: 'reception', roles: ['SUPER_ADMIN', 'SITE_MANAGER', 'AUDITOR'] },
+  { to: 'doors', key: 'doors', group: 'access', app: 'access', roles: ['SUPER_ADMIN', 'SITE_MANAGER', 'AUDITOR'] },
+  { to: 'access-log', key: 'accessLog', group: 'access', app: 'access', roles: ['SUPER_ADMIN', 'SITE_MANAGER', 'AUDITOR'] },
+  { to: 'parcels', key: 'parcels', group: 'parcels', app: 'parcels', roles: ['SUPER_ADMIN', 'SITE_MANAGER', 'RECEPTIONIST', 'AUDITOR'] },
+  { to: 'apps', key: 'apps', group: 'settings', roles: ['SUPER_ADMIN', 'SITE_MANAGER', 'AUDITOR'] },
+  { to: 'notifications', key: 'notifications', group: 'settings', roles: ['SUPER_ADMIN'] },
+  { to: 'organisation', key: 'org', group: 'settings', roles: ['SUPER_ADMIN'] },
   { to: 'privacy', key: 'privacy', group: 'compliance', roles: ['SUPER_ADMIN', 'SITE_MANAGER', 'AUDITOR'] },
-  { to: 'documents', key: 'documents', group: 'compliance', roles: ['SUPER_ADMIN', 'SITE_MANAGER', 'AUDITOR'] },
   { to: 'audit', key: 'audit', group: 'compliance', roles: ['SUPER_ADMIN', 'AUDITOR'] },
-  { to: 'notifications', key: 'notifications', group: 'setup', roles: ['SUPER_ADMIN'] },
-  { to: 'organisation', key: 'org', group: 'setup', roles: ['SUPER_ADMIN'] },
 ];
+const APP_GROUPS: NavGroup[] = ['reception', 'access', 'parcels'];
+
+/** Reloads the signed-in user (after turning an app on or off, the menu follows). */
+const ReloadMeContext = createContext<() => Promise<void>>(async () => {});
+export const useReloadMe = () => useContext(ReloadMeContext);
 
 export function AdminApp() {
   const [locale, setLocaleState] = useState<AdminLocale>(initialLocale);
@@ -84,7 +95,7 @@ export function AdminApp() {
         me === 'anon' ? <LoginScreen branding={branding} onLoggedIn={loadMe} /> :
         me.mustChangePassword ? <ChangePasswordScreen branding={branding} onDone={() => setMe('anon')} /> :
         me.mfaSetupRequired ? <MfaSetupScreen branding={branding} onDone={loadMe} /> :
-        <MeContext.Provider value={me}><Shell branding={branding} me={me} onLogout={() => setMe('anon')} /></MeContext.Provider>}
+        <ReloadMeContext.Provider value={loadMe}><MeContext.Provider value={me}><Shell branding={branding} me={me} onLogout={() => setMe('anon')} /></MeContext.Provider></ReloadMeContext.Provider>}
     </I18nContext.Provider>
   );
 }
@@ -138,9 +149,11 @@ function useCardTables(root: React.RefObject<HTMLElement>) {
 /** Line icons for the menu sections (24px grid, drawn with currentColor). */
 function GroupIcon({ group }: { group: NavGroup }) {
   const paths: Record<NavGroup, React.ReactNode> = {
-    visits: <><circle cx="9" cy="8" r="3.5" /><path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5" /><path d="M16 4.8a3.5 3.5 0 0 1 0 6.4M18 14.8c1.9.7 3.1 2.4 3.5 5.2" /></>,
-    setup: <><path d="M4 7h10M18 7h2M4 17h2M10 17h10" /><circle cx="16" cy="7" r="2.2" /><circle cx="8" cy="17" r="2.2" /></>,
+    data: <><ellipse cx="12" cy="5.5" rx="7.5" ry="2.8" /><path d="M4.5 5.5v13c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8v-13M4.5 12c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8" /></>,
+    reception: <><circle cx="9" cy="8" r="3.5" /><path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5" /><path d="M16 4.8a3.5 3.5 0 0 1 0 6.4M18 14.8c1.9.7 3.1 2.4 3.5 5.2" /></>,
     access: <><rect x="5" y="3" width="14" height="18" rx="1.5" /><circle cx="15" cy="12.5" r="1.1" /><path d="M9 3v18" /></>,
+    parcels: <><path d="M3.5 7.5L12 3l8.5 4.5v9L12 21l-8.5-4.5z" /><path d="M3.5 7.5L12 12l8.5-4.5M12 12v9M7.8 5.3l8.4 4.5" /></>,
+    settings: <><path d="M4 7h10M18 7h2M4 17h2M10 17h10" /><circle cx="16" cy="7" r="2.2" /><circle cx="8" cy="17" r="2.2" /></>,
     compliance: <><path d="M12 3l7.5 3v5.5c0 4.6-3.2 8.2-7.5 9.5-4.3-1.3-7.5-4.9-7.5-9.5V6L12 3z" /><path d="M8.8 12.2l2.2 2.2 4.3-4.6" /></>,
   };
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{paths[group]}</svg>;
@@ -346,9 +359,10 @@ function ChangePasswordScreen({ branding, onDone }: { branding: Branding; onDone
 
 function Shell({ branding, me, onLogout }: { branding: Branding; me: Me; onLogout: () => void }) {
   const { t } = useI18n();
-  const items = NAV.filter((n) => n.roles.includes(me.role));
+  const items = NAV.filter((n) => n.roles.includes(me.role) && (!n.app || me.apps.includes(n.app)));
   const logout = async () => { try { await api.post('/auth/logout'); } finally { onLogout(); } };
-  const home = items[0]?.to ?? 'today';
+  // Land in the first app (the daily work), else in the first page of data.
+  const home = items.find((n) => n.app)?.to ?? items[0]?.to ?? 'today';
   const { pathname } = useLocation();
   const current = items.find((n) => pathname.startsWith(`/admin/${n.to}`));
   const title = current ? t.nav[current.key] : pathname.startsWith('/admin/account') ? t.mfa.nav : branding.name;
@@ -385,8 +399,10 @@ function Shell({ branding, me, onLogout }: { branding: Branding; me: Me; onLogou
         <nav className="a-nav" aria-label="Menu">
           {(Object.keys(t.navGroups) as NavGroup[]).map((g) => {
             const group = items.filter((n) => n.group === g);
+            const firstApp = APP_GROUPS.find((a) => items.some((n) => n.group === a));
             return group.length > 0 && (
-              <div key={g} className="a-nav a-nav-section" role="group" aria-label={t.navGroups[g]}>
+              <div key={g} className={`a-nav a-nav-section${APP_GROUPS.includes(g) ? ' a-nav-app' : ''}`} role="group" aria-label={t.navGroups[g]}>
+                {g === firstApp && <span className="a-nav-super">{t.navApps}</span>}
                 <span className="a-nav-group" aria-hidden><GroupIcon group={g} />{t.navGroups[g]}</span>
                 {group.map((n) => <NavLink key={n.to} to={n.to}>{t.nav[n.key]}</NavLink>)}
               </div>
@@ -424,6 +440,7 @@ function Shell({ branding, me, onLogout }: { branding: Branding; me: Me; onLogou
           {items.some((i) => i.to === 'audit') && <Route path="audit" element={<AuditPage />} />}
           {items.some((i) => i.to === 'notifications') && <Route path="notifications" element={<WebhooksPage />} />}
           {items.some((i) => i.to === 'organisation') && <Route path="organisation" element={<OrganisationPage />} />}
+          {items.some((i) => i.to === 'apps') && <Route path="apps" element={<AppsPage />} />}
           <Route path="account" element={<AccountPage />} />
           <Route path="*" element={<Navigate to={home} replace />} />
         </Routes>

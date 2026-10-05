@@ -792,6 +792,40 @@ describe('end-to-end', { skip: !enabled && 'E2E_DB_HOST not set' }, () => {
         assert.deepEqual((await me('GET', '/parcels')).data, []);
       }
 
+      // Apps of the portal: per person, then for the whole organisation.
+      {
+        assert.deepEqual((await me('GET', '')).data.apps, ['reception', 'access', 'parcels'], 'all on by default');
+        assert.deepEqual((await admin.get('/admin/apps')).data.apps, ['reception', 'access', 'parcels']);
+        assert.equal((await ctx.aud.put(`/admin/access/employees/${emp.id}/apps`, { appsOff: ['parcels'] })).status, 403, 'auditor reads only');
+        assert.equal((await admin.put(`/admin/access/employees/${emp.id}/apps`, { appsOff: ['coffee'] })).status, 400);
+        assert.deepEqual((await admin.put(`/admin/access/employees/${emp.id}/apps`, { appsOff: ['parcels', 'reception'] })).data, { appsOff: ['reception', 'parcels'] });
+        assert.deepEqual((await me('GET', '')).data.apps, ['access']);
+        assert.equal((await me('GET', '')).data.canInvite, false, 'reception off for her: no inviting');
+        assert.equal((await me('GET', '/invitations')).data.message, 'NOT_A_HOST');
+        assert.equal((await admin.post('/admin/parcels', { siteId: ctx.milano.id, employeeId: emp.id, carrier: 'DHL' })).data.message, 'EMPLOYEE_APP_DISABLED');
+        assert.equal((await admin.get('/admin/parcels/recipients?q=sara pu')).data.length, 0, 'not offered as a recipient');
+        assert.equal((await admin.get('/admin/access/employees')).data.find((e) => e.id === emp.id).appsOff.join(), 'reception,parcels');
+        // The HR system sends her again: the console choice stays.
+        await hr('PUT', '/employees/P200', { firstName: 'Sara', lastName: 'Push', email: 'sara.push@e2e.test', permissions: [] });
+        assert.deepEqual((await me('GET', '')).data.apps, ['access']);
+        assert.equal((await admin.put(`/admin/access/employees/${emp.id}/apps`, { appsOff: [] })).status, 200);
+        assert.equal((await me('GET', '')).data.canInvite, true);
+
+        assert.equal((await ctx.aud.put('/admin/apps', { apps: ['reception'] })).status, 403);
+        assert.deepEqual((await admin.put('/admin/apps', { apps: ['access', 'reception'] })).data, { apps: ['reception', 'access'] });
+        assert.deepEqual((await admin.get('/auth/me')).data.apps, ['reception', 'access'], 'the console hides what is off');
+        const off = await admin.get(`/admin/parcels?siteId=${ctx.milano.id}`);
+        assert.equal(off.status, 403); assert.equal(off.data.message, 'APP_DISABLED');
+        assert.equal((await me('GET', '/parcels')).data.message, 'APP_DISABLED');
+        assert.deepEqual((await me('GET', '')).data.apps, ['reception', 'access']);
+        assert.equal((await admin.put('/admin/apps', { apps: ['access', 'parcels'] })).status, 200);
+        assert.equal((await new Client().get('/kiosk/config', { bearer: ctx.token })).data.message, 'APP_DISABLED', 'reception off: the tablet stops');
+        assert.equal((await admin.get('/admin/visits/present')).status, 403);
+        assert.equal((await admin.get('/admin/access/employees')).status, 200, 'shared data stays');
+        assert.equal((await admin.put('/admin/apps', { apps: ['reception', 'access', 'parcels'] })).status, 200);
+        assert.equal((await new Client().get('/kiosk/config', { bearer: ctx.token })).status, 200, 'back on, data untouched');
+      }
+
       // Removed from this phone; then the badge is revoked: no devices left.
       assert.equal((await me('DELETE', '/push', { kind: 'expo', target: expoToken })).status, 200);
       assert.equal(await devices(), 1);

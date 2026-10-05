@@ -13,7 +13,9 @@ import { useBadge } from '../lib/badge-context';
 import { t } from '../lib/i18n';
 import { useTheme } from '../lib/theme';
 import { QrRing, SquaresBand, SuccessCheck } from './motion';
-import { ParcelsCard } from './Parcels';
+import { ParcelsCard, useParcels } from './Parcels';
+import { AppTiles } from './Portal';
+import type { AppKey } from '../lib/invites';
 import { Button } from './ui';
 
 /** Seconds of clock difference with the server beyond which the reader may refuse the QR. */
@@ -23,8 +25,9 @@ const CLOCK_TOLERANCE_S = 20;
  * While the badge is the screen in front (not while the invitations are open): screen on, full
  * brightness, no screenshots. The previous brightness comes back after.
  */
-function useBadgeInFront() {
+function useBadgeInFront(enabled: boolean) {
   useFocusEffect(useCallback(() => {
+    if (!enabled) return;
     activateKeepAwakeAsync('badge').catch(() => {});
     preventScreenCaptureAsync('badge').catch(() => {}); // a screenshot would stop working anyway: do not invite it
     let previous: number | null = null;
@@ -41,7 +44,7 @@ function useBadgeInFront() {
       deactivateKeepAwake('badge').catch(() => {});
       allowScreenCaptureAsync('badge').catch(() => {});
     };
-  }, []));
+  }, [enabled]));
 }
 
 type NfcState = 'ready' | 'off' | 'dev-build' | 'none';
@@ -50,12 +53,12 @@ type NfcState = 'ready' | 'off' | 'dev-build' | 'none';
  * Android: the phone also answers NFC readers as a card carrying the same code as the QR, but
  * only while this screen is open and the app is in front (and, by system rule, the phone unlocked).
  */
-function useNfcCard(value: string): [NfcState, () => void] {
+function useNfcCard(value: string, enabled: boolean): [NfcState, () => void] {
   const [state, setState] = useState<NfcState>('none');
   const latest = useRef(value);
   latest.current = value;
   useFocusEffect(useCallback(() => {
-    if (Platform.OS !== 'android') return;
+    if (Platform.OS !== 'android' || !enabled) return;
     if (!BadgeNfc) { setState(__DEV__ ? 'dev-build' : 'none'); return; }
     if (!BadgeNfc.isSupported()) return;
     // Back in front (maybe after turning NFC on in the settings): answer again with the current code.
@@ -71,7 +74,7 @@ function useNfcCard(value: string): [NfcState, () => void] {
     });
     // Another screen in front (invitations): stop answering readers until the badge is back.
     return () => { sub.remove(); BadgeNfc!.setPayload(null); setState('none'); };
-  }, []));
+  }, [enabled]));
   // Same code as the QR, renewed every step.
   useEffect(() => { if (state === 'ready') BadgeNfc?.setPayload(value); }, [state, value]);
   return [state, () => BadgeNfc?.openSettings()];
@@ -98,16 +101,20 @@ function Activated({ theme }: { theme: ReturnType<typeof useTheme> }) {
 export function BadgeScreen({ badge, justActivated = false }: { badge: Badge; justActivated?: boolean }) {
   const theme = useTheme(badge.primaryColor, badge.secondaryColor);
   const { width } = useWindowDimensions();
-  useBadgeInFront();
   // People who can be visited also invite their guests from here.
   const [canInvite, setCanInvite] = useState(false);
+  // Apps of the portal on for this person; unknown (offline, older server) shows the badge as before.
+  const [apps, setApps] = useState<AppKey[] | null>(null);
+  const showBadge = apps === null || apps.includes('access');
+  useBadgeInFront(showBadge);
+  const parcels = useParcels(badge, apps === null || apps.includes('parcels'));
   // What the server says about this badge: 'stale' when another activation or the console replaced it
   // (the reader refuses the QR too), 'offline' when it cannot be reached (the QR still works).
   const [server, setServer] = useState<'ok' | 'stale' | 'offline' | null>(null);
   const { remove } = useBadge();
   const checkServer = useCallback(() => {
     if (!badge.appToken) return;
-    getProfile(badge).then((p) => { setCanInvite(p.canInvite); setServer('ok'); },
+    getProfile(badge).then((p) => { setCanInvite(p.canInvite); setApps(p.apps ?? ['reception', 'access', 'parcels']); setServer('ok'); },
       (e) => { const stale = e instanceof ApiError && e.status === 401; if (stale) setCanInvite(false); setServer(stale ? 'stale' : 'offline'); });
   }, [badge]);
   useFocusEffect(useCallback(() => {
@@ -123,7 +130,7 @@ export function BadgeScreen({ badge, justActivated = false }: { badge: Badge; ju
   // HMAC once per step, not once per second.
   const value = useMemo(() => qrPayload(badge, step), [badge, step]);
 
-  const [nfc, openNfcSettings] = useNfcCard(value);
+  const [nfc, openNfcSettings] = useNfcCard(value, showBadge);
   const [clockOff, setClockOff] = useState(false);
   useEffect(() => { serverClockOffsetMs(badge.origin).then((ms) => setClockOff(ms !== null && Math.abs(ms) > CLOCK_TOLERANCE_S * 1000)); }, [badge.origin]);
 
@@ -146,8 +153,9 @@ export function BadgeScreen({ badge, justActivated = false }: { badge: Badge; ju
               <Button label={t.stale.action} theme={theme} onPress={() => { remove(); }} />
             </View>
           ) : null}
+          {!showBadge ? <Text style={[styles.hint, { color: theme.ink2 }]}>{t.portal.noBadge}</Text> : null}
           {/* Faded when the server refuses it: the reader would refuse it as well. */}
-          <View style={[styles.qrBlock, stale && styles.faded]} importantForAccessibility={stale ? 'no-hide-descendants' : 'auto'}>
+          {showBadge ? <View style={[styles.qrBlock, stale && styles.faded]} importantForAccessibility={stale ? 'no-hide-descendants' : 'auto'}>
           <QrRing codeStep={step} left={left} step={badge.step} theme={theme}>
             <View style={styles.qrBox} accessible accessibilityLabel={t.hint}>
               <QRCode value={value} size={qrSize} color="#000000" backgroundColor="#FFFFFF" quietZone={12} ecl="M" />
@@ -155,13 +163,18 @@ export function BadgeScreen({ badge, justActivated = false }: { badge: Badge; ju
           </QrRing>
           <Text style={[styles.small, { color: theme.ink2 }]}>{t.next.replace('{n}', String(left))}</Text>
           <Text style={[styles.hint, { color: theme.ink }]}>{t.hint}</Text>
-          </View>
+          </View> : null}
           {nfc === 'ready' ? <Text style={[styles.nfc, { color: theme.ink }]}>{t.nfcReady}</Text> : null}
           {nfc === 'dev-build' ? <Text style={[styles.small, { color: theme.ink2, textAlign: 'center' }]}>{t.nfcDevBuild}</Text> : null}
           {clockOff ? <Text accessibilityRole="alert" style={[styles.warn, { color: theme.danger }]}>{t.clock}</Text> : null}
         </View>
-        <ParcelsCard badge={badge} theme={theme} />
-        {canInvite ? <Button label={t.invites.open} theme={theme} onPress={() => router.push('/invites')} /> : null}
+        <ParcelsCard rows={parcels} theme={theme} />
+        <AppTiles title={t.portal.title} theme={theme} tiles={[
+          ...(canInvite ? [{ key: 'invites', label: t.portal.invites, detail: t.portal.invitesDetail, onPress: () => router.push('/invites') }] : []),
+          ...(apps?.includes('parcels') ? [{ key: 'parcels', label: t.portal.parcels, badge: parcels.length,
+            detail: parcels.length ? t.portal.parcelsSome.replace('{n}', String(parcels.reduce((n, r) => n + r.pieces, 0))) : t.portal.parcelsNone,
+            onPress: () => router.push('/parcels') }] : []),
+        ]} />
         {!badge.appToken ? (
           <View style={styles.nfcOff}>
             <Text style={[styles.small, { color: theme.ink2, textAlign: 'center' }]}>{t.stale.old}</Text>

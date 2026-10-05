@@ -61,7 +61,7 @@ interface Verdict { result: 'GRANTED' | 'DENIED'; reason: string; name: string |
 const REASONS: Record<string, string> = {
   UNKNOWN_CREDENTIAL: 'Badge non riconosciuto', QR_INVALID: 'QR non valido', QR_EXPIRED: 'QR scaduto: usa il badge sul telefono, non una foto',
   EMPLOYEE_INACTIVE: 'Badge disattivato', NOT_YET_VALID: 'Badge non ancora valido', EXPIRED: 'Badge scaduto', DOOR_INACTIVE: 'Porta disattivata',
-  NO_PERMISSION: 'Nessun permesso per questa porta', OUTSIDE_SCHEDULE: 'Fuori dall’orario consentito', OFFLINE: 'Nessuna connessione: riprova',
+  NO_PERMISSION: 'Nessun permesso per questa porta', OUTSIDE_SCHEDULE: 'Fuori dall’orario consentito', APP_DISABLED: 'Porte non attive per questa persona', OFFLINE: 'Nessuna connessione: riprova',
   NFC_UNREADABLE: 'Tessera rilevata ma non leggibile da questo lettore: usa il QR sul telefono',
 };
 

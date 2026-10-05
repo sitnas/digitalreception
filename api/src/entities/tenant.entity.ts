@@ -1,3 +1,4 @@
+import { appListTransformer, type AppKey } from '../common/app-keys';
 import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
 
 export enum TenantStatus { ACTIVE = 'ACTIVE', SUSPENDED = 'SUSPENDED' }
@@ -43,5 +44,7 @@ export class Tenant {
   @Column({ default: false }) pushIncludeNames: boolean;
   /** Employees may remove the phone badge themselves (app, /badge). Off: only the console revokes it. */
   @Column({ default: true }) badgeSelfRemove: boolean;
+  /** Apps of the portal turned on for this organisation (see common/apps.ts). */
+  @Column({ type: 'varchar', length: 200, default: 'reception,access,parcels', transformer: appListTransformer }) apps: AppKey[];
   @CreateDateColumn({ type: 'datetime', precision: 3, default: () => 'CURRENT_TIMESTAMP(3)' }) createdAt: Date;
 }

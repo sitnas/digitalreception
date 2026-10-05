@@ -21,6 +21,8 @@ export function KioskApp() {
   const [paired, setPaired] = useState(!!deviceToken.get());
   const [cfg, setCfg] = useState<KioskConfig | null>(null);
   const [offline, setOffline] = useState(false);
+  // The organisation turned the Reception app off: the tablet waits, and comes back on its own.
+  const [disabled, setDisabled] = useState(false);
   const [locale, setLocale] = useState<Locale>('it');
   const [screen, setScreen] = useState<Screen>({ name: 'welcome' });
   const [session, setSession] = useState(0); // bump to remount flows = discard their state
@@ -28,10 +30,11 @@ export function KioskApp() {
   const loadConfig = useCallback(async () => {
     try {
       const c = await api.kiosk.get<KioskConfig>('/config');
-      applyBrand(c.organisation); setCfg(c); setOffline(false);
+      applyBrand(c.organisation); setCfg(c); setOffline(false); setDisabled(false);
       return c;
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) { deviceToken.clear(); setPaired(false); setCfg(null); }
+      else if (e instanceof ApiError && e.code === 'APP_DISABLED') { setDisabled(true); setCfg(null); setOffline(false); }
       else setOffline(true);
       return null;
     }
@@ -51,9 +54,9 @@ export function KioskApp() {
   // Periodic refresh while idle on the welcome screen; retry quickly when offline.
   useEffect(() => {
     if (!paired || screen.name !== 'welcome') return;
-    const h = setInterval(loadConfig, offline ? 15_000 : REFRESH_MS);
+    const h = setInterval(loadConfig, offline || disabled ? 15_000 : REFRESH_MS);
     return () => clearInterval(h);
-  }, [paired, screen.name, offline, loadConfig]);
+  }, [paired, screen.name, offline, disabled, loadConfig]);
 
   // Inactivity reset: personal data never stays on an unattended screen.
   const idleTimer = useRef<number>();
@@ -73,7 +76,8 @@ export function KioskApp() {
   if (!cfg) {
     return (
       <div className="kiosk"><div /><main className="k-main">
-        {offline ? <p className="alert" role="alert">{t.errors.offline}</p> : <p className="muted">…</p>}
+        {disabled ? <p className="alert" role="alert">Il registro visitatori non è attivo per questa organizzazione. / The visitor log is not turned on for this organisation.</p>
+          : offline ? <p className="alert" role="alert">{t.errors.offline}</p> : <p className="muted">…</p>}
       </main><div /></div>
     );
   }

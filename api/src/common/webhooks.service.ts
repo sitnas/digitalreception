@@ -61,9 +61,9 @@ const TEXT = {
   },
 };
 const REASONS = {
-  it: { UNKNOWN_CREDENTIAL: 'badge non riconosciuto', QR_INVALID: 'QR non valido', QR_EXPIRED: 'QR scaduto', EMPLOYEE_INACTIVE: 'dipendente non attivo', NOT_YET_VALID: 'non ancora valido', EXPIRED: 'validità scaduta', DOOR_INACTIVE: 'porta disattivata', NO_PERMISSION: 'nessun permesso', OUTSIDE_SCHEDULE: 'fuori orario' },
-  es: { UNKNOWN_CREDENTIAL: 'credencial no reconocida', QR_INVALID: 'QR no válido', QR_EXPIRED: 'QR caducado', EMPLOYEE_INACTIVE: 'empleado inactivo', NOT_YET_VALID: 'aún no válido', EXPIRED: 'validez vencida', DOOR_INACTIVE: 'puerta desactivada', NO_PERMISSION: 'sin permiso', OUTSIDE_SCHEDULE: 'fuera de horario' },
-  en: { UNKNOWN_CREDENTIAL: 'badge not recognised', QR_INVALID: 'invalid QR', QR_EXPIRED: 'expired QR', EMPLOYEE_INACTIVE: 'employee inactive', NOT_YET_VALID: 'not valid yet', EXPIRED: 'validity ended', DOOR_INACTIVE: 'door turned off', NO_PERMISSION: 'no permission', OUTSIDE_SCHEDULE: 'outside allowed hours' },
+  it: { UNKNOWN_CREDENTIAL: 'badge non riconosciuto', QR_INVALID: 'QR non valido', QR_EXPIRED: 'QR scaduto', EMPLOYEE_INACTIVE: 'dipendente non attivo', NOT_YET_VALID: 'non ancora valido', EXPIRED: 'validità scaduta', DOOR_INACTIVE: 'porta disattivata', NO_PERMISSION: 'nessun permesso', OUTSIDE_SCHEDULE: 'fuori orario', APP_DISABLED: 'porte non attive per questa persona' },
+  es: { UNKNOWN_CREDENTIAL: 'credencial no reconocida', QR_INVALID: 'QR no válido', QR_EXPIRED: 'QR caducado', EMPLOYEE_INACTIVE: 'empleado inactivo', NOT_YET_VALID: 'aún no válido', EXPIRED: 'validez vencida', DOOR_INACTIVE: 'puerta desactivada', NO_PERMISSION: 'sin permiso', OUTSIDE_SCHEDULE: 'fuera de horario', APP_DISABLED: 'puertas no activas para esta persona' },
+  en: { UNKNOWN_CREDENTIAL: 'badge not recognised', QR_INVALID: 'invalid QR', QR_EXPIRED: 'expired QR', EMPLOYEE_INACTIVE: 'employee inactive', NOT_YET_VALID: 'not valid yet', EXPIRED: 'validity ended', DOOR_INACTIVE: 'door turned off', NO_PERMISSION: 'no permission', OUTSIDE_SCHEDULE: 'outside allowed hours', APP_DISABLED: 'doors not turned on for this person' },
 };
 
 /**
