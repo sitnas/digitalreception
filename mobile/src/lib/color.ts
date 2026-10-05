@@ -7,7 +7,7 @@ export const contrast = (a: string, b: string) => { const [x, y] = [luminance(a)
 
 /** Text on the organisation colour: whichever of dark ink and white contrasts more (as on the web console). */
 export function onColor(hex: string): string {
-  return contrast(hex, '#111111') >= contrast(hex, '#FFFFFF') ? '#111111' : '#FFFFFF';
+  return contrast(hex, '#0A0A0A') >= contrast(hex, '#FFFFFF') ? '#0A0A0A' : '#FFFFFF';
 }
 
 

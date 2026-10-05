@@ -1,6 +1,8 @@
-# Reception — registro visitatori multi-azienda
+# Mortise
 
-Registro digitale degli ingressi per le reception aziendali: il visitatore si registra da solo su un tablet, l'azienda consulta presenze e storico da una console web. Progettato per essere venduto a più aziende (multi-tenant) e per chi ha requisiti privacy stringenti: ogni dato personale è cifrato con chiavi diverse per ogni cliente, cancellato automaticamente alla scadenza e ogni consultazione è tracciata.
+Mortise è una piattaforma multi-azienda fatta di app che l'organizzazione accende quando le servono: Reception (registro visitatori), Porte, Pacchi e Parcheggi, sopra dati comuni come dipendenti, commesse e sedi.
+
+L'app Reception è il registro digitale degli ingressi: il visitatore si registra da solo su un tablet, l'azienda consulta presenze e storico da una console web. Progettato per essere venduto a più aziende (multi-tenant) e per chi ha requisiti privacy stringenti: ogni dato personale è cifrato con chiavi diverse per ogni cliente, cancellato automaticamente alla scadenza e ogni consultazione è tracciata.
 
 ## Cosa fa
 

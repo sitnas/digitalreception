@@ -5,9 +5,9 @@
  */
 export interface BrandColors { primaryColor?: string | null; secondaryColor?: string | null }
 
-export const DEFAULT_PRIMARY = '#FFD100';
-export const DEFAULT_SECONDARY = '#111111';
-const INK = '#1A1A1A';
+export const DEFAULT_PRIMARY = '#FFD60A';
+export const DEFAULT_SECONDARY = '#0A0A0A';
+const INK = '#0A0A0A';
 const WHITE = '#FFFFFF';
 
 export const isHex = (v: string | null | undefined): v is string => !!v && /^#[0-9A-Fa-f]{6}$/.test(v);

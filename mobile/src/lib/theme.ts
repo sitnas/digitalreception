@@ -1,7 +1,7 @@
 import { useColorScheme } from 'react-native';
 import { onColor } from './color';
 
-const DEFAULT_PRIMARY = '#FFD100';
+const DEFAULT_PRIMARY = '#FFD60A';
 
 export function useTheme(primaryColor?: string | null, secondaryColor?: string | null) {
   const dark = useColorScheme() === 'dark';

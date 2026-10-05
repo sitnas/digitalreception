@@ -1,12 +1,12 @@
 {
-  "name": "Reception - registro visitatori",
-  "short_name": "Reception",
+  "name": "Mortise",
+  "short_name": "Mortise",
   "start_url": "/kiosk",
   "scope": "/",
   "display": "fullscreen",
   "orientation": "any",
   "background_color": "#FFFFFF",
-  "theme_color": "#111111",
+  "theme_color": "#0A0A0A",
   "icons": [
     {
       "src": "/icon-192.png",
