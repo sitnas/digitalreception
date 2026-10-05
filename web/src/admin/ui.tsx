@@ -1,4 +1,4 @@
-import { ReactNode, useCallback, useEffect, useState } from 'react';
+import { ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { useI18n } from './i18n';
 import type { Site, VisitStatus } from './types';
 
@@ -71,4 +71,47 @@ export function strongPassword(): string {
   const b = new Uint8Array(16);
   crypto.getRandomValues(b);
   return Array.from(b, (x) => a[x % a.length]).join('').replace(/(.{4})(?!$)/g, '$1-');
+}
+
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+/**
+ * Drawers, windows and the phone menu (Mortise dashboard): focus moves in, stays inside while Tab
+ * goes round, Escape closes, and focus goes back to the control that opened it. The page behind
+ * does not scroll meanwhile.
+ */
+export function useDialog(ref: React.RefObject<HTMLElement>, onClose: () => void) {
+  const close = useRef(onClose);
+  close.current = onClose;
+  // Who had the focus when the dialog was first drawn: it gets it back on closing.
+  const [opener] = useState(() => document.activeElement as HTMLElement | null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const items = () => [...el.querySelectorAll<HTMLElement>(FOCUSABLE)].filter((x) => x.offsetParent !== null || x === document.activeElement);
+    (el.querySelector<HTMLElement>('[data-autofocus]') ?? items()[0] ?? el).focus();
+    const key = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { e.stopPropagation(); close.current(); return; }
+      if (e.key !== 'Tab') return;
+      const list = items();
+      if (!list.length) { e.preventDefault(); return; }
+      const first = list[0], last = list[list.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+      else if (!el.contains(document.activeElement)) { e.preventDefault(); first.focus(); }
+    };
+    document.addEventListener('keydown', key);
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.removeEventListener('keydown', key); document.body.style.overflow = overflow; if (opener?.isConnected) opener.focus(); };
+  }, [ref, opener]);
+}
+
+/** The visible X of a drawer or window, with its accessible name. */
+export function CloseButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button type="button" className="icon-btn" onClick={onClick} aria-label={label}>
+      <svg viewBox="-8 -8 16 16" width="16" height="16" aria-hidden><path d="M-6 -6L6 6M6 -6L-6 6" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" /></svg>
+    </button>
+  );
 }

@@ -96,12 +96,12 @@ export function WebhooksPage() {
             <legend className="label" style={{ fontWeight: 700, marginBottom: 8 }}>{W.events}</legend>
             <div className="inline">
               {EVENTS.map((ev) => (
-                <label key={ev} className="toggle"><input type="checkbox" checked={form.events.includes(ev)}
+                <label key={ev} className="toggle"><input type="checkbox" role="switch" checked={form.events.includes(ev)}
                   onChange={(e) => setForm({ ...form, events: e.target.checked ? [...form.events, ev] : form.events.filter((x) => x !== ev) })} />{W.eventNames[ev]}</label>
               ))}
             </div>
           </fieldset>
-          <label className="toggle"><input type="checkbox" checked={form.includeNames} aria-describedby="wi-help" onChange={(e) => setForm({ ...form, includeNames: e.target.checked })} />{W.includeNames}</label>
+          <label className="toggle"><input type="checkbox" role="switch" checked={form.includeNames} aria-describedby="wi-help" onChange={(e) => setForm({ ...form, includeNames: e.target.checked })} />{W.includeNames}</label>
           <span id="wi-help" className="hint" style={{ marginTop: -8 }}>{W.includeNamesHelp}</span>
           <div className="inline">
             <button className="btn btn-primary" disabled={busy === 'save' || !form.events.length} aria-busy={busy === 'save'}>{W.save}</button>
@@ -158,7 +158,7 @@ function PushSettings() {
     <section className="a-card stack" style={{ marginTop: 24 }} aria-labelledby="push-h">
       <h2 id="push-h" style={{ margin: 0 }}>{W.pushTitle}</h2>
       <p className="muted" style={{ margin: 0 }}>{W.pushIntro}</p>
-      <label className="toggle"><input type="checkbox" checked={settings.data.includeNames} aria-describedby="pn-help" onChange={(e) => change(e.target.checked)} />{W.pushNames}</label>
+      <label className="toggle"><input type="checkbox" role="switch" checked={settings.data.includeNames} aria-describedby="pn-help" onChange={(e) => change(e.target.checked)} />{W.pushNames}</label>
       <span id="pn-help" className="hint" style={{ marginTop: -8 }}>{W.pushNamesHelp}</span>
       <p className="muted" style={{ margin: 0 }}>{W.pushDevices.replace('{n}', String(settings.data.devices))}</p>
       <div role="status" aria-live="polite">{msg && <p className={msg.ok ? 'alert alert-info' : 'alert'} style={{ margin: 0 }}>{msg.text}</p>}</div>

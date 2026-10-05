@@ -184,7 +184,7 @@ function SelfRemoveSetting({ canEdit }: { canEdit: boolean }) {
   };
   return (
     <div className="a-card stack" style={{ marginBottom: 16 }}>
-      <label className="toggle"><input type="checkbox" name="self-remove" aria-describedby="sr-hint" checked={value} disabled={!canEdit || busy}
+      <label className="toggle"><input type="checkbox" role="switch" name="self-remove" aria-describedby="sr-hint" checked={value} disabled={!canEdit || busy}
         onChange={(e) => toggle(e.target.checked)} />{A.selfRemove}</label>
       <span id="sr-hint" className="hint" style={{ marginTop: -8 }}>{value ? A.selfRemoveOn : A.selfRemoveOff}</span>
       <div role="status" aria-live="polite">{msg && <p className={msg.ok ? 'alert alert-info' : 'alert'} style={{ margin: 0 }}>{msg.text}</p>}</div>
@@ -228,7 +228,7 @@ function EmployeeEditor({ form, setForm, doors, projects, apps, spots, sites, bu
       <div className="a-grid">
         {form.badgeHint && (
           <div className="field"><span className="label">{A.currentCard.replace('{hint}', form.badgeHint)}</span>
-            <label className="toggle"><input type="checkbox" checked={form.removeBadge} onChange={(e) => setForm({ ...form, removeBadge: e.target.checked, badgeUid: '' })} />{A.removeCard}</label></div>
+            <label className="toggle"><input type="checkbox" role="switch" checked={form.removeBadge} onChange={(e) => setForm({ ...form, removeBadge: e.target.checked, badgeUid: '' })} />{A.removeCard}</label></div>
         )}
         {!form.removeBadge && (
           <div className="field"><label htmlFor="eb">{form.badgeHint ? A.newCard : A.cardUid}</label>
@@ -238,14 +238,14 @@ function EmployeeEditor({ form, setForm, doors, projects, apps, spots, sites, bu
         <div className="field"><label htmlFor="evf">{A.validFrom}</label><input id="evf" className="input" type="date" value={form.validFrom} onChange={field('validFrom')} max={form.validUntil || undefined} aria-describedby="ev-h" /></div>
         <div className="field"><label htmlFor="evu">{A.validUntil}</label><input id="evu" className="input" type="date" value={form.validUntil} onChange={field('validUntil')} min={form.validFrom || undefined} aria-describedby="ev-h" /><span id="ev-h" className="hint">{A.validityHint}</span></div>
       </div>
-      <label className="toggle"><input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} />{A.activeLabel}</label>
+      <label className="toggle"><input type="checkbox" role="switch" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} />{A.activeLabel}</label>
 
       {apps.length > 0 && (
         <fieldset className="field" style={{ border: 0, padding: 0, margin: 0 }}>
           <legend className="label" style={{ fontWeight: 700, marginBottom: 8 }}>{A.appsTitle}</legend>
           <div className="app-checks">
             {APP_KEYS.filter((a) => apps.includes(a)).map((a) => (
-              <label key={a} className="toggle"><input type="checkbox" name={`emp-app-${a}`} checked={!form.appsOff.includes(a)}
+              <label key={a} className="toggle"><input type="checkbox" role="switch" name={`emp-app-${a}`} checked={!form.appsOff.includes(a)}
                 onChange={(e) => setForm({ ...form, appsOff: e.target.checked ? form.appsOff.filter((x) => x !== a) : [...form.appsOff, a] })} />{t.apps.items[a].name}</label>
             ))}
           </div>
