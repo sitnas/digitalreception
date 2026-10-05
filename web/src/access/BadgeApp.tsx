@@ -7,6 +7,7 @@ import { Button, Field, QrRing, Screen, ScreenHeader, SquaresBand, SuccessCheck 
 import { InviteDetail, InvitesList, NewInvite, me, type Profile } from './BadgeInvites';
 import type { AppKey } from './invites';
 import { forgetWebPush } from './BadgePush';
+import { ParkingScreen } from './BadgeParking';
 
 /**
  * "My badge" on the employee's phone, in the browser: the same screens as the phone app. After a
@@ -86,7 +87,7 @@ function explain(e: unknown): string {
   return `${t.errors.generic}\n${t.errors.detail}: ${e.status} ${e.code}`;
 }
 
-type View = { name: 'badge' } | { name: 'settings' } | { name: 'parcels' } | { name: 'invites' } | { name: 'new' } | { name: 'detail'; id: string; created?: string };
+type View = { name: 'badge' } | { name: 'settings' } | { name: 'parcels' } | { name: 'parking' } | { name: 'invites' } | { name: 'new' } | { name: 'detail'; id: string; created?: string };
 
 export function BadgeApp() {
   const [badge, setBadge] = useState<Badge | null>(load);
@@ -146,10 +147,11 @@ export function BadgeApp() {
             onCreated={(id, emailStatus) => { window.history.replaceState({ name: 'detail', id, created: emailStatus }, ''); setViewState({ name: 'detail', id, created: emailStatus }); }} />
         : view.name === 'detail' && token ? <InviteDetail token={token} id={view.id} created={view.created} organisation={badge.organisation} host={badge.firstName} onBack={back} />
         : view.name === 'parcels' && token ? <ParcelsScreen token={token} onBack={back} />
+        : view.name === 'parking' && token ? <ParkingScreen token={token} onBack={back} />
         : view.name === 'settings' ? <SettingsScreen badge={badge} onBack={back}
             onRemoved={() => { save(null); setBadge(null); setJustActivated(false); window.history.replaceState(null, ''); setViewState({ name: 'badge' }); }} />
         : <BadgeScreen badge={badge} justActivated={justActivated} canInvite={!!profile?.canInvite} server={server} onInvites={() => setView({ name: 'invites' })}
-            apps={profile ? profile.apps ?? ['reception', 'access', 'parcels'] : null} onParcels={() => setView({ name: 'parcels' })}
+            apps={profile ? profile.apps ?? ['reception', 'access', 'parcels'] : null} onParcels={() => setView({ name: 'parcels' })} onParking={() => setView({ name: 'parking' })}
             onSettings={() => setView({ name: 'settings' })} onReactivate={reactivate} />}
     </div>
   );
@@ -308,10 +310,10 @@ function Activated() {
   );
 }
 
-function BadgeScreen({ badge, justActivated, canInvite, server, apps, onInvites, onParcels, onSettings, onReactivate }: {
+function BadgeScreen({ badge, justActivated, canInvite, server, apps, onInvites, onParcels, onParking, onSettings, onReactivate }: {
   badge: Badge; justActivated: boolean; canInvite: boolean; server: 'ok' | 'stale' | 'offline' | null;
   /** Apps on for this person; null while unknown (offline, loading): the badge shows as before. */
-  apps: AppKey[] | null; onInvites: () => void; onParcels: () => void; onSettings: () => void; onReactivate: () => void;
+  apps: AppKey[] | null; onInvites: () => void; onParcels: () => void; onParking: () => void; onSettings: () => void; onReactivate: () => void;
 }) {
   const stale = server === 'stale';
   const showBadge = apps === null || apps.includes('access');
@@ -382,6 +384,7 @@ function BadgeScreen({ badge, justActivated, canInvite, server, apps, onInvites,
         ...(canInvite ? [{ key: 'invites', label: t.portal.invites, detail: t.portal.invitesDetail, onClick: onInvites }] : []),
         ...(apps?.includes('parcels') ? [{ key: 'parcels', label: t.portal.parcels, count: parcels.length, onClick: onParcels,
           detail: parcels.length ? t.portal.parcelsSome.replace('{n}', String(parcels.reduce((n, r) => n + r.pieces, 0))) : t.portal.parcelsNone }] : []),
+        ...(apps?.includes('parking') ? [{ key: 'parking', label: t.parking.tile, detail: t.parking.tileDetail, onClick: onParking }] : []),
       ]} />
       {!badge.appToken && <><p className="mb-small mb-centered">{t.stale.old}</p><Button label={t.stale.action} kind="ghost" onClick={onReactivate} /></>}
       {server === 'offline' && <p className="mb-small mb-centered" role="status">{t.stale.offline}</p>}

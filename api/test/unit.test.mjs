@@ -183,3 +183,24 @@ test('pre-registration link: per-organisation subdomain, code in the fragment, n
   assert.equal(guestLink({ publicUrl: 'https://reception.example.com', tenancy: { mode: 'subdomain', baseDomain: 'reception.example.com' } }, 'acme', 'AB12CD34'), 'https://acme.reception.example.com/guest#AB12CD34');
   assert.equal(guestLink({ publicUrl: null, tenancy: { mode: 'single' } }, 'acme', 'AB12CD34'), null);
 });
+
+test('parking: booking window, Thursday opening, managers booked for the week after', () => {
+  const R = require('../dist/parking/parking-rules.js');
+  const at = (iso) => new Date(iso);
+  // Wednesday 7 October 2026, Rome: only the rest of this week.
+  assert.deepEqual(R.bookableDays(at('2026-10-07T08:00:00Z'), 'Europe/Rome'), ['2026-10-07', '2026-10-08', '2026-10-09']);
+  assert.equal(R.opensOn(at('2026-10-07T08:00:00Z'), 'Europe/Rome'), '2026-10-08');
+  // Thursday: next week opens too.
+  assert.deepEqual(R.bookableDays(at('2026-10-08T08:00:00Z'), 'Europe/Rome'), ['2026-10-08', '2026-10-09', '2026-10-12', '2026-10-13', '2026-10-14', '2026-10-15', '2026-10-16']);
+  assert.equal(R.opensOn(at('2026-10-08T08:00:00Z'), 'Europe/Rome'), null);
+  // Wednesday 23:30 UTC is already Thursday in Rome.
+  assert.equal(R.bookableDays(at('2026-10-07T22:30:00Z'), 'Europe/Rome').includes('2026-10-12'), true);
+  assert.equal(R.bookableDays(at('2026-10-07T22:30:00Z'), 'America/Lima').includes('2026-10-12'), false);
+  // Saturday: only next week.
+  assert.deepEqual(R.bookableDays(at('2026-10-10T10:00:00Z'), 'Europe/Rome'), ['2026-10-12', '2026-10-13', '2026-10-14', '2026-10-15', '2026-10-16']);
+  // Monday: the managers' week is the one after.
+  assert.equal(R.nextMonday(at('2026-10-05T06:00:00Z'), 'Europe/Rome'), '2026-10-12');
+  assert.equal(R.nextMonday(at('2026-10-11T21:00:00Z'), 'Europe/Rome'), '2026-10-12', 'Sunday 23:00 in Rome is still that week');
+  assert.equal(R.nextMonday(at('2026-10-11T22:30:00Z'), 'Europe/Rome'), '2026-10-19', 'past midnight it is Monday');
+  assert.deepEqual(R.workingDays('2026-12-28'), ['2026-12-28', '2026-12-29', '2026-12-30', '2026-12-31', '2027-01-01']);
+});

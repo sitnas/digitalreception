@@ -90,10 +90,19 @@ La console e il telefono dei dipendenti sono un portale. I **dati comuni** (dipe
 | Reception | Oggi, Inviti, Storico, Evacuazione, Statistiche, Persone da visitare, Tablet, Documenti | I miei inviti, avviso quando arriva un ospite |
 | Porte | Porte e lettori, Passaggi | Il badge con QR e NFC |
 | Pacchi | Consegne | Avviso e elenco dei pacchi da ritirare |
+| Parcheggi | Parcheggi | I miei giorni di parcheggio, prenota e libera |
 
 - **Per organizzazione**: *Impostazioni → App attive*, solo l'Amministratore. Un'app spenta sparisce dal menu, il tablet mostra che il registro non è attivo e le sue API rispondono `403 APP_DISABLED`. I dati restano: riaccendendola si ritrova tutto.
 - **Per dipendente**: nella scheda in *Dipendenti*, sezione "App per questa persona". Il sistema HR non tocca questa scelta. Porte spente: il telefono non mostra il QR e il lettore rifiuta con `APP_DISABLED`. Pacchi spenti: la persona non compare tra i destinatari. Reception spenta: niente inviti dall'app.
-- Le organizzazioni esistenti hanno tutte le app accese, come prima.
+- Le organizzazioni esistenti hanno tutte le app accese, come prima. Parcheggi è spenta finché non la accendi.
+
+### Parcheggi
+
+- **Posti**: in *Parcheggi* si inseriscono i posti di ogni sede (codice, per esempio `P12`, e una nota facoltativa). Spegnere un posto cancella le sue prenotazioni da oggi in poi; si può eliminare solo un posto mai usato.
+- **Benefit**: nella scheda del dipendente, *Parcheggio aziendale*: Nessuno, Standard o Manager. Solo chi ha il benefit vede l'app sul telefono.
+- **Manager**: hanno un posto fisso, uno per manager. Ogni lunedì (ora della sede) un job, che gira ogni 10 minuti, prenota il posto da lunedì a venerdì della settimana dopo. La settimana viene segnata, quindi il job non la rifà: un giorno che il manager libera resta libero per gli altri. Quando assegni il ruolo, il posto viene prenotato subito per i giorni rimasti della settimana e per quelle già assegnate. Il tasto `POST /api/admin/parking/weekly` fa lo stesso passaggio a mano.
+- **Standard**: dall'app prenotano un giorno alla volta. I giorni sono quelli rimasti della settimana; dal giovedì si aggiunge la settimana dopo. Al massimo 4 prenotazioni attive. Il posto lo sceglie il sistema tra quelli liberi, e quelli fissi dei manager vengono offerti per ultimi.
+- La reception e i responsabili vedono la settimana posto per posto e possono annullare una prenotazione.
 
 ## Notifiche push ai dipendenti
 

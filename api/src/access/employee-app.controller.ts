@@ -14,6 +14,7 @@ import { CARRIER_NAMES, Employee, Host, Parcel, PushDevice, Site, Tenant, VisitP
 import { InvitationsService } from '../invitations/invitations.service';
 import { SUPPORTED_LOCALES } from '../kiosk/kiosk.dto';
 import { CurrentEmployee, EmployeeAppGuard } from './access.guards';
+import { ParkingService } from '../parking/parking.service';
 
 const trim = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim().replace(/\s+/g, ' ') : value);
 const NAME = /^[\p{L}\p{M}' .-]+$/u;
@@ -28,6 +29,13 @@ export class AppInvitationDto {
   @Transform(({ value }) => (typeof value === 'string' ? value.trim().toLowerCase() : value)) @IsEmail() @MaxLength(190) email: string;
   @IsEnum(VisitPurpose) purpose: VisitPurpose;
   @IsOptional() @IsIn(SUPPORTED_LOCALES) locale?: string;
+}
+export class ParkingQuery {
+  @IsOptional() @IsUUID() siteId?: string;
+}
+export class ParkingBookDto {
+  @IsUUID() siteId: string;
+  @Matches(/^\d{4}-\d{2}-\d{2}$/) date: string;
 }
 export class AppInvitationsQuery {
   @IsOptional() @IsIn(['upcoming', 'past']) scope?: 'upcoming' | 'past';
@@ -73,15 +81,16 @@ export class EmployeeAppController {
     private readonly audit: AuditService,
     private readonly push: PushService,
     @InjectRepository(PushDevice) private readonly pushDevices: Repository<PushDevice>,
+    private readonly parking: ParkingService,
   ) {}
 
   /** The apps this employee sees: the organisation's, minus the ones turned off for them. */
   private async apps(me: AuthEmployee) {
     const [t, e] = await Promise.all([
       this.tenants.findOneOrFail({ where: { id: me.tenantId }, select: { id: true, apps: true } }),
-      this.employees.findOneOrFail({ where: { id: me.id, tenantId: me.tenantId }, select: { id: true, appsOff: true } }),
+      this.employees.findOneOrFail({ where: { id: me.id, tenantId: me.tenantId }, select: { id: true, appsOff: true, parkingRole: true } }),
     ]);
-    return employeeApps(t.apps, e.appsOff);
+    return employeeApps(t.apps, e.appsOff, e.parkingRole);
   }
 
   /** The active entry in the directory of people to visit, with its active sites. */
@@ -121,7 +130,7 @@ export class EmployeeAppController {
     const e = await this.employees.findOneOrFail({ where: { id: me.id, tenantId: me.tenantId } });
     const tc = await this.keys.forTenant(me.tenantId);
     const t = await this.tenants.findOneOrFail({ where: { id: me.tenantId }, select: { id: true, name: true, badgeSelfRemove: true, apps: true } });
-    const apps = employeeApps(t.apps, e.appsOff);
+    const apps = employeeApps(t.apps, e.appsOff, e.parkingRole);
     const h = apps.includes('reception') ? await this.host(me) : null;
     return {
       firstName: tc.decrypt(e.firstNameEnc, 'employee.firstName'), lastName: tc.decrypt(e.lastNameEnc, 'employee.lastName'), organisation: t.name,
@@ -132,6 +141,29 @@ export class EmployeeAppController {
       sites: h ? h.sites.map((s) => ({ id: s.id, name: s.name, timezone: s.timezone })) : [],
       purposes: Object.values(VisitPurpose),
     };
+  }
+
+  /** Parking: my days and bookings at a site (the one of my fixed spot first). */
+  @Get('parking')
+  @RequireApp('parking')
+  async parkingDays(@CurrentEmployee() me: AuthEmployee, @Query() q: ParkingQuery) {
+    return this.parking.mine(me.tenantId, me.id, q.siteId);
+  }
+
+  @Post('parking')
+  @RequireApp('parking')
+  async parkingBook(@CurrentEmployee() me: AuthEmployee, @Body() dto: ParkingBookDto, @Req() req: AppRequest) {
+    const b = await this.parking.book(me.tenantId, me.id, dto.date, dto.siteId);
+    await this.audit.fromRequest(req, { action: 'PARKING_BOOKED', entityType: 'parking_booking', entityId: b.id, siteId: dto.siteId, details: { date: b.date, spot: b.spot } });
+    return b;
+  }
+
+  @Delete('parking/:id')
+  @RequireApp('parking')
+  async parkingCancel(@CurrentEmployee() me: AuthEmployee, @Param('id', ParseUUIDPipe) id: string, @Req() req: AppRequest) {
+    const b = await this.parking.cancel(me.tenantId, me.id, id);
+    await this.audit.fromRequest(req, { action: 'PARKING_CANCELLED', entityType: 'parking_booking', entityId: b.id, siteId: b.siteId, details: { date: b.date, source: b.source } });
+    return { ok: true };
   }
 
   /** Parcels waiting for me at reception (any site), newest first. */

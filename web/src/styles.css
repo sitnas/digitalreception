@@ -810,6 +810,14 @@ code.mfa-secret { font-size: 14px; overflow-wrap: anywhere; max-width: 100%; }
 .mb-row-card { display: grid; gap: 4px; border: 1px solid var(--mb-line); border-radius: 14px; padding: 14px; background: var(--mb-surface); }
 .mb-row-card strong { font-size: 16px; }
 .mb-row-card span { font-size: 14px; color: var(--mb-ink2); }
+.mb-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.mb-notice { margin: 0; font-size: 15px; font-weight: 700; }
+.mb-park-day { display: flex; align-items: center; gap: 12px; border: 1px solid var(--mb-line); border-radius: 14px; padding: 10px 14px; background: var(--mb-surface); }
+.mb-park-day.is-booked { border-color: var(--brand); border-left-width: 4px; }
+.mb-park-day > div { flex: 1; display: grid; gap: 2px; min-width: 0; }
+.mb-park-day strong { font-size: 16px; }
+.mb-park-day span { font-size: 14px; color: var(--mb-ink2); }
+.mb-park-day .mb-btn { width: auto; min-width: 104px; flex: none; }
 @keyframes mb-rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
 .mb-invite { gap: 6px; padding: 22px; }
 .mb-status-big { font-size: 13px; font-weight: 800; color: var(--mb-ink2); text-transform: uppercase; letter-spacing: .6px; }
@@ -895,3 +903,11 @@ code.mfa-secret { font-size: 14px; overflow-wrap: anywhere; max-width: 100%; }
 .app-tile-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .pill-on { background: var(--brand-soft); color: var(--ink, #1a1a1a); }
 .app-checks { display: flex; flex-wrap: wrap; gap: 8px 20px; }
+
+/* ---------- parking ---------- */
+.parking-week th.is-today { color: var(--brand-strong); }
+.parking-week td.is-booked { background: var(--brand-soft); }
+.parking-cell { display: grid; gap: 2px; }
+.parking-spots { list-style: none; margin: 0; padding: 0; display: grid; }
+.parking-spots li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 0; border-top: 1px solid var(--line); }
+.parking-spots li:first-child { border-top: 0; }

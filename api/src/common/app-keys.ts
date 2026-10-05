@@ -3,9 +3,10 @@
  * each app is turned on per organisation, and per employee where it concerns them.
  *  - reception: visitors at the tablet, invitations, evacuation roll call, site documents;
  *  - access: doors and readers, the phone badge that opens them;
- *  - parcels: parcels and letters left at reception.
+ *  - parcels: parcels and letters left at reception;
+ *  - parking: company parking spots, a benefit given per employee.
  */
-export const APP_KEYS = ['reception', 'access', 'parcels'] as const;
+export const APP_KEYS = ['reception', 'access', 'parcels', 'parking'] as const;
 export type AppKey = (typeof APP_KEYS)[number];
 /** What an organisation had before apps could be turned off: everything. */
 export const DEFAULT_APPS: AppKey[] = ['reception', 'access', 'parcels'];
@@ -19,6 +20,10 @@ export const appListTransformer = {
     .filter((x): x is AppKey => (APP_KEYS as readonly string[]).includes(x)),
 };
 
-/** The apps an employee sees: those of the organisation, minus the ones turned off for them. */
-export const employeeApps = (tenantApps: AppKey[], appsOff: AppKey[]) => tenantApps.filter((a) => !appsOff.includes(a));
+/**
+ * The apps an employee sees: those of the organisation, minus the ones turned off for them. Parking
+ * is a benefit: only who has it (standard or manager) sees the app.
+ */
+export const employeeApps = (tenantApps: AppKey[], appsOff: AppKey[], parkingRole: string = 'NONE') =>
+  tenantApps.filter((a) => !appsOff.includes(a) && (a !== 'parking' || parkingRole !== 'NONE'));
 

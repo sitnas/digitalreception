@@ -32,7 +32,7 @@ const env = {
   DB_TYPE: 'mysql', DB_HOST: process.env.E2E_DB_HOST, DB_PORT: process.env.E2E_DB_PORT ?? '3306',
   DB_NAME: process.env.E2E_DB_NAME ?? 'reception', DB_USER: process.env.E2E_DB_USER ?? 'reception', DB_PASSWORD: process.env.E2E_DB_PASSWORD ?? 'reception',
   STORAGE_DRIVER: 'local', FILES_DIR: mkdtempSync(join(tmpdir(), 'e2e-files-')), COOKIE_SECURE: 'false', TRUST_PROXY: '1',
-  SMTP_HOST: '', JOBS_ENABLED: 'false', WEBHOOK_ALLOW_PRIVATE: 'true', THROTTLE_STORE: 'database', HEALTH_TOKEN,
+  SMTP_HOST: '', JOBS_ENABLED: 'false', TEST_NOW: '2026-10-08T08:00:00Z', WEBHOOK_ALLOW_PRIVATE: 'true', THROTTLE_STORE: 'database', HEALTH_TOKEN,
   EXPO_PUSH_URL: `http://127.0.0.1:${HOOK_PORT}/expo`, PUSH_ALLOW_ANY_ENDPOINT: 'true',
   SSO_REDIRECT_URI: `http://127.0.0.1:${PORT}/api/auth/sso/callback`,
   SSO_MICROSOFT_CLIENT_ID: SSO_CLIENT.clientId, SSO_MICROSOFT_CLIENT_SECRET: SSO_CLIENT.clientSecret, SSO_MICROSOFT_ISSUER: `http://127.0.0.1:${IDP_PORT}/ms`,
@@ -988,6 +988,102 @@ describe('end-to-end', { skip: !enabled && 'E2E_DB_HOST not set' }, () => {
     assert.equal((await guest.post('/guest/invitation', { ...form, code: code2, firstName: 'Carla', lastName: 'Riva' }, { csrf: false })).status, 200);
     await admin.post(`/admin/invitations/${inv2.id}/cancel`);
     assert.equal((await guest.post('/guest/invitation/open', { code: code2 }, { csrf: false })).status, 404);
+  });
+
+  test('parking: spots, the benefit per employee, managers booked every week, standard users from Thursday, at most 4', async () => {
+    // The parking clock is fixed: Thursday 8 October 2026, 10:00 in Milan.
+    const IP = '10.9.0.8';
+    const hr = (method, path, body) => fetch(`${BASE}/integration/v1${path}`, { method, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ctx.hrKey}` }, body: body && JSON.stringify(body) }).then((r) => r.json());
+    const mysql = require('mysql2/promise');
+    const db = await mysql.createConnection({ host: env.DB_HOST, port: Number(env.DB_PORT), user: env.DB_USER, password: env.DB_PASSWORD, database: env.DB_NAME });
+    try {
+      assert.equal((await admin.get(`/admin/parking/spots?siteId=${ctx.milano.id}`)).data.message, 'APP_DISABLED', 'off until the organisation turns it on');
+      const before = (await admin.get('/admin/apps')).data.apps;
+      assert.deepEqual((await admin.put('/admin/apps', { apps: [...before, 'parking'] })).data.apps, ['reception', 'access', 'parcels', 'parking']);
+
+      const spot = async (code) => (await admin.post('/admin/parking/spots', { siteId: ctx.milano.id, code, note: code === 'P3' ? 'Colonnina' : undefined })).data.id;
+      const p1 = await spot('P1'), p2 = await spot('P2'), p3 = await spot('P3');
+      assert.equal((await admin.post('/admin/parking/spots', { siteId: ctx.milano.id, code: 'P1' })).data.message, 'SPOT_CODE_EXISTS');
+      assert.equal((await ctx.aud.post('/admin/parking/spots', { siteId: ctx.milano.id, code: 'P9' })).status, 403);
+
+      const people = {};
+      for (const [id, first, last] of [['K1', 'Marta', 'Manager'], ['K2', 'Ugo', 'Utente'], ['K3', 'Lia', 'Seconda'], ['K4', 'Nino', 'Senza']]) {
+        await hr('PUT', `/employees/${id}`, { firstName: first, lastName: last, email: `${id.toLowerCase()}@park.e2e.test`, permissions: [] });
+        people[id] = (await admin.get('/admin/access/employees')).data.find((e) => e.externalId === id);
+      }
+      const token = async (id) => {
+        const e = people[id];
+        await db.query('UPDATE employees SET loginCodeHash = ?, loginCodeExpiresAt = DATE_ADD(UTC_TIMESTAMP(3), INTERVAL 5 MINUTE), loginCodeAttempts = 0 WHERE id = ?', [require('node:crypto').createHash('sha256').update(`${e.id}|246810`).digest('hex'), e.id]);
+        const t = (await new Client(IP).post('/badge/activate', { email: `${id.toLowerCase()}@park.e2e.test`, code: '246810' })).data.appToken;
+        return (method, path, body) => new Client(IP).req(method, `/me${path}`, body, { bearer: t });
+      };
+      const setParking = (id, body) => admin.put(`/admin/access/employees/${people[id].id}/parking`, body);
+
+      // The benefit: a manager needs a spot, one manager per spot.
+      assert.equal((await setParking('K1', { role: 'MANAGER' })).data.message, 'SPOT_REQUIRED');
+      assert.equal((await setParking('K1', { role: 'MANAGER', spotId: p1 })).status, 200);
+      assert.equal((await setParking('K3', { role: 'MANAGER', spotId: p1 })).data.message, 'SPOT_TAKEN');
+      assert.equal((await ctx.aud.put(`/admin/access/employees/${people.K2.id}/parking`, { role: 'USER' })).status, 403);
+      assert.equal((await setParking('K2', { role: 'USER' })).status, 200);
+      assert.equal((await setParking('K3', { role: 'USER' })).status, 200);
+
+      // The new manager gets the spot right away for the rest of this week; the weekly run adds the week after, once.
+      const k1 = await token('K1');
+      let mine = (await k1('GET', '/parking')).data;
+      assert.equal(mine.role, 'MANAGER'); assert.equal(mine.fixedSpot.code, 'P1'); assert.equal(mine.maxActive, null);
+      assert.deepEqual(mine.days.filter((d) => d.booking).map((d) => d.date), ['2026-10-08', '2026-10-09']);
+      assert.equal((await admin.post('/admin/parking/weekly')).data.booked, 5);
+      assert.equal((await admin.post('/admin/parking/weekly')).data.booked, 0, 'once per week');
+      mine = (await k1('GET', '/parking')).data;
+      assert.deepEqual(mine.days.filter((d) => d.booking?.source === 'AUTO').map((d) => d.date), ['2026-10-08', '2026-10-09', '2026-10-12', '2026-10-13', '2026-10-14', '2026-10-15', '2026-10-16']);
+      // She gives Monday back: it stays free, the weekly run does not take it again.
+      const monday = mine.days.find((d) => d.date === '2026-10-12').booking.id;
+      assert.equal((await k1('DELETE', `/parking/${monday}`)).status, 200);
+      assert.equal((await admin.post('/admin/parking/weekly')).data.booked, 0);
+
+      // A standard user: from Thursday this week and the next, never more than 4 days ahead.
+      const k2 = await token('K2');
+      assert.equal((await k2('GET', '')).data.apps.includes('parking'), true);
+      const days = (await k2('GET', '/parking')).data;
+      assert.equal(days.role, 'USER'); assert.equal(days.maxActive, 4); assert.equal(days.opensOn, null, 'Thursday: already open');
+      assert.equal(days.days.find((d) => d.date === '2026-10-12').free, 3, 'Monday given back by the manager');
+      const book = (date) => k2('POST', '/parking', { siteId: ctx.milano.id, date });
+      const b1 = await book('2026-10-08');
+      assert.equal(b1.status, 201); assert.equal(b1.data.spot, 'P2', 'a free spot, the managers last');
+      assert.equal((await book('2026-10-08')).data.message, 'PARKING_ALREADY_BOOKED');
+      for (const d of ['2026-10-09', '2026-10-13', '2026-10-14']) assert.equal((await book(d)).status, 201);
+      assert.equal((await book('2026-10-15')).data.message, 'PARKING_LIMIT');
+      assert.equal((await book('2026-10-19')).data.message, 'PARKING_DAY_CLOSED', 'the week after next is not open');
+      assert.equal((await book('2026-10-10')).data.message, 'PARKING_DAY_CLOSED', 'Saturday');
+      assert.equal((await k2('DELETE', `/parking/${b1.data.id}`)).status, 200);
+      const monB = await book('2026-10-12');
+      assert.equal(monB.status, 201); assert.equal(monB.data.spot, 'P2');
+
+      // Full day: P1 (manager), P2 (Ugo); P3 turned off, which also drops its bookings.
+      const k3 = await token('K3');
+      assert.equal((await k3('POST', '/parking', { siteId: ctx.milano.id, date: '2026-10-13' })).data.spot, 'P3');
+      assert.equal((await admin.patch(`/admin/parking/spots/${p3}`, { active: false })).status, 200);
+      assert.equal((await k3('GET', '/parking')).data.days.find((d) => d.date === '2026-10-13').booking, null, 'its booking went with it');
+      assert.equal((await k3('POST', '/parking', { siteId: ctx.milano.id, date: '2026-10-13' })).data.message, 'PARKING_FULL');
+      assert.equal((await admin.del(`/admin/parking/spots/${p1}`)).data.message, 'SPOT_IN_USE');
+
+      // The console's week.
+      const week = (await ctx.aud.get(`/admin/parking/week?siteId=${ctx.milano.id}&monday=2026-10-12`)).data;
+      assert.deepEqual(week.days, ['2026-10-12', '2026-10-13', '2026-10-14', '2026-10-15', '2026-10-16']);
+      assert.equal(week.spots.find((s) => s.id === p1).manager.name, 'Marta Manager');
+      assert.equal(week.bookings.filter((b) => b.spotId === p1).length, 4, 'Monday was given back');
+      assert.equal(week.bookings.find((b) => b.date === '2026-10-12' && b.spotId === p2).name, 'Ugo Utente');
+      assert.equal((await admin.get('/admin/parking/people')).data.length, 3);
+
+      // No benefit: no app, no booking. Taking the manager role away drops her future weekly days.
+      const k4 = await token('K4');
+      assert.equal((await k4('GET', '')).data.apps.includes('parking'), false);
+      assert.equal((await k4('GET', '/parking')).data.message, 'NO_PARKING');
+      assert.equal((await setParking('K1', { role: 'USER' })).status, 200);
+      assert.equal((await k1('GET', '/parking')).data.days.filter((d) => d.booking).length, 0);
+      assert.equal((await admin.put('/admin/apps', { apps: before })).status, 200);
+      assert.equal((await k2('GET', '/parking')).data.message, 'APP_DISABLED');
+    } finally { await db.end(); }
   });
 
   test('retention deletes audit entries older than AUDIT_LOG_RETENTION_DAYS, keeps recent ones', async () => {
