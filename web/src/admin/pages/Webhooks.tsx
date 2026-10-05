@@ -116,7 +116,7 @@ export function WebhooksPage() {
             <thead><tr><th>{W.name}</th><th>{W.destination}</th><th>{W.events}</th><th>{W.site}</th><th>{W.names}</th><th>{W.lastResult}</th><th><span className="sr-only">{W.test}</span></th></tr></thead>
             <tbody>
               {(hooks.data ?? []).map((h) => (
-                <tr key={h.id} style={h.active ? undefined : { opacity: 0.55 }}>
+                <tr key={h.id} className={h.active ? undefined : 'row-off'}>
                   <td data-label={W.name}><strong>{h.name}</strong>{!h.active && <> <span className="pill">{W.inactive}</span></>}<div className="host-tags"><span className="tag">{W.kinds[h.kind]}</span></div></td>
                   <td data-label={W.destination}><code translate="no">{h.urlHost}</code></td>
                   <td data-label={W.events} className="wrap">{h.events.map((ev) => W.eventNames[ev]).join(', ')}</td>

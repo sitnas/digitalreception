@@ -69,7 +69,7 @@ export function ProjectsPage() {
                   </td>
                 </tr>
               ) : (
-                <tr key={p.id} style={p.active ? undefined : { opacity: 0.6 }}>
+                <tr key={p.id} className={p.active ? undefined : 'row-off'}>
                   <td data-label={P.code}><code translate="no">{p.code}</code>{!p.active && <> <span className="pill">{P.closed}</span></>}</td>
                   <td data-label={P.name}><strong>{p.name}</strong></td>
                   <td data-label={P.client}>{p.client ?? <span className="muted">—</span>}</td>

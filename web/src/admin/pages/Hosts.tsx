@@ -91,7 +91,7 @@ export function HostsPage() {
             <thead><tr><th>{t.users.name}</th><th>{t.hosts.department}</th><th>{t.hosts.jobTitle}</th><th>{t.hosts.email}</th><th>{t.hosts.phone}</th><th>{t.users.sites}</th><th></th></tr></thead>
             <tbody>
               {rows.map((h) => (
-                <tr key={h.id} style={h.active ? undefined : { opacity: 0.55 }}>
+                <tr key={h.id} className={h.active ? undefined : 'row-off'}>
                   <td>
                     <strong>{h.lastName} {h.firstName}</strong>{!h.active && <> <span className="pill">{t.hosts.inactive}</span></>}
                     {h.employeeId && <div className="host-tags"><span className="tag">{t.hosts.employee}</span>{h.appInvites && <span className="tag tag-pos" title={t.hosts.appInvitesHelp}>{t.hosts.appInvites}</span>}</div>}
