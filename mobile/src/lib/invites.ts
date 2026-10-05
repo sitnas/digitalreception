@@ -4,7 +4,7 @@
  */
 
 /** Apps of the portal (servers before the portal send none: everything was on). */
-export type AppKey = 'reception' | 'access' | 'parcels';
+export type AppKey = 'reception' | 'access' | 'parcels' | 'parking';
 
 export const PURPOSES = ['MEETING', 'INTERVIEW', 'SUPPLIER', 'MAINTENANCE', 'DELIVERY', 'OTHER'] as const;
 export type Purpose = (typeof PURPOSES)[number];
@@ -73,4 +73,12 @@ export function byDay<T extends { expectedAt: string; timezone: string }>(rows: 
     groups.set(d, [...(groups.get(d) ?? []), r]);
   }
   return [...groups].map(([date, rs]) => ({ date, rows: rs }));
+}
+
+/** Parking, as the app shows it: the days at a site and the person's bookings. */
+export interface ParkingDay { date: string; bookable: boolean; free: number; booking: { id: string; source: 'AUTO' | 'MANUAL'; spot: string; note: string | null; site: string | null } | null }
+export interface ParkingView {
+  role: 'USER' | 'MANAGER'; maxActive: number | null; active: number; opensOn: string | null;
+  fixedSpot: { code: string; note: string | null; site: string | null } | null;
+  sites: { id: string; name: string }[]; site: { id: string; name: string } | null; days: ParkingDay[];
 }

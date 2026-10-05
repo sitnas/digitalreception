@@ -4,8 +4,8 @@ export interface Me { id: string; tenantId: string; email: string; displayName: 
   /** Apps of the portal turned on for the organisation. */
   apps: AppKey[] }
 /** Apps of the portal (the shared data, like employees and sites, is always there). */
-export type AppKey = 'reception' | 'access' | 'parcels';
-export const APP_KEYS: AppKey[] = ['reception', 'access', 'parcels'];
+export type AppKey = 'reception' | 'access' | 'parcels' | 'parking';
+export const APP_KEYS: AppKey[] = ['reception', 'access', 'parcels', 'parking'];
 export interface Site { id: string; code: string; name: string; countryCode: string; timezone: string; active: boolean }
 export interface VisitRow {
   id: string; code: string; status: VisitStatus; siteId: string; siteName: string | null; siteTimezone: string | null; checkInAt: string; checkOutAt: string | null;

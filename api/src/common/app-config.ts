@@ -37,6 +37,8 @@ export interface AppConfig {
   healthToken?: string;
   mail: { host?: string; port: number; secure: boolean; user?: string; pass?: string; from: string };
   jobs: { enabled: boolean };
+  /** Tests only (ignored in production): TEST_NOW fixes the clock of the parking rules. */
+  testNow?: Date;
   /** Sign-in with Microsoft / Google (OIDC). Apps registered once by the platform; each organisation links its own directory. */
   sso: { redirectUri?: string; providers: Partial<Record<SsoProviderId, SsoProviderConfig>> };
 }
@@ -146,6 +148,7 @@ export function loadConfig(): AppConfig {
     },
     // Every replica may run jobs: a DB lock guarantees a single executor. Set JOBS_ENABLED=false to keep a replica API-only.
     jobs: { enabled: process.env.JOBS_ENABLED !== 'false' },
+    testNow: process.env.TEST_NOW && process.env.NODE_ENV !== 'production' ? new Date(process.env.TEST_NOW) : undefined,
     sso: { redirectUri: process.env.SSO_REDIRECT_URI?.trim() || undefined, providers: {} },
   };
   const provider = (id: SsoProviderId, prefix: string, issuer: string) => {

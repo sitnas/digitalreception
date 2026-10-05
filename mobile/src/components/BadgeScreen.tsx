@@ -174,6 +174,7 @@ export function BadgeScreen({ badge, justActivated = false }: { badge: Badge; ju
           ...(apps?.includes('parcels') ? [{ key: 'parcels', label: t.portal.parcels, badge: parcels.length,
             detail: parcels.length ? t.portal.parcelsSome.replace('{n}', String(parcels.reduce((n, r) => n + r.pieces, 0))) : t.portal.parcelsNone,
             onPress: () => router.push('/parcels') }] : []),
+          ...(apps?.includes('parking') ? [{ key: 'parking', label: t.parking.tile, detail: t.parking.tileDetail, onPress: () => router.push('/parking') }] : []),
         ]} />
         {!badge.appToken ? (
           <View style={styles.nfcOff}>

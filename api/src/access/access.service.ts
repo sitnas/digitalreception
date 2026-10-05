@@ -5,7 +5,7 @@ import { DataSource, In, MoreThan, Repository } from 'typeorm';
 import { CryptoService } from '../common/crypto.service';
 import { MailService } from '../common/mail.service';
 import { TenantKeysService } from '../common/tenant-keys.service';
-import { AccessEvent, AccessMethod, AccessResult, AccessRule, CountryPolicy, Door, Employee, EmployeeSource, Host, Project, PushDevice, Site, Tenant } from '../entities';
+import { AccessEvent, AccessMethod, AccessResult, AccessRule, CountryPolicy, Door, Employee, EmployeeSource, Host, Project, PushDevice, Site, Tenant, ParkingBooking } from '../entities';
 import { WebhooksService } from '../common/webhooks.service';
 
 /** Phone badge QR: DRE1:<employeeId>.<time step>.<signature>; a new code every QR_STEP_S seconds. */
@@ -151,6 +151,7 @@ export class AccessService {
       // The person stays in the directory of people to visit, no longer linked (and no longer inviting from the app).
       await em.update(Host, { tenantId, employeeId: e.id }, { employeeId: null });
       await em.delete(PushDevice, { tenantId, employeeId: e.id });
+      await em.delete(ParkingBooking, { tenantId, employeeId: e.id });
       await em.delete(Employee, { id: e.id });
     });
     return e;

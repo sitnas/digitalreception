@@ -38,6 +38,10 @@ export class Employee {
   @Column({ default: true }) active: boolean;
   /** Apps of the organisation turned off for this person (set in the console; the HR system never touches it). */
   @Column({ type: 'varchar', length: 200, default: '', transformer: appListTransformer }) appsOff: AppKey[];
+  /** Company parking benefit: none, standard (books day by day) or manager (fixed spot, booked every week). */
+  @Column({ type: 'varchar', length: 8, default: 'NONE' }) parkingRole: 'NONE' | 'USER' | 'MANAGER';
+  /** The manager's fixed spot. */
+  @Column({ type: 'uuid', nullable: true }) parkingSpotId: string | null;
   @Column({ type: 'datetime', precision: 3, nullable: true }) validFrom: Date | null;
   @Column({ type: 'datetime', precision: 3, nullable: true }) validUntil: Date | null;
   /** Secret shared with the employee's phone to sign the rotating QR. Null = no phone badge. */

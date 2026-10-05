@@ -7,6 +7,7 @@ import { errorText, useI18n } from '../i18n';
 import { APP_KEYS, type AppKey, type Site } from '../types';
 import { ErrorBox, PageHead, SiteSelect, useAsync } from '../ui';
 import type { ProjectRow } from './Projects';
+import type { SpotRow } from './Parking';
 import { CopyButton } from './Users';
 
 interface Permission { doorExternalId: string; door: string; site: string; days: number[] | null; from: string | null; to: string | null }
@@ -14,8 +15,9 @@ interface EmployeeRow {
   id: string; externalId: string; source: 'API' | 'CONSOLE'; firstName: string; lastName: string; email: string | null; department: string | null; jobTitle: string | null; active: boolean;
   validFrom: string | null; validUntil: string | null; badgeHint: string | null; phoneBadge: boolean; phoneBadgeIssuedAt: string | null; permissions: Permission[];
   project: { id: string; code: string; name: string } | null;
-  appsOff: AppKey[];
+  appsOff: AppKey[]; parkingRole: ParkingRole; parkingSpotId: string | null;
 }
+type ParkingRole = 'NONE' | 'USER' | 'MANAGER';
 interface ReaderRow { id: string; name: string; lastSeenAt: string | null; createdAt: string }
 interface DoorRow { id: string; externalId: string; name: string; active: boolean; siteId: string; siteName: string; readers: ReaderRow[] }
 interface EventRow { id: string; at: string; method: 'QR' | 'NFC'; result: 'GRANTED' | 'DENIED'; reason: string; door: string; site: string; timezone: string; employee: string | null; externalId: string | null; project: string | null }
@@ -27,13 +29,13 @@ interface PermissionForm { door: string; days: number[]; from: string; to: strin
 interface EmployeeForm {
   id: string | null; source: 'API' | 'CONSOLE'; externalId: string; firstName: string; lastName: string; email: string; department: string; jobTitle: string; project: string;
   badgeHint: string | null; badgeUid: string; removeBadge: boolean; active: boolean; validFrom: string; validUntil: string; permissions: PermissionForm[];
-  appsOff: AppKey[];
+  appsOff: AppKey[]; parkingRole: ParkingRole; parkingSpotId: string;
 }
 const NAME_PATTERN = "[\\p{L}\\p{M}' .\\-]+";
 const localDate = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const emptyEmployee = (): EmployeeForm => ({
   id: null, source: 'CONSOLE', externalId: '', firstName: '', lastName: '', email: '', department: '', jobTitle: '', project: '',
-  badgeHint: null, badgeUid: '', removeBadge: false, active: true, validFrom: '', validUntil: '', permissions: [], appsOff: [],
+  badgeHint: null, badgeUid: '', removeBadge: false, active: true, validFrom: '', validUntil: '', permissions: [], appsOff: [], parkingRole: 'NONE', parkingSpotId: '',
 });
 const toForm = (e: EmployeeRow): EmployeeForm => ({
   id: e.id, source: e.source, externalId: e.externalId, firstName: e.firstName, lastName: e.lastName, email: e.email ?? '', department: e.department ?? '', jobTitle: e.jobTitle ?? '', project: e.project?.code ?? '',
@@ -41,7 +43,7 @@ const toForm = (e: EmployeeRow): EmployeeForm => ({
   // The end of validity is exclusive (midnight after the last day): show the last day included.
   validFrom: e.validFrom ? localDate(new Date(e.validFrom)) : '', validUntil: e.validUntil ? localDate(new Date(new Date(e.validUntil).getTime() - 1)) : '',
   permissions: e.permissions.map((p) => ({ door: p.doorExternalId, days: p.days ?? [], from: p.from ?? '', to: p.to ?? '' })),
-  appsOff: e.appsOff ?? [],
+  appsOff: e.appsOff ?? [], parkingRole: e.parkingRole ?? 'NONE', parkingSpotId: e.parkingSpotId ?? '',
 });
 
 /** Employees from the external system or added by hand; the administrator edits them here. */
@@ -53,6 +55,9 @@ export function EmployeesPage() {
   const doorsOn = me.apps.includes('access');
   const doors = useAsync(() => (canEdit && doorsOn ? api.get<DoorRow[]>('/admin/access/doors') : Promise.resolve([] as DoorRow[])), [canEdit, doorsOn]);
   const projects = useAsync(() => api.get<ProjectRow[]>('/admin/access/projects'), []);
+  const parkingOn = me.apps.includes('parking');
+  const spots = useAsync(() => (canEdit && parkingOn ? api.get<SpotRow[]>('/admin/parking/spots') : Promise.resolve([] as SpotRow[])), [canEdit, parkingOn]);
+  const siteList = useAsync(() => (canEdit && parkingOn ? api.get<Site[]>('/admin/sites') : Promise.resolve([] as Site[])), [canEdit, parkingOn]);
   // ?project=… from the Projects page: the people of that job.
   const [params, setParams] = useSearchParams();
   const projectFilter = params.get('project') ?? '';
@@ -90,6 +95,13 @@ export function EmployeesPage() {
       // The apps turned off for the person: a separate call, the HR system never sends it.
       const before = (list.data ?? []).find((e) => e.id === id)?.appsOff ?? [];
       if (before.join() !== form.appsOff.join()) await api.put(`/admin/access/employees/${id}/apps`, { appsOff: form.appsOff });
+      // Parking benefit, also its own call (only while the Parking app is on).
+      const prev = (list.data ?? []).find((e) => e.id === id);
+      const spotId = form.parkingRole === 'MANAGER' ? form.parkingSpotId || null : null;
+      if (parkingOn && ((prev?.parkingRole ?? 'NONE') !== form.parkingRole || (prev?.parkingSpotId ?? null) !== spotId)) {
+        await api.put(`/admin/access/employees/${id}/parking`, { role: form.parkingRole, spotId });
+        spots.reload();
+      }
       setForm(null); setMsg({ ok: true, text: t.access.employeeSaved }); list.reload();
     } catch (err) { setMsg({ ok: false, text: errorText(t, err) }); } finally { setBusy(false); }
   };
@@ -106,7 +118,7 @@ export function EmployeesPage() {
         actions={canEdit && !form && <button type="button" className="btn btn-primary" onClick={() => open(emptyEmployee())}>{t.access.addEmployee}</button>} />
       <ErrorBox error={list.error ?? doors.error} />
       <div role="status" aria-live="polite">{msg && <p className={msg.ok ? 'alert alert-info' : 'alert'}>{msg.text}</p>}</div>
-      {form && <EmployeeEditor form={form} setForm={setForm} doors={doors.data ?? []} projects={projects.data ?? []} apps={me.apps} busy={busy} onSubmit={save} onDelete={remove} />}
+      {form && <EmployeeEditor form={form} setForm={setForm} doors={doors.data ?? []} projects={projects.data ?? []} apps={me.apps} spots={spots.data ?? []} sites={siteList.data ?? []} busy={busy} onSubmit={save} onDelete={remove} />}
       <div className="a-card inline" style={{ justifyContent: 'space-between', marginBottom: 16 }}>
         <span>{t.access.badgePage}: <code translate="no">{origin()}/badge</code></span>
         <CopyButton text={`${origin()}/badge`} />
@@ -180,8 +192,8 @@ function SelfRemoveSetting({ canEdit }: { canEdit: boolean }) {
   );
 }
 
-function EmployeeEditor({ form, setForm, doors, projects, apps, busy, onSubmit, onDelete }: {
-  form: EmployeeForm; setForm: (f: EmployeeForm | null) => void; doors: DoorRow[]; projects: ProjectRow[]; apps: AppKey[]; busy: boolean; onSubmit: (e: React.FormEvent) => void; onDelete: () => void;
+function EmployeeEditor({ form, setForm, doors, projects, apps, spots, sites, busy, onSubmit, onDelete }: {
+  form: EmployeeForm; setForm: (f: EmployeeForm | null) => void; doors: DoorRow[]; projects: ProjectRow[]; apps: AppKey[]; spots: SpotRow[]; sites: Site[]; busy: boolean; onSubmit: (e: React.FormEvent) => void; onDelete: () => void;
 }) {
   const { t } = useI18n();
   const A = t.access;
@@ -238,6 +250,28 @@ function EmployeeEditor({ form, setForm, doors, projects, apps, busy, onSubmit, 
             ))}
           </div>
           <span className="hint">{A.appsHint}</span>
+        </fieldset>
+      )}
+
+      {apps.includes('parking') && !form.appsOff.includes('parking') && (
+        <fieldset className="field" style={{ border: 0, padding: 0, margin: 0 }}>
+          <legend className="label" style={{ fontWeight: 700, marginBottom: 8 }}>{A.parkingTitle}</legend>
+          <div className="a-grid">
+            <div className="field"><label htmlFor="epk">{A.parkingRole}</label>
+              <select id="epk" className="input" value={form.parkingRole} onChange={(e) => setForm({ ...form, parkingRole: e.target.value as ParkingRole })}>
+                {(['NONE', 'USER', 'MANAGER'] as const).map((r) => <option key={r} value={r}>{A.parkingRoles[r]}</option>)}
+              </select></div>
+            {form.parkingRole === 'MANAGER' && (
+              <div className="field"><label htmlFor="epks">{A.parkingSpot}</label>
+                <select id="epks" className="input" value={form.parkingSpotId} onChange={(e) => setForm({ ...form, parkingSpotId: e.target.value })} required>
+                  <option value="" disabled>{A.chooseSpot}</option>
+                  {spots.filter((s) => s.active || s.id === form.parkingSpotId).map((s) => {
+                    const taken = s.manager && s.manager.id !== form.id;
+                    return <option key={s.id} value={s.id} disabled={!!taken}>{s.code} · {sites.find((x) => x.id === s.siteId)?.name ?? '—'}{taken ? ` (${A.spotOf.replace('{name}', s.manager!.name)})` : ''}</option>;
+                  })}
+                </select></div>
+            )}
+          </div>
         </fieldset>
       )}
 

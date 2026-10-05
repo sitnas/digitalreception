@@ -9,8 +9,10 @@ import { CryptoService } from '../common/crypto.service';
 import { AdminAuthGuard, CurrentUser, Roles, assertSiteAccess, visibleSiteIds } from '../common/guards';
 import { AppRequest, AuthUser } from '../common/request-context';
 import { TenantKeysService } from '../common/tenant-keys.service';
-import { AccessEvent, AccessRule, ApiKey, Door, DoorReader, Employee, PairingCode, Project, PushDevice, Role, Site, Tenant } from '../entities';
+import { AccessEvent, AccessRule, ApiKey, Door, DoorReader, Employee, PairingCode, ParkingSpot, Project, PushDevice, Role, Site, Tenant } from '../entities';
 import { AccessService } from './access.service';
+import { PARKING_ROLES, type ParkingRole } from '../parking/parking-rules';
+import { ParkingService } from '../parking/parking.service';
 import { EXTERNAL_ID, PROJECT_CODE, PutEmployeeDto } from './integration.controller';
 
 const trim = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim().replace(/\s+/g, ' ') : value);
@@ -60,6 +62,12 @@ export class EmployeeAppsDto {
   @IsArray() @ArrayUnique() @IsIn(APP_KEYS, { each: true }) appsOff: AppKey[];
 }
 
+export class EmployeeParkingDto {
+  @IsIn(PARKING_ROLES) role: ParkingRole;
+  /** The manager's fixed spot (ignored for the other roles). */
+  @IsOptional() @IsUUID() spotId?: string | null;
+}
+
 export class AccessSettingsDto {
   @IsBoolean() selfRemove: boolean;
 }
@@ -84,6 +92,7 @@ export class AccessAdminController {
     private readonly crypto: CryptoService,
     private readonly audit: AuditService,
     private readonly access: AccessService,
+    private readonly parking: ParkingService,
   ) {}
 
   private async visibleDoors(user: AuthUser) {
@@ -241,7 +250,7 @@ export class AccessAdminController {
       email: tc.decrypt(e.emailEnc, 'employee.email'), department: tc.decrypt(e.departmentEnc, 'employee.department'), jobTitle: tc.decrypt(e.jobTitleEnc, 'employee.jobTitle'),
       source: e.source, active: e.active, validFrom: e.validFrom, validUntil: e.validUntil,
       project: e.projectId && projects.has(e.projectId) ? { id: e.projectId, code: projects.get(e.projectId)!.code, name: projects.get(e.projectId)!.name } : null,
-      appsOff: e.appsOff, badgeHint: e.badgeHint, phoneBadge: !!e.credentialSecretEnc, phoneBadgeIssuedAt: e.credentialIssuedAt, updatedAt: e.updatedAt,
+      appsOff: e.appsOff, parkingRole: e.parkingRole, parkingSpotId: e.parkingSpotId, badgeHint: e.badgeHint, phoneBadge: !!e.credentialSecretEnc, phoneBadgeIssuedAt: e.credentialIssuedAt, updatedAt: e.updatedAt,
       permissions: rules.filter((r) => r.employeeId === e.id && doorById.has(r.doorId)).map((r) => {
         const d = doorById.get(r.doorId)!;
         return { doorExternalId: d.externalId, door: d.name, site: sites.get(d.siteId) ?? '—', days: r.days ? r.days.split(',').map(Number) : null, from: r.fromTime, to: r.toTime };
@@ -287,6 +296,26 @@ export class AccessAdminController {
     await this.employees.update(e.id, { appsOff });
     await this.audit.fromRequest(req, { action: 'EMPLOYEE_APPS_UPDATED', entityType: 'employee', entityId: e.id, details: { before: e.appsOff, after: appsOff } });
     return { appsOff };
+  }
+
+  /** Parking benefit: none, standard or manager with a fixed spot (one manager per spot). */
+  @Put('employees/:id/parking')
+  @Roles(Role.SUPER_ADMIN)
+  @RequireApp('parking')
+  async employeeParking(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Body() dto: EmployeeParkingDto, @Req() req: AppRequest) {
+    const e = await this.employees.findOne({ where: { id, tenantId: user.tenantId }, select: { id: true, parkingRole: true, parkingSpotId: true } });
+    if (!e) throw new NotFoundException('EMPLOYEE_NOT_FOUND');
+    const spotId = dto.role === 'MANAGER' ? dto.spotId ?? null : null;
+    if (dto.role === 'MANAGER' && !spotId) throw new BadRequestException('SPOT_REQUIRED');
+    if (spotId) {
+      if (!(await this.employees.manager.getRepository(ParkingSpot).exist({ where: { id: spotId, tenantId: user.tenantId, active: true } }))) throw new BadRequestException('SPOT_NOT_FOUND');
+      const other = await this.employees.findOne({ where: { tenantId: user.tenantId, parkingRole: 'MANAGER', parkingSpotId: spotId }, select: { id: true } });
+      if (other && other.id !== e.id) throw new ConflictException('SPOT_TAKEN');
+    }
+    await this.employees.update(e.id, { parkingRole: dto.role, parkingSpotId: spotId });
+    if (e.parkingRole !== dto.role || e.parkingSpotId !== spotId) await this.parking.benefitChanged(user.tenantId, e.id);
+    await this.audit.fromRequest(req, { action: 'EMPLOYEE_PARKING_UPDATED', entityType: 'employee', entityId: e.id, details: { before: { role: e.parkingRole, spotId: e.parkingSpotId }, after: { role: dto.role, spotId } } });
+    return { role: dto.role, spotId };
   }
 
   @Delete('employees/:id')

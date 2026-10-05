@@ -23,6 +23,7 @@ import { TodayPage } from './pages/Today';
 import { UsersPage } from './pages/Users';
 import type { AppKey, Me, Role } from './types';
 import { AppsPage } from './pages/Apps';
+import { ParkingPage } from './pages/Parking';
 
 interface Branding { name: string; logo: string | null; primaryColor: string | null; secondaryColor: string | null; sso: { provider: 'microsoft' | 'google'; enforced: boolean } | null }
 const MeContext = createContext<Me | null>(null);
@@ -57,13 +58,14 @@ const NAV: { to: string; key: keyof typeof ADMIN_STRINGS.it.nav; group: NavGroup
   { to: 'doors', key: 'doors', group: 'access', app: 'access', roles: ['SUPER_ADMIN', 'SITE_MANAGER', 'AUDITOR'] },
   { to: 'access-log', key: 'accessLog', group: 'access', app: 'access', roles: ['SUPER_ADMIN', 'SITE_MANAGER', 'AUDITOR'] },
   { to: 'parcels', key: 'parcels', group: 'parcels', app: 'parcels', roles: ['SUPER_ADMIN', 'SITE_MANAGER', 'RECEPTIONIST', 'AUDITOR'] },
+  { to: 'parking', key: 'parking', group: 'parking', app: 'parking', roles: ['SUPER_ADMIN', 'SITE_MANAGER', 'RECEPTIONIST', 'AUDITOR'] },
   { to: 'apps', key: 'apps', group: 'settings', roles: ['SUPER_ADMIN', 'SITE_MANAGER', 'AUDITOR'] },
   { to: 'notifications', key: 'notifications', group: 'settings', roles: ['SUPER_ADMIN'] },
   { to: 'organisation', key: 'org', group: 'settings', roles: ['SUPER_ADMIN'] },
   { to: 'privacy', key: 'privacy', group: 'compliance', roles: ['SUPER_ADMIN', 'SITE_MANAGER', 'AUDITOR'] },
   { to: 'audit', key: 'audit', group: 'compliance', roles: ['SUPER_ADMIN', 'AUDITOR'] },
 ];
-const APP_GROUPS: NavGroup[] = ['reception', 'access', 'parcels'];
+const APP_GROUPS: NavGroup[] = ['reception', 'access', 'parcels', 'parking'];
 
 /** Reloads the signed-in user (after turning an app on or off, the menu follows). */
 const ReloadMeContext = createContext<() => Promise<void>>(async () => {});
@@ -153,6 +155,7 @@ function GroupIcon({ group }: { group: NavGroup }) {
     reception: <><circle cx="9" cy="8" r="3.5" /><path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5" /><path d="M16 4.8a3.5 3.5 0 0 1 0 6.4M18 14.8c1.9.7 3.1 2.4 3.5 5.2" /></>,
     access: <><rect x="5" y="3" width="14" height="18" rx="1.5" /><circle cx="15" cy="12.5" r="1.1" /><path d="M9 3v18" /></>,
     parcels: <><path d="M3.5 7.5L12 3l8.5 4.5v9L12 21l-8.5-4.5z" /><path d="M3.5 7.5L12 12l8.5-4.5M12 12v9M7.8 5.3l8.4 4.5" /></>,
+    parking: <><rect x="3.5" y="3.5" width="17" height="17" rx="3" /><path d="M9.5 17V7h3.2a3 3 0 0 1 0 6H9.5" /></>,
     settings: <><path d="M4 7h10M18 7h2M4 17h2M10 17h10" /><circle cx="16" cy="7" r="2.2" /><circle cx="8" cy="17" r="2.2" /></>,
     compliance: <><path d="M12 3l7.5 3v5.5c0 4.6-3.2 8.2-7.5 9.5-4.3-1.3-7.5-4.9-7.5-9.5V6L12 3z" /><path d="M8.8 12.2l2.2 2.2 4.3-4.6" /></>,
   };
@@ -441,6 +444,7 @@ function Shell({ branding, me, onLogout }: { branding: Branding; me: Me; onLogou
           {items.some((i) => i.to === 'notifications') && <Route path="notifications" element={<WebhooksPage />} />}
           {items.some((i) => i.to === 'organisation') && <Route path="organisation" element={<OrganisationPage />} />}
           {items.some((i) => i.to === 'apps') && <Route path="apps" element={<AppsPage />} />}
+          {items.some((i) => i.to === 'parking') && <Route path="parking" element={<ParkingPage />} />}
           <Route path="account" element={<AccountPage />} />
           <Route path="*" element={<Navigate to={home} replace />} />
         </Routes>

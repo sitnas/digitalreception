@@ -1,5 +1,5 @@
 import type { Badge } from './badge';
-import type { Invite, NewInvite, Profile } from './invites';
+import type { Invite, NewInvite, ParkingView, Profile } from './invites';
 
 export class ApiError extends Error {
   status: number;
@@ -89,3 +89,8 @@ export const pushUnregister = (b: Authed, token: string) =>
 export const revokeBadge = (b: Authed) => authed<{ ok: true }>(b, '/revoke', { method: 'POST', body: '{}' });
 export const pushTest = (b: Authed, token: string) =>
   authed<{ result: string }>(b, '/push/test', { method: 'POST', body: JSON.stringify({ kind: 'expo', target: token }) });
+
+export const getParking = (b: Authed, siteId?: string) => authed<ParkingView>(b, `/parking${siteId ? `?siteId=${encodeURIComponent(siteId)}` : ''}`);
+export const bookParking = (b: Authed, siteId: string, date: string) =>
+  authed<{ id: string; date: string; spot: string; note: string | null }>(b, '/parking', { method: 'POST', body: JSON.stringify({ siteId, date }) });
+export const cancelParking = (b: Authed, id: string) => authed<{ ok: true }>(b, `/parking/${id}`, { method: 'DELETE' });
