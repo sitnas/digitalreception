@@ -2,7 +2,7 @@ import type { AdminStrings } from './i18n';
 
 /** Console in English. Same keys as the Italian dictionary: the type check catches anything missing. */
 export const en: AdminStrings = {
-  appName: 'Reception',
+  appName: 'Mortise',
   openMenu: 'Open the menu', closeMenu: 'Close the menu',
   nav: { parking: 'Parking', apps: 'Apps', projects: 'Projects', parcels: 'Parcels', documents: 'Documents to accept', evacuation: 'Evacuation', employees: 'Employees', doors: 'Doors and readers', accessLog: 'Door log', integration: 'API integration', today: 'Today', invites: 'Invitations', history: 'History', stats: 'Statistics', devices: 'Tablets', sites: 'Sites', hosts: 'People to visit', users: 'Users', privacy: 'Privacy', audit: 'Audit log', notifications: 'Notifications', org: 'Organisation' },
   navGroups: { data: 'Data', reception: 'Reception', access: 'Doors', parcels: 'Parcels', parking: 'Parking', settings: 'Settings', compliance: 'Privacy and oversight' },
@@ -54,7 +54,7 @@ export const en: AdminStrings = {
   },
   addCountry: { title: 'Add a country', code: 'Country code (ISO, 2 letters)', name: 'Name', add: 'Add country', hint: 'The country starts with cautious settings and a privacy notice to finish with your DPO.' },
   logout: 'Sign out', language: 'Language',
-  login: { tagline: 'Reception visitor log', footnote: 'Data stays encrypted and deletes itself when its retention period ends.', title: 'Sign in to the console', email: 'Work email', password: 'Password', submit: 'Sign in', invalid: 'Wrong email or password. After 5 attempts the account locks for 15 minutes.' },
+  login: { tagline: 'Reception, doors, parcels and parking, one module at a time.', footnote: 'Data stays encrypted and deletes itself when its retention period ends.', title: 'Sign in to the console', email: 'Work email', password: 'Password', submit: 'Sign in', invalid: 'Wrong email or password. After 5 attempts the account locks for 15 minutes.' },
   pwd: { title: 'Set a new password', intro: 'On your first sign-in, or after a reset, you need to choose your own password.', current: 'Current password', next: 'New password', confirm: 'Repeat the new password', hint: 'At least 12 characters. A long phrase beats a complicated word.', mismatch: 'The two passwords don’t match.', submit: 'Save password', done: 'Password updated: sign in again.', wrong: 'The current password is wrong.' },
   mfa: {
     nav: 'Account security', title: 'Account security', intro: 'Two-step verification asks for a code from an app on your phone as well as the password, so knowing the password alone isn’t enough to get in.',

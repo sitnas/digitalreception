@@ -1,6 +1,6 @@
 {
-  "name": "Reception - registro visitatori",
-  "short_name": "Reception",
+  "name": "Mortise",
+  "short_name": "Mortise",
   "start_url": "/kiosk",
   "scope": "/",
   "display": "fullscreen",

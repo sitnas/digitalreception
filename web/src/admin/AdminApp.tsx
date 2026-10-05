@@ -89,7 +89,7 @@ export function AdminApp() {
     loadMe();
   }, [loadMe]);
 
-  useEffect(() => { document.title = branding ? `${ADMIN_STRINGS[locale].appName} · ${branding.name}` : 'Reception'; }, [branding, locale]);
+  useEffect(() => { document.title = branding ? `${ADMIN_STRINGS[locale].appName} · ${branding.name}` : 'Mortise'; }, [branding, locale]);
 
   return (
     <I18nContext.Provider value={i18n}>
