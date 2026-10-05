@@ -14,6 +14,8 @@ import { startFakeIdp } from './fake-idp.mjs';
 
 const require = createRequire(import.meta.url);
 const run = promisify(execFile);
+// The apps a customer has are set by the platform operator, from the command line.
+const setApps = (apps) => run('node', ['dist/cli/tenants.js', 'apps', '--slug', SLUG, '--apps', apps.join(',')], { env });
 const enabled = !!process.env.E2E_DB_HOST;
 const PORT = Number(process.env.E2E_PORT ?? 3199);
 const BASE = `http://127.0.0.1:${PORT}/api`;
@@ -792,7 +794,7 @@ describe('end-to-end', { skip: !enabled && 'E2E_DB_HOST not set' }, () => {
         assert.deepEqual((await me('GET', '/parcels')).data, []);
       }
 
-      // Apps of the portal: per person, then for the whole organisation.
+      // Apps of the portal: per person, then for the whole organisation (set by the platform operator).
       {
         assert.deepEqual((await me('GET', '')).data.apps, ['reception', 'access', 'parcels'], 'all on by default');
         assert.deepEqual((await admin.get('/admin/apps')).data.apps, ['reception', 'access', 'parcels']);
@@ -811,18 +813,22 @@ describe('end-to-end', { skip: !enabled && 'E2E_DB_HOST not set' }, () => {
         assert.equal((await admin.put(`/admin/access/employees/${emp.id}/apps`, { appsOff: [] })).status, 200);
         assert.equal((await me('GET', '')).data.canInvite, true);
 
-        assert.equal((await ctx.aud.put('/admin/apps', { apps: ['reception'] })).status, 403);
-        assert.deepEqual((await admin.put('/admin/apps', { apps: ['access', 'reception'] })).data, { apps: ['reception', 'access'] });
+        assert.equal((await admin.put('/admin/apps', { apps: ['reception'] })).status, 404, 'not from the console: the platform operator sets them');
+        const apps = (await admin.get('/admin/apps')).data;
+        assert.equal(apps.using.parcels, apps.employees, 'everybody has parcels');
+        await assert.rejects(run('node', ['dist/cli/tenants.js', 'apps', '--slug', SLUG, '--apps', 'reception,coffee'], { env }), /unknown coffee/);
+        await setApps(['access', 'reception']);
+        assert.deepEqual((await admin.get('/admin/apps')).data.apps, ['reception', 'access'], 'kept in the fixed order');
         assert.deepEqual((await admin.get('/auth/me')).data.apps, ['reception', 'access'], 'the console hides what is off');
         const off = await admin.get(`/admin/parcels?siteId=${ctx.milano.id}`);
         assert.equal(off.status, 403); assert.equal(off.data.message, 'APP_DISABLED');
         assert.equal((await me('GET', '/parcels')).data.message, 'APP_DISABLED');
         assert.deepEqual((await me('GET', '')).data.apps, ['reception', 'access']);
-        assert.equal((await admin.put('/admin/apps', { apps: ['access', 'parcels'] })).status, 200);
+        await setApps(['access', 'parcels']);
         assert.equal((await new Client().get('/kiosk/config', { bearer: ctx.token })).data.message, 'APP_DISABLED', 'reception off: the tablet stops');
         assert.equal((await admin.get('/admin/visits/present')).status, 403);
         assert.equal((await admin.get('/admin/access/employees')).status, 200, 'shared data stays');
-        assert.equal((await admin.put('/admin/apps', { apps: ['reception', 'access', 'parcels'] })).status, 200);
+        await setApps(['reception', 'access', 'parcels']);
         assert.equal((await new Client().get('/kiosk/config', { bearer: ctx.token })).status, 200, 'back on, data untouched');
       }
 
@@ -999,7 +1005,8 @@ describe('end-to-end', { skip: !enabled && 'E2E_DB_HOST not set' }, () => {
     try {
       assert.equal((await admin.get(`/admin/parking/spots?siteId=${ctx.milano.id}`)).data.message, 'APP_DISABLED', 'off until the organisation turns it on');
       const before = (await admin.get('/admin/apps')).data.apps;
-      assert.deepEqual((await admin.put('/admin/apps', { apps: [...before, 'parking'] })).data.apps, ['reception', 'access', 'parcels', 'parking']);
+      await setApps([...before, 'parking']);
+      assert.deepEqual((await admin.get('/admin/apps')).data.apps, ['reception', 'access', 'parcels', 'parking']);
 
       const spot = async (code) => (await admin.post('/admin/parking/spots', { siteId: ctx.milano.id, code, note: code === 'P3' ? 'Colonnina' : undefined })).data.id;
       const p1 = await spot('P1'), p2 = await spot('P2'), p3 = await spot('P3');
@@ -1074,6 +1081,7 @@ describe('end-to-end', { skip: !enabled && 'E2E_DB_HOST not set' }, () => {
       assert.equal(week.bookings.filter((b) => b.spotId === p1).length, 4, 'Monday was given back');
       assert.equal(week.bookings.find((b) => b.date === '2026-10-12' && b.spotId === p2).name, 'Ugo Utente');
       assert.equal((await admin.get('/admin/parking/people')).data.length, 3);
+      assert.equal((await admin.get('/admin/apps')).data.using.parking, 3, 'only who has the benefit');
 
       // No benefit: no app, no booking. Taking the manager role away drops her future weekly days.
       const k4 = await token('K4');
@@ -1081,7 +1089,7 @@ describe('end-to-end', { skip: !enabled && 'E2E_DB_HOST not set' }, () => {
       assert.equal((await k4('GET', '/parking')).data.message, 'NO_PARKING');
       assert.equal((await setParking('K1', { role: 'USER' })).status, 200);
       assert.equal((await k1('GET', '/parking')).data.days.filter((d) => d.booking).length, 0);
-      assert.equal((await admin.put('/admin/apps', { apps: before })).status, 200);
+      await setApps(before);
       assert.equal((await k2('GET', '/parking')).data.message, 'APP_DISABLED');
     } finally { await db.end(); }
   });

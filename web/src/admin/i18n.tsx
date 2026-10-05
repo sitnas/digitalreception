@@ -11,12 +11,12 @@ const it = {
   portal: {
     home: 'Portale', account: 'Account', hello: 'Ciao, {name}', intro: 'Ecco le app e i dati che puoi gestire. Apri una card per entrare.', noApps: 'Per il tuo ruolo non ci sono app attive. Chiedi all’amministratore.',
     groupText: { reception: 'Visitatori al tablet, inviti, evacuazione, persone da visitare e documenti da accettare.', access: 'Porte, lettori e i passaggi dei dipendenti.', parcels: 'Pacchi e lettere arrivati in reception, da consegnare.', parking: 'Posti auto, la settimana di ogni sede e chi ha il benefit.' },
-    pageText: { employees: 'Anagrafica, commessa, permessi e app di ogni persona.', projects: 'Le commesse su cui lavorano i dipendenti.', sites: 'Sedi, indirizzi e fusi orari.', users: 'Chi entra in questa console e con quale ruolo.', integration: 'Chiavi per il sistema del personale.', apps: 'Accendi e spegni le app dell’organizzazione.', notifications: 'Avvisi verso Teams, Slack e altri sistemi.', org: 'Nome, logo, colori, email e accesso aziendale.', privacy: 'Informative e conservazione dei dati per paese.', audit: 'Chi ha fatto cosa, e quando.' },
+    pageText: { employees: 'Anagrafica, commessa, permessi e app di ogni persona.', projects: 'Le commesse su cui lavorano i dipendenti.', sites: 'Sedi, indirizzi e fusi orari.', users: 'Chi entra in questa console e con quale ruolo.', integration: 'Chiavi per il sistema del personale.', apps: 'Le app incluse e chi le usa.', notifications: 'Avvisi verso Teams, Slack e altri sistemi.', org: 'Nome, logo, colori, email e accesso aziendale.', privacy: 'Informative e conservazione dei dati per paese.', audit: 'Chi ha fatto cosa, e quando.' },
   },
   navApps: 'App',
   apps: {
-    title: 'App attive', intro: 'Ogni app si accende per tutta l’organizzazione. I dati comuni (dipendenti, commesse, sedi, utenti) restano sempre: spegnere un’app la nasconde dalla console, dal tablet e dal telefono dei dipendenti, senza cancellare niente.',
-    on: 'Attiva', off: 'Spenta', saved: 'Impostazione salvata.', readOnly: 'Solo l’amministratore può accendere o spegnere le app.', perPerson: 'Per una singola persona la puoi spegnere dalla sua scheda in Dipendenti.',
+    title: 'App attive', intro: 'Le app incluse nel servizio della tua organizzazione. Le attiva il fornitore del servizio; tu scegli chi le usa, dalla scheda di ogni persona in Dipendenti. I dati comuni (dipendenti, commesse, sedi, utenti) ci sono sempre.',
+    on: 'Attiva', off: 'Non inclusa', using: 'Attiva per {n} dipendenti su {total}', usingParking: '{n} dipendenti su {total} hanno il benefit', choose: 'Scegli le persone', notIncluded: 'Per aggiungerla contatta il fornitore del servizio. I dati di un’app tolta restano e tornano quando la si riattiva.',
     items: {
       reception: { name: 'Reception', text: 'Registro visitatori al tablet, inviti, appello di evacuazione, documenti da accettare. Sul telefono: i miei inviti e l’avviso quando arriva un ospite.' },
       access: { name: 'Porte', text: 'Porte e lettori, permessi e passaggi. Sul telefono: il badge con il QR (e l’NFC) che apre le porte.' },
@@ -149,12 +149,12 @@ const es: Dict = {
   portal: {
     home: 'Portal', account: 'Cuenta', hello: 'Hola, {name}', intro: 'Estas son las apps y los datos que puede gestionar. Abra una tarjeta para entrar.', noApps: 'Para su rol no hay apps activas. Pregunte al administrador.',
     groupText: { reception: 'Visitas en la tableta, invitaciones, evacuación, personas a visitar y documentos que aceptar.', access: 'Puertas, lectores y los pasos de los empleados.', parcels: 'Paquetes y cartas llegados a recepción, por entregar.', parking: 'Plazas, la semana de cada sede y quién tiene el beneficio.' },
-    pageText: { employees: 'Datos, proyecto, permisos y apps de cada persona.', projects: 'Los proyectos en los que trabajan los empleados.', sites: 'Sedes, direcciones y zonas horarias.', users: 'Quién entra en esta consola y con qué rol.', integration: 'Claves para el sistema de personal.', apps: 'Active y desactive las apps de la organización.', notifications: 'Avisos hacia Teams, Slack y otros sistemas.', org: 'Nombre, logotipo, colores, correo y acceso corporativo.', privacy: 'Avisos y conservación de los datos por país.', audit: 'Quién hizo qué, y cuándo.' },
+    pageText: { employees: 'Datos, proyecto, permisos y apps de cada persona.', projects: 'Los proyectos en los que trabajan los empleados.', sites: 'Sedes, direcciones y zonas horarias.', users: 'Quién entra en esta consola y con qué rol.', integration: 'Claves para el sistema de personal.', apps: 'Las apps incluidas y quién las usa.', notifications: 'Avisos hacia Teams, Slack y otros sistemas.', org: 'Nombre, logotipo, colores, correo y acceso corporativo.', privacy: 'Avisos y conservación de los datos por país.', audit: 'Quién hizo qué, y cuándo.' },
   },
   navApps: 'Apps',
   apps: {
-    title: 'Apps activas', intro: 'Cada app se activa para toda la organización. Los datos comunes (empleados, proyectos, sedes, usuarios) siempre están: desactivar una app la oculta de la consola, de la tableta y del teléfono de los empleados, sin borrar nada.',
-    on: 'Activa', off: 'Desactivada', saved: 'Ajuste guardado.', readOnly: 'Solo el administrador puede activar o desactivar las apps.', perPerson: 'Para una sola persona puede desactivarla desde su ficha en Empleados.',
+    title: 'Apps activas', intro: 'Las apps incluidas en el servicio de su organización. Las activa el proveedor del servicio; usted elige quién las usa, desde la ficha de cada persona en Empleados. Los datos comunes (empleados, proyectos, sedes, usuarios) siempre están.',
+    on: 'Activa', off: 'No incluida', using: 'Activa para {n} de {total} empleados', usingParking: '{n} de {total} empleados tienen el beneficio', choose: 'Elegir personas', notIncluded: 'Para añadirla, contacte con el proveedor del servicio. Los datos de una app retirada se conservan y vuelven al reactivarla.',
     items: {
       reception: { name: 'Recepción', text: 'Registro de visitas en la tableta, invitaciones, recuento de evacuación, documentos que aceptar. En el teléfono: mis invitaciones y el aviso cuando llega una visita.' },
       access: { name: 'Puertas', text: 'Puertas y lectores, permisos y pasos. En el teléfono: la credencial con el QR (y NFC) que abre las puertas.' },

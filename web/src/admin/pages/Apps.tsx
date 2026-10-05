@@ -1,59 +1,48 @@
-import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { api } from '../../lib/api';
-import { useMe, useReloadMe } from '../AdminApp';
-import { errorText, useI18n } from '../i18n';
+import { useI18n } from '../i18n';
 import { APP_KEYS, type AppKey } from '../types';
 import { ErrorBox, PageHead, useAsync } from '../ui';
 
-/** The portal's apps: each one on or off for the whole organisation. The shared data stays either way. */
+interface AppsInfo { apps: AppKey[]; employees: number; using: Partial<Record<AppKey, number>> }
+
+/**
+ * The apps the organisation has, and how many people use each one. They are turned on by the service
+ * provider; who uses them is chosen per person, in Employees.
+ */
 export function AppsPage() {
   const { t } = useI18n();
   const P = t.apps;
-  const me = useMe();
-  const reloadMe = useReloadMe();
-  const canEdit = me.role === 'SUPER_ADMIN';
-  const state = useAsync(() => api.get<{ apps: AppKey[] }>('/admin/apps'), []);
-  const [busy, setBusy] = useState<AppKey | null>(null);
-  // The switches follow the click at once; they go back if the server refuses.
-  const [local, setLocal] = useState<AppKey[] | null>(null);
-  const current = local ?? state.data?.apps ?? [];
-  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
-
-  const toggle = async (app: AppKey, on: boolean) => {
-    const before = current;
-    const next = on ? [...before, app] : before.filter((a) => a !== app);
-    setLocal(next); setBusy(app); setMsg(null);
-    try {
-      await api.put('/admin/apps', { apps: next });
-      setMsg({ ok: true, text: P.saved }); await reloadMe(); // the menu follows
-    } catch (e) { setLocal(before); setMsg({ ok: false, text: errorText(t, e) }); } finally { setBusy(null); }
-  };
+  const state = useAsync(() => api.get<AppsInfo>('/admin/apps'), []);
+  const info = state.data;
 
   return (
     <>
       <PageHead title={P.title} intro={P.intro} />
       <ErrorBox error={state.error} />
-      <div role="status" aria-live="polite">{msg && <p className={msg.ok ? 'alert alert-info' : 'alert'}>{msg.text}</p>}</div>
-      {!canEdit && <p className="muted">{P.readOnly}</p>}
-      {state.data && (
+      {info && (
         <ul className="app-tiles" role="list">
           {APP_KEYS.map((app) => {
-            const on = current.includes(app);
+            const on = info.apps.includes(app);
+            const n = String(info.using[app] ?? 0), total = String(info.employees);
             return (
-              <li key={app} className={`a-card app-tile${on ? ' is-on' : ''}`}>
+              <li key={app} className={`a-card app-tile${on ? ' is-on' : ' is-out'}`}>
                 <div className="app-tile-head">
                   <h2>{P.items[app].name}</h2>
                   <span className={`pill${on ? ' pill-on' : ''}`}>{on ? P.on : P.off}</span>
                 </div>
                 <p>{P.items[app].text}</p>
-                <label className="toggle"><input type="checkbox" name={`app-${app}`} checked={on} disabled={!canEdit || busy !== null}
-                  onChange={(e) => toggle(app, e.target.checked)} />{P.items[app].name}</label>
+                {on ? (
+                  <div className="app-tile-foot">
+                    <span className="muted">{(app === 'parking' ? P.usingParking : P.using).replace('{n}', n).replace('{total}', total)}</span>
+                    <Link className="btn-link" to="/admin/employees">{P.choose}</Link>
+                  </div>
+                ) : <p className="hint">{P.notIncluded}</p>}
               </li>
             );
           })}
         </ul>
       )}
-      <p className="hint">{P.perPerson}</p>
     </>
   );
 }

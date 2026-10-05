@@ -910,6 +910,10 @@ code.mfa-secret { font-size: 14px; overflow-wrap: anywhere; max-width: 100%; }
 .app-tile-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .pill-on { background: var(--brand-soft); color: var(--ink, #1a1a1a); }
 .app-checks { display: flex; flex-wrap: wrap; gap: 8px 20px; }
+.app-tiles > .app-tile { margin: 0; }
+.app-tile.is-out { border-style: dashed; border-top-style: solid; }
+.app-tile-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; }
+.app-tile .hint { margin: 0; }
 
 /* rows of something switched off: greyed, still readable */
 .row-off, .row-off .muted, .row-off .tag { color: var(--ink-2); }
