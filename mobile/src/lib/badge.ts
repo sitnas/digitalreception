@@ -20,6 +20,8 @@ export interface Badge {
   firstName: string;
   lastName: string;
   primaryColor: string | null;
+  /** Second colour of the organisation; refreshed from the server at every start. */
+  secondaryColor?: string | null;
   /** Token for the app's own requests (invitations). Missing on badges activated before this existed. */
   appToken?: string | null;
 }

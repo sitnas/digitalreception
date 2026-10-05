@@ -10,3 +10,22 @@ export function onColor(hex: string): string {
   return contrast(hex, '#111111') >= contrast(hex, '#FFFFFF') ? '#111111' : '#FFFFFF';
 }
 
+
+/** Grey, black and white make dull squares: only a real colour (some saturation) counts as a second one. */
+function chromatic(hex: string) {
+  const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  return (Math.max(...c) - Math.min(...c)) / 255 >= 0.25;
+}
+
+/**
+ * Colours of the twinkling squares: the organisation's primary colour, plus its secondary one on
+ * about a third of the squares when it shows on the background and differs from the primary.
+ * Returns null for the secondary when it would be invisible or look like the primary.
+ */
+export function squareColors(primary: string, secondary: string | null | undefined, background: string): { primary: string; secondary: string | null } {
+  const ok = !!secondary && /^#[0-9A-Fa-f]{6}$/.test(secondary) && chromatic(secondary) && contrast(secondary, background) >= 1.5 && contrast(secondary, primary) >= 1.3;
+  return { primary, secondary: ok ? secondary! : null };
+}
+
+/** Deterministic per square (no flicker between renders): about a third of them take the secondary colour. */
+export const usesSecondary = (i: number) => { const v = Math.sin(i * 1.731 + 9.21) * 4321.123; return v - Math.floor(v) < 0.35; };
