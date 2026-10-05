@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ApiError, api } from '../lib/api';
 import { dateTimeFormat } from '../lib/format';
 import { applyBrand } from '../lib/theme';
-import { PhotoCapture, SignaturePad, Steps } from '../kiosk/parts';
-import { LOCALE_NAMES, STRINGS, type Locale } from '../kiosk/strings';
+import { LangSwitch, PhotoCapture, SignaturePad, Steps } from '../kiosk/parts';
+import { STRINGS, type Locale } from '../kiosk/strings';
 import type { GuestDocument, Notice } from '../kiosk/types';
 
 const DOC_TYPES = ['ID_CARD', 'PASSPORT', 'DRIVING_LICENSE', 'OTHER'] as const;
@@ -69,9 +69,7 @@ export function GuestApp() {
           {inv && <span className="k-place">{inv.site.name}</span>}
         </span>
         {inv && inv.policy.locales.length > 1 && (
-          <nav className="k-langs" aria-label="Language">
-            {inv.policy.locales.map((l) => <button key={l} type="button" className="k-lang" aria-pressed={l === locale} onClick={() => setLocale(l)} lang={l}>{LOCALE_NAMES[l]}</button>)}
-          </nav>
+          <LangSwitch locales={inv.policy.locales} value={locale} onChange={setLocale} />
         )}
       </header>
       <main className="k-main">{body}</main>

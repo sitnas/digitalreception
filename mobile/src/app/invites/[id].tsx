@@ -4,7 +4,7 @@ import { ActivityIndicator, Alert, ScrollView, Share, StyleSheet, Text, View, us
 import QRCode from 'react-native-qrcode-svg';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { SuccessCheck } from '../../components/motion';
-import { Button, ScreenHeader } from '../../components/ui';
+import { Button, ErrorText, ScreenHeader } from '../../components/ui';
 import { ApiError, cancelInvite, inviteQr, listInvites } from '../../lib/api';
 import { useBadge } from '../../lib/badge-context';
 import { lang, t } from '../../lib/i18n';
@@ -64,7 +64,7 @@ export default function InviteScreen() {
             </View>
           </View>
         ) : null}
-        {error ? <Text accessibilityRole="alert" style={[styles.error, { color: theme.danger }]}>{error}</Text> : null}
+        {error ? <ErrorText text={error} color={theme.danger} /> : null}
         {inv === undefined && !error ? <ActivityIndicator style={{ marginTop: 32 }} color={theme.ink2} /> : null}
         {inv ? (
           <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.line }]}>

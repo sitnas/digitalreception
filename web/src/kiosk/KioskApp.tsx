@@ -3,10 +3,11 @@ import { ApiError, api, deviceToken } from '../lib/api';
 import { applyBrand } from '../lib/theme';
 import { dateTimeFormat } from '../lib/format';
 import { CheckIn, CheckInResult } from './CheckIn';
+import { LangSwitch } from './parts';
 import { CheckOut } from './CheckOut';
 import { Arrive } from './Arrive';
 import { InviteScan, type Invite } from './InviteScan';
-import { LOCALE_NAMES, Locale, STRINGS } from './strings';
+import { Locale, STRINGS } from './strings';
 import type { KioskConfig } from './types';
 import { BrandBackdrop } from './BrandBackdrop';
 
@@ -89,9 +90,7 @@ export function KioskApp() {
         {screen.name === 'welcome' && (
           <div className="k-right">
             {langs.length > 1 && (
-              <nav className="k-langs" aria-label="Language">
-                {langs.map((l) => <button key={l} type="button" className="k-lang" aria-pressed={l === locale} onClick={() => setLocale(l)} lang={l}>{LOCALE_NAMES[l]}</button>)}
-              </nav>
+              <LangSwitch locales={langs} value={locale} onChange={setLocale} />
             )}
             <Clock timezone={cfg.site.timezone} locale={locale} />
           </div>
@@ -103,8 +102,10 @@ export function KioskApp() {
 
         {screen.name === 'welcome' && (
           <>
-            <h1 className="k-title">{t.welcome}</h1>
-            <p className="k-sub">{t.welcomeSub}</p>
+            <div key={locale} className="k-swap">
+              <h1 className="k-title">{t.welcome}</h1>
+              <p className="k-sub">{t.welcomeSub}</p>
+            </div>
             <div className="k-choices">
               <button type="button" className="k-choice in" onClick={() => setScreen({ name: 'checkin' })} disabled={!cfg.notices[locale]}>
                 <span className="glyph" aria-hidden><Arrow dir="in" /></span><strong>{t.checkIn}</strong><span>{t.checkInSub}</span>

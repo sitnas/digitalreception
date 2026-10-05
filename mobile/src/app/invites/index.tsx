@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { SkeletonRows } from '../../components/motion';
-import { Button, ScreenHeader } from '../../components/ui';
+import { Button, ErrorText, ScreenHeader } from '../../components/ui';
 import { ApiError, listInvites } from '../../lib/api';
 import { useBadge } from '../../lib/badge-context';
 import { lang, t } from '../../lib/i18n';
@@ -42,7 +42,7 @@ export default function InvitesScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await load(); setRefreshing(false); }} />}>
         <Button label={t.invites.new} theme={theme} onPress={() => router.push('/invites/new')} />
         <ArrivalNotices />
-        {error ? <Text accessibilityRole="alert" style={[styles.error, { color: theme.danger }]}>{error}</Text> : null}
+        {error ? <ErrorText text={error} color={theme.danger} /> : null}
         {rows === null && !error ? <SkeletonRows theme={theme} label={t.loading} /> : null}
         {rows && rows.length === 0 ? <Text style={[styles.empty, { color: theme.ink2 }]}>{t.invites.none}</Text> : null}
         {rows && byDay(rows).map((g) => (
