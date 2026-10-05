@@ -9,12 +9,12 @@ export const en: AdminStrings = {
   portal: {
     home: 'Portal', account: 'Account', hello: 'Hi, {name}', intro: 'These are the apps and the data you can manage. Open a card to go in.', noApps: 'No apps are on for your role. Ask the administrator.',
     groupText: { reception: 'Visitors at the tablet, invitations, evacuation, people to visit and documents to accept.', access: 'Doors, readers and the employees’ access log.', parcels: 'Parcels and letters at reception, waiting to be handed over.', parking: 'Parking spots, each site’s week and who has the benefit.' },
-    pageText: { employees: 'Details, job, permissions and apps of each person.', projects: 'The jobs the employees work on.', sites: 'Sites, addresses and time zones.', users: 'Who signs in to this console, and with which role.', integration: 'Keys for the HR system.', apps: 'Turn the organisation’s apps on and off.', notifications: 'Alerts to Teams, Slack and other systems.', org: 'Name, logo, colours, email and company sign-in.', privacy: 'Notices and data retention per country.', audit: 'Who did what, and when.' },
+    pageText: { employees: 'Details, job, permissions and apps of each person.', projects: 'The jobs the employees work on.', sites: 'Sites, addresses and time zones.', users: 'Who signs in to this console, and with which role.', integration: 'Keys for the HR system.', apps: 'The apps included, and who uses them.', notifications: 'Alerts to Teams, Slack and other systems.', org: 'Name, logo, colours, email and company sign-in.', privacy: 'Notices and data retention per country.', audit: 'Who did what, and when.' },
   },
   navApps: 'Apps',
   apps: {
-    title: 'Apps', intro: 'Each app is turned on for the whole organisation. The shared data (employees, jobs, sites, users) is always there: turning an app off hides it from the console, the tablet and the employees’ phones, and deletes nothing.',
-    on: 'On', off: 'Off', saved: 'Setting saved.', readOnly: 'Only the administrator can turn apps on or off.', perPerson: 'To turn one off for a single person, use their record in Employees.',
+    title: 'Apps', intro: 'The apps included in your organisation’s service. The service provider turns them on; you choose who uses them, from each person’s record in Employees. The shared data (employees, jobs, sites, users) is always there.',
+    on: 'On', off: 'Not included', using: 'On for {n} of {total} employees', usingParking: '{n} of {total} employees have the benefit', choose: 'Choose people', notIncluded: 'To add it, contact the service provider. The data of a removed app stays, and comes back when it is turned on again.',
     items: {
       reception: { name: 'Reception', text: 'Visitor log at the tablet, invitations, evacuation roll call, documents to accept. On the phone: my invitations and the notice when a guest arrives.' },
       access: { name: 'Doors', text: 'Doors and readers, permissions and the access log. On the phone: the badge with the QR (and NFC) that opens the doors.' },

@@ -5,6 +5,7 @@ import { loadConfig } from '../common/app-config';
 import { CryptoService } from '../common/crypto.service';
 import { createStorage } from '../common/storage';
 import { TenantKeysService } from '../common/tenant-keys.service';
+import { APP_KEYS, DEFAULT_APPS, type AppKey } from '../common/app-keys';
 import { presetFor } from '../database/country-presets';
 import { noticeTemplate } from '../database/notice-templates';
 import { typeormOptions } from '../database/typeorm-options';
@@ -14,8 +15,9 @@ import { AccessEvent, AccessRule, ApiKey, Door, DoorReader, Employee, ActorType,
  * Platform operations (provisioning of customer organisations). Deliberately a CLI and not a
  * web page: there is no "platform super-user" exposed on the internet.
  *
- *   npm run tenant -- create --slug acme --name "Acme S.p.A." --countries IT,ES --admin-email it@acme.com [--max-sites 5 --max-devices 5 --max-users 20]
+ *   npm run tenant -- create --slug acme --name "Acme S.p.A." --countries IT,ES --admin-email it@acme.com [--max-sites 5 --max-devices 5 --max-users 20] [--apps reception,access]
  *   npm run tenant -- list
+ *   npm run tenant -- apps --slug acme --apps reception,access,parcels,parking   (the apps the customer has: the organisation then picks the people)
  *   npm run tenant -- limits --slug acme --max-sites 10
  *   npm run tenant -- suspend --slug acme      |  activate --slug acme
  *   npm run tenant -- delete --slug acme --confirm acme     (crypto-shredding, irreversible)
@@ -31,6 +33,14 @@ function args() {
   return { cmd, opts };
 }
 const limit = (v?: string) => (v === undefined ? undefined : v === 'none' ? null : Math.max(0, parseInt(v, 10)));
+/** `--apps reception,parking`: known names only, in the fixed order. */
+const appList = (v?: string): AppKey[] | undefined => {
+  if (v === undefined) return undefined;
+  const asked = v.split(',').map((a) => a.trim()).filter(Boolean);
+  const unknown = asked.filter((a) => !(APP_KEYS as readonly string[]).includes(a));
+  if (unknown.length) throw new Error(`--apps: unknown ${unknown.join(', ')} (available: ${APP_KEYS.join(', ')})`);
+  return APP_KEYS.filter((a) => asked.includes(a));
+};
 const tempPassword = () => randomBytes(12).toString('base64url') + '-A7';
 
 async function platformAudit(ds: DataSource, action: string, details: Record<string, unknown>) {
@@ -56,11 +66,12 @@ async function main() {
         if (!adminEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(adminEmail)) throw new Error('--admin-email is required');
         if (await tenants.exist({ where: { slug } })) throw new Error(`Tenant ${slug} already exists`);
         const countries = (opts.countries ?? 'IT').split(',').map((c) => c.trim().toUpperCase()).filter((c) => /^[A-Z]{2}$/.test(c));
+        const apps = appList(opts.apps) ?? DEFAULT_APPS;
         const password = tempPassword();
 
         await ds.transaction(async (em) => {
           const t = em.create(Tenant, { slug, name: opts.name, status: TenantStatus.ACTIVE, dataKeyId: 'd1', dataKeysWrapped: '{}', blindIndexKeyWrapped: '',
-            maxSites: limit(opts['max-sites']) ?? null, maxDevices: limit(opts['max-devices']) ?? null, maxUsers: limit(opts['max-users']) ?? null, logoDataUrl: null });
+            maxSites: limit(opts['max-sites']) ?? null, maxDevices: limit(opts['max-devices']) ?? null, maxUsers: limit(opts['max-users']) ?? null, logoDataUrl: null, apps });
           const saved = await em.save(t);
           await em.update(Tenant, saved.id, keys.generate(saved.id)); // keys are bound to the tenant id
           for (const cc of countries) {
@@ -70,8 +81,8 @@ async function main() {
           }
           await em.save(em.create(User, { tenantId: saved.id, email: adminEmail, displayName: 'Amministratore', role: Role.SUPER_ADMIN, sites: [], active: true, mustChangePassword: true, passwordHash: await crypto.hashPassword(password) }));
         });
-        await platformAudit(ds, 'TENANT_CREATED', { slug, countries });
-        console.log(`Tenant "${slug}" created with countries ${countries.join(', ')}.`);
+        await platformAudit(ds, 'TENANT_CREATED', { slug, countries, apps });
+        console.log(`Tenant "${slug}" created with countries ${countries.join(', ')} and apps ${apps.join(', ') || 'none'}.`);
         console.log(`Console: ${cfg.tenancy.mode === 'subdomain' ? `https://${slug}.${cfg.tenancy.baseDomain}/admin` : '/admin'}`);
         console.log(`First administrator: ${adminEmail}`);
         console.log(`Temporary password (shown ONCE, change required at first login): ${password}`);
@@ -85,8 +96,19 @@ async function main() {
             ds.getRepository(Device).count({ where: { tenantId: t.id, revokedAt: IsNull() } }),
             ds.getRepository(User).count({ where: { tenantId: t.id, active: true } }),
           ]);
-          console.log(`${t.slug.padEnd(20)} ${t.status.padEnd(10)} sites ${sites}/${t.maxSites ?? '∞'}  devices ${devices}/${t.maxDevices ?? '∞'}  users ${users}/${t.maxUsers ?? '∞'}  ${t.name}`);
+          console.log(`${t.slug.padEnd(20)} ${t.status.padEnd(10)} sites ${sites}/${t.maxSites ?? '∞'}  devices ${devices}/${t.maxDevices ?? '∞'}  users ${users}/${t.maxUsers ?? '∞'}  apps ${t.apps.join(',') || '-'}  ${t.name}`);
         }
+        break;
+      }
+      case 'apps': {
+        const t = await tenants.findOne({ where: { slug: opts.slug } });
+        if (!t) throw new Error('Tenant not found');
+        const apps = appList(opts.apps);
+        if (!apps) throw new Error(`--apps is required, e.g. --apps ${APP_KEYS.join(',')} (empty: --apps "")`);
+        await tenants.update(t.id, { apps });
+        await platformAudit(ds, 'TENANT_APPS', { slug: t.slug, before: t.apps, after: apps });
+        // The guards read the database at every request: the change applies at once.
+        console.log(`Apps of ${t.slug}: ${apps.join(', ') || 'none'}. Data of an app turned off stays, and comes back when it is turned on again.`);
         break;
       }
       case 'limits': case 'suspend': case 'activate': {
@@ -176,7 +198,7 @@ async function main() {
         break;
       }
       default:
-        console.log('Commands: create | list | limits | suspend | activate | delete | rewrap-keys | reset-mfa | reset-password | sso-off  (see header of src/cli/tenants.ts)');
+        console.log('Commands: create | list | apps | limits | suspend | activate | delete | rewrap-keys | reset-mfa | reset-password | sso-off  (see header of src/cli/tenants.ts)');
         process.exitCode = 1;
     }
   } finally {

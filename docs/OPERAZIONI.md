@@ -12,10 +12,10 @@ Non esiste una console web "di piattaforma": la gestione dei clienti avviene sol
 
 ```bash
 npm run tenant -- create --slug acme --name "Acme S.p.A." --countries IT,ES --admin-email it@acme.com \
-  --max-sites 5 --max-devices 5 --max-users 20
+  --max-sites 5 --max-devices 5 --max-users 20 --apps reception,access,parcels
 ```
 
-Crea il tenant con chiavi di cifratura proprie, le regole privacy dei paesi indicati, la prima versione delle informative e il primo amministratore. La password temporanea compare una sola volta: va comunicata su un canale diverso dall'email.
+Crea il tenant con chiavi di cifratura proprie, le app incluse nel servizio (senza `--apps`: Reception, Porte e Pacchi), le regole privacy dei paesi indicati, la prima versione delle informative e il primo amministratore. La password temporanea compare una sola volta: va comunicata su un canale diverso dall'email.
 
 In modalità `subdomain` serve un record DNS (o un wildcard `*.BASE_DOMAIN`) e un certificato che copra il sottodominio.
 
@@ -24,6 +24,7 @@ In modalità `subdomain` serve un record DNS (o un wildcard `*.BASE_DOMAIN`) e u
 | Comando | Effetto |
 |---|---|
 | `list` | clienti, stato, utilizzo rispetto ai limiti |
+| `apps --slug acme --apps reception,access,parcels,parking` | le app incluse nel servizio del cliente, vedi sotto |
 | `limits --slug acme --max-sites 10` | cambia i limiti del piano (`none` = illimitato) |
 | `suspend --slug acme` / `activate` | blocca o riattiva l'accesso (entro 60 secondi su tutte le repliche); i dati restano e la conservazione continua |
 | `delete --slug acme --confirm acme` | cancellazione definitiva con distruzione delle chiavi |
@@ -83,7 +84,16 @@ Firma e foto del documento caricate dal telefono restano cifrate e legate all'in
 
 ## App del portale
 
-La console e il telefono dei dipendenti sono un portale. I **dati comuni** (dipendenti, commesse, sedi, utenti della console, integrazione API) ci sono sempre. Le **app** si accendono e spengono:
+La console e il telefono dei dipendenti sono un portale. I **dati comuni** (dipendenti, commesse, sedi, utenti della console, integrazione API) ci sono sempre. Le **app** si attivano su due livelli: prima per il cliente, poi per ogni dipendente.
+
+| App | Nome in `--apps` |
+|---|---|
+| Reception | `reception` |
+| Porte | `access` |
+| Pacchi | `parcels` |
+| Parcheggi | `parking` |
+
+Cosa porta ciascuna:
 
 | App | In console | Sul telefono |
 |---|---|---|
@@ -92,9 +102,9 @@ La console e il telefono dei dipendenti sono un portale. I **dati comuni** (dipe
 | Pacchi | Consegne | Avviso e elenco dei pacchi da ritirare |
 | Parcheggi | Parcheggi | I miei giorni di parcheggio, prenota e libera |
 
-- **Per organizzazione**: *Impostazioni → App attive*, solo l'Amministratore. Un'app spenta sparisce dal menu, il tablet mostra che il registro non è attivo e le sue API rispondono `403 APP_DISABLED`. I dati restano: riaccendendola si ritrova tutto.
+- **Per cliente**: le attiva chi gestisce la piattaforma, con `npm run tenant -- apps --slug acme --apps reception,access`. L'elenco sostituisce quello di prima e vale subito, senza riavvii. L'organizzazione non può cambiarlo dalla console: in *Impostazioni → App attive* vede le app incluse, quante persone usano ciascuna e, per le altre, che deve chiederle al fornitore. Un'app tolta sparisce dal menu, il tablet mostra che il registro non è attivo e le sue API rispondono `403 APP_DISABLED`. I dati restano: riattivandola si ritrova tutto.
 - **Per dipendente**: nella scheda in *Dipendenti*, sezione "App per questa persona". Il sistema HR non tocca questa scelta. Porte spente: il telefono non mostra il QR e il lettore rifiuta con `APP_DISABLED`. Pacchi spenti: la persona non compare tra i destinatari. Reception spenta: niente inviti dall'app.
-- Le organizzazioni esistenti hanno tutte le app accese, come prima. Parcheggi è spenta finché non la accendi.
+- Le organizzazioni esistenti hanno Reception, Porte e Pacchi, come prima. Parcheggi va aggiunta con il comando `apps`.
 
 ### Parcheggi
 
