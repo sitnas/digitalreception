@@ -11,6 +11,8 @@ const trim = ({ value }: { value: unknown }) => (typeof value === 'string' ? val
 const NAME = /^[\p{L}\p{M}' .-]+$/u;
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
 export const EXTERNAL_ID = /^[A-Za-z0-9._:@-]{1,100}$/;
+/** Code of a job / contract ("commessa"), as the HR or ERP system writes it. */
+export const PROJECT_CODE = /^[A-Za-z0-9._\/-]{1,40}$/;
 
 export class PermissionDto {
   @IsString() @Matches(EXTERNAL_ID) door: string;
@@ -27,9 +29,17 @@ export class PutEmployeeDto {
   @IsOptional() @Transform(trim) @IsString() @MaxLength(120) jobTitle?: string | null;
   @IsOptional() @IsString() @MaxLength(40) @Matches(/^[0-9A-Fa-f:\- ]*$/) badgeUid?: string | null;
   @IsOptional() @IsBoolean() active?: boolean;
+  /** Job / contract code: omitted keeps the current one, null removes it. */
+  @IsOptional() @IsString() @Matches(PROJECT_CODE) project?: string | null;
   @IsOptional() @IsISO8601() validFrom?: string | null;
   @IsOptional() @IsISO8601() validUntil?: string | null;
   @IsArray() @ArrayMaxSize(200) @ValidateNested({ each: true }) @Type(() => PermissionDto) permissions: PermissionDto[];
+}
+
+export class PutProjectDto {
+  @Transform(trim) @IsString() @Length(1, 120) name: string;
+  @IsOptional() @Transform(trim) @IsString() @MaxLength(120) client?: string | null;
+  @IsOptional() @IsBoolean() active?: boolean;
 }
 
 export class PutDoorDto {
@@ -58,6 +68,15 @@ export class IntegrationController {
     const { created, door } = await this.access.upsertDoor(key.tenantId, externalId, dto);
     await this.audit.fromRequest(req, { action: 'API_DOOR_UPSERT', entityType: 'door', entityId: door.id, siteId: door.siteId, details: { apiKey: key.id, externalId, created } });
     return { id: door.externalId, created };
+  }
+
+  /** Jobs / contracts ("commesse"), identified by their own code; employees point to them with `project`. */
+  @Put('projects/:code')
+  async putProject(@CurrentApiKey() key: { id: string; tenantId: string }, @Param('code') code: string, @Body() dto: PutProjectDto, @Req() req: AppRequest) {
+    if (!PROJECT_CODE.test(code)) throw new BadRequestException('INVALID_PROJECT_CODE');
+    const { created, project } = await this.access.upsertProject(key.tenantId, code, dto);
+    await this.audit.fromRequest(req, { action: 'API_PROJECT_UPSERT', entityType: 'project', entityId: project.id, details: { apiKey: key.id, code, created } });
+    return { id: project.code, created };
   }
 
   @Put('employees/:externalId')

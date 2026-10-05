@@ -118,6 +118,7 @@ Regole generali:
 | Metodo | Percorso | Cosa fa |
 |---|---|---|
 | `PUT` | `/doors/{id}` | Crea o aggiorna una porta. Corpo: `siteCode` (codice della sede in console), `name`, `active` (facoltativo). |
+| `PUT` | `/projects/{codice}` | Crea o aggiorna una commessa. Corpo: `name`, `client` (facoltativo), `active` (facoltativo; `false` la chiude). |
 | `PUT` | `/employees/{id}` | Crea o aggiorna un dipendente e i suoi permessi (vedi sotto). |
 | `DELETE` | `/employees/{id}` | Cancella il dipendente e i permessi; il registro perde il collegamento alla persona. |
 
@@ -131,6 +132,7 @@ Corpo di `PUT /employees/{id}`:
   "department": "Acquisti",
   "jobTitle": "Buyer",
   "badgeUid": "04:A2:1B:9C",
+  "project": "C24-017",
   "active": true,
   "validFrom": "2026-10-01T00:00:00Z",
   "validUntil": null,
@@ -145,6 +147,7 @@ Campi:
 
 - **`email`**: serve per attivare il badge sul telefono.
 - **`department` / `jobTitle`** (facoltativi): reparto e ruolo. Servono quando il dipendente è anche tra le *persone da visitare*, perché il tablet li mostra accanto al nome.
+- **`project`** (facoltativo): il codice della commessa su cui lavora il dipendente, che deve esistere già (in console o con `PUT /projects/{codice}`), altrimenti la risposta è `400 UNKNOWN_PROJECT`. Se il campo manca, la commessa resta quella impostata, anche a mano dalla console; `null` la toglie. In console la commessa compare nella scheda del dipendente e si possono filtrare Dipendenti e Passaggi per commessa.
 - **`badgeUid`**: il codice UID della tessera NFC. Sono ammessi i separatori `:`, `-` e gli spazi.
   - `null` rimuove la tessera; se il campo manca, la tessera resta com'è.
   - Una tessera può appartenere a un solo dipendente: altrimenti la risposta è `409 BADGE_IN_USE`.

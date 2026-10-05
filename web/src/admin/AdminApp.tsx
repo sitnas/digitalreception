@@ -8,6 +8,7 @@ import { AuditPage } from './pages/Audit';
 import { DevicesPage } from './pages/Devices';
 import { DocumentsPage } from './pages/Documents';
 import { ParcelsPage } from './pages/Parcels';
+import { ProjectsPage } from './pages/Projects';
 import { EvacuationPage } from './pages/Evacuation';
 import { HistoryPage } from './pages/History';
 import { InvitationsPage } from './pages/Invitations';
@@ -42,6 +43,7 @@ const NAV: { to: string; key: keyof typeof ADMIN_STRINGS.it.nav; group: NavGroup
   { to: 'evacuation', key: 'evacuation', group: 'visits', roles: ['SUPER_ADMIN', 'SITE_MANAGER', 'RECEPTIONIST'] },
   { to: 'stats', key: 'stats', group: 'visits', roles: ['SUPER_ADMIN', 'SITE_MANAGER', 'AUDITOR'] },
   { to: 'employees', key: 'employees', group: 'access', roles: ['SUPER_ADMIN', 'SITE_MANAGER', 'AUDITOR'] },
+  { to: 'projects', key: 'projects', group: 'access', roles: ['SUPER_ADMIN', 'SITE_MANAGER', 'AUDITOR'] },
   { to: 'doors', key: 'doors', group: 'access', roles: ['SUPER_ADMIN', 'SITE_MANAGER', 'AUDITOR'] },
   { to: 'access-log', key: 'accessLog', group: 'access', roles: ['SUPER_ADMIN', 'SITE_MANAGER', 'AUDITOR'] },
   { to: 'integration', key: 'integration', group: 'access', roles: ['SUPER_ADMIN'] },
@@ -404,6 +406,7 @@ function Shell({ branding, me, onLogout }: { branding: Branding; me: Me; onLogou
           <Route index element={<Navigate to={home} replace />} />
           {items.some((i) => i.to === 'today') && <Route path="today" element={<TodayPage />} />}
           {items.some((i) => i.to === 'invites') && <Route path="invites" element={<InvitationsPage />} />}
+          {items.some((i) => i.to === 'projects') && <Route path="projects" element={<ProjectsPage />} />}
           {items.some((i) => i.to === 'parcels') && <Route path="parcels" element={<ParcelsPage />} />}
           {items.some((i) => i.to === 'documents') && <Route path="documents" element={<DocumentsPage />} />}
           {items.some((i) => i.to === 'evacuation') && <Route path="evacuation" element={<EvacuationPage />} />}
