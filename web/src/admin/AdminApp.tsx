@@ -550,10 +550,13 @@ function PortalHome({ me, items }: { me: Me; items: typeof NAV }) {
   const d = dash.data;
   const n = (v: number) => numberFormat(intl).format(v);
 
+  // At most four cards, and every app the person sees keeps at least one: with all four apps on,
+  // reception gives up "check-ins today" (the chart below shows the days anyway).
   const kpis: Kpi[] = [];
+  const otherApps = [d?.parcels, d?.parking, d?.access].filter(Boolean).length;
   if (d?.reception) {
     kpis.push({ key: 'present', label: D.present, value: n(d.reception.present) });
-    kpis.push({ key: 'today', label: D.today, value: n(d.reception.today), delta: { now: d.reception.today, before: d.reception.sameDayLastWeek, polarity: 'neutral', note: D.todayNote } });
+    if (otherApps < 3) kpis.push({ key: 'today', label: D.today, value: n(d.reception.today), delta: { now: d.reception.today, before: d.reception.sameDayLastWeek, polarity: 'neutral', note: D.todayNote } });
   }
   if (d?.parcels) kpis.push({ key: 'parcels', label: D.parcels, value: n(d.parcels.waiting), note: plural(D.parcelsNote, d.parcels.arrivedWeek, intl, n(d.parcels.arrivedWeek)) });
   if (d?.parking) kpis.push({ key: 'parking', label: D.parking, value: n(d.parking.bookedToday), note: D.parkingOf.replace('{n}', n(d.parking.spots)) });
@@ -580,7 +583,7 @@ function PortalHome({ me, items }: { me: Me; items: typeof NAV }) {
       {dash.error ? <p className="alert" role="alert">{D.loadError}</p> : null}
       {kpis.length > 0 && (
         <ul className="kpis" role="list">
-          {kpis.slice(0, 4).map((k) => (
+          {kpis.map((k) => (
             <li key={k.key} className="kpi">
               <span>{k.label}</span>
               <b>{k.value}</b>

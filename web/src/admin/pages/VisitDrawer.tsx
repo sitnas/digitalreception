@@ -21,11 +21,15 @@ export function VisitDrawer({ id, onClose, onChanged }: { id: string; onClose: (
 
   const dlg = useRef<HTMLElement>(null);
   useDialog(dlg, onClose);
-  useEffect(() => () => { Object.values(images).forEach(URL.revokeObjectURL); }, [images]);
+  // Image links are freed when the drawer closes, not while they are still on screen.
+  const urls = useRef<string[]>([]);
+  useEffect(() => () => { urls.current.forEach(URL.revokeObjectURL); }, []);
 
   const show = async (fileId: string) => {
     const blob = await api.blob(`/admin/visits/${id}/files/${fileId}`);
-    setImages((m) => ({ ...m, [fileId]: URL.createObjectURL(blob) }));
+    const url = URL.createObjectURL(blob);
+    urls.current.push(url);
+    setImages((m) => ({ ...m, [fileId]: url }));
   };
   const act = async (fn: () => Promise<unknown>) => {
     setActionError(null);

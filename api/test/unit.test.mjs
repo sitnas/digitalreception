@@ -204,3 +204,18 @@ test('parking: booking window, Thursday opening, managers booked for the week af
   assert.equal(R.nextMonday(at('2026-10-11T22:30:00Z'), 'Europe/Rome'), '2026-10-19', 'past midnight it is Monday');
   assert.deepEqual(R.workingDays('2026-12-28'), ['2026-12-28', '2026-12-29', '2026-12-30', '2026-12-31', '2027-01-01']);
 });
+
+test('dashboard days: local midnight across daylight saving, days between calendar dates', () => {
+  const D = require('../dist/admin/dashboard-days.js');
+  assert.equal(D.midnight('2026-10-05', 'Europe/Rome').toISOString(), '2026-10-04T22:00:00.000Z', 'summer time, UTC+2');
+  assert.equal(D.midnight('2026-12-01', 'Europe/Rome').toISOString(), '2026-11-30T23:00:00.000Z', 'winter time, UTC+1');
+  assert.equal(D.midnight('2026-10-25', 'Europe/Rome').toISOString(), '2026-10-24T22:00:00.000Z', 'the day the clocks go back');
+  assert.equal(D.midnight('2026-10-05', 'America/New_York').toISOString(), '2026-10-05T04:00:00.000Z');
+  assert.equal(D.midnight('2026-10-05', 'UTC').toISOString(), '2026-10-05T00:00:00.000Z');
+  // 22:30 UTC: already the 6th in Rome, still the 5th in New York.
+  assert.equal(D.localDay(new Date('2026-10-05T22:30:00Z'), 'Europe/Rome'), '2026-10-06');
+  assert.equal(D.localDay(new Date('2026-10-05T22:30:00Z'), 'America/New_York'), '2026-10-05');
+  assert.equal(D.between('2026-09-29', '2026-10-05'), -6);
+  assert.equal(D.between('2026-10-05', '2026-10-05'), 0);
+  assert.equal(D.shift('2026-10-05', -7), '2026-09-28');
+});

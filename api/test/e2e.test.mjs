@@ -1087,7 +1087,11 @@ describe('end-to-end', { skip: !enabled && 'E2E_DB_HOST not set' }, () => {
       assert.equal(dash.days.length, 7); assert.equal(dash.days[6], dash.today);
       assert.ok(dash.parking.spots >= 2, 'active spots of the organisation');
       assert.equal(typeof dash.reception.present, 'number'); assert.equal(dash.reception.week.length, 7);
-      assert.equal(typeof dash.access.deniedWeek, 'number'); assert.equal(typeof dash.parcels.waiting, 'number');
+      assert.equal(typeof dash.parcels.waiting, 'number');
+      // Door events are counted by the database, per site: the same number as the log, today included.
+      const [[{ denied }]] = await db.query("SELECT COUNT(*) AS denied FROM access_events e JOIN tenants t ON t.id = e.tenantId WHERE t.slug = ? AND e.result = 'DENIED' AND e.at >= UTC_TIMESTAMP() - INTERVAL 5 DAY", [SLUG]);
+      assert.ok(Number(denied) > 0, 'the earlier tests left denied entries');
+      assert.ok(dash.access.deniedWeek >= Number(denied), `${dash.access.deniedWeek} >= ${denied}`);
       const recDash = (await ctx.rec.get('/admin/dashboard')).data;
       assert.equal(recDash.access, undefined, 'the receptionist does not read the door log');
       assert.ok(recDash.reception && recDash.parking, 'but sees visitors and parking');
