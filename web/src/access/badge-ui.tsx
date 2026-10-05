@@ -31,10 +31,10 @@ export function Field({ id, label, error, inputRef, className, ...input }: { id:
 }
 
 /** Title row of a secondary screen, with the way back. */
-export function ScreenHeader({ title, backLabel, onBack }: { title: string; backLabel: string; onBack: () => void }) {
+export function ScreenHeader({ title, backLabel, onBack }: { title: string; backLabel: string; onBack?: () => void }) {
   return (
     <header className="mb-header">
-      <button type="button" className="mb-back" onClick={onBack}>‹ {backLabel}</button>
+      {onBack ? <button type="button" className="mb-back" onClick={onBack}>‹ {backLabel}</button> : <span aria-hidden />}
       <h1>{title}</h1>
       <span aria-hidden />
     </header>
@@ -197,5 +197,40 @@ export function Switch({ checked, disabled, label, onChange }: { checked: boolea
       <input type="checkbox" role="switch" checked={checked} disabled={disabled} aria-label={label} onChange={(e) => onChange(e.target.checked)} />
       <span aria-hidden />
     </label>
+  );
+}
+
+export type TabKey = 'badge' | 'home' | 'invites' | 'parcels' | 'parking';
+export interface Tab { key: TabKey; label: string; count?: number }
+
+const TAB_ICONS: Record<TabKey, ReactNode> = {
+  badge: <><rect x="3.5" y="3.5" width="7" height="7" rx="1.5" /><rect x="13.5" y="3.5" width="7" height="7" rx="1.5" /><rect x="3.5" y="13.5" width="7" height="7" rx="1.5" /><path d="M14 14h2.5v2.5H14zM18 18h2.5v2.5H18zM14 20.5h1M20.5 14v1" /></>,
+  home: <path d="M4 10.5L12 4l8 6.5V20H4z" />,
+  invites: <><circle cx="9" cy="8" r="3.5" /><path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5M18.5 8v6M15.5 11h6" /></>,
+  parcels: <><path d="M3.5 7.5L12 3l8.5 4.5v9L12 21l-8.5-4.5z" /><path d="M3.5 7.5L12 12l8.5-4.5M12 12v9" /></>,
+  parking: <><rect x="3.5" y="3.5" width="17" height="17" rx="3" /><path d="M9.5 17V7h3.2a3 3 0 0 1 0 6H9.5" /></>,
+};
+
+/**
+ * Bottom tab bar (Mortise mobile navigation: three to five destinations, always in reach). Every tab
+ * carries its label; the active one is a filled pill, so it reads by shape and not only by colour.
+ */
+export function TabBar({ label, tabs, active, onSelect }: { label: string; tabs: Tab[]; active: TabKey; onSelect: (k: TabKey) => void }) {
+  return (
+    <nav className="mb-tabs" aria-label={label}>
+      <ul>
+        {tabs.map((tab) => (
+          <li key={tab.key}>
+            <button type="button" className="mb-tab" aria-current={tab.key === active ? 'page' : undefined} onClick={() => onSelect(tab.key)}>
+              <span className="mb-tab-pill">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>{TAB_ICONS[tab.key]}</svg>
+                <span>{tab.label}</span>
+              </span>
+              {tab.count ? <em>{tab.count}</em> : null}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </nav>
   );
 }

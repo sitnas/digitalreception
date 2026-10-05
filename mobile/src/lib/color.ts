@@ -10,6 +10,14 @@ export function onColor(hex: string): string {
   return contrast(hex, '#0A0A0A') >= contrast(hex, '#FFFFFF') ? '#0A0A0A' : '#FFFFFF';
 }
 
+/**
+ * The active tab: a pill in the organisation's second colour (black by default) with the primary
+ * colour as text when it stands out enough, otherwise plain black or white.
+ */
+export function activePill(primary: string, secondary: string | null | undefined): { bg: string; fg: string } {
+  const bg = secondary && /^#[0-9A-Fa-f]{6}$/.test(secondary) ? secondary : '#0A0A0A';
+  return { bg, fg: contrast(primary, bg) >= 3 ? primary : onColor(bg) };
+}
 
 /** Grey, black and white make dull squares: only a real colour (some saturation) counts as a second one. */
 function chromatic(hex: string) {

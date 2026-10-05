@@ -22,7 +22,7 @@ import { SitesPage } from './pages/Sites';
 import { StatsPage } from './pages/Stats';
 import { TodayPage } from './pages/Today';
 import { UsersPage } from './pages/Users';
-import type { AppKey, Me, Role } from './types';
+import { APP_KEYS, type AppKey, type Me, type Role } from './types';
 import { AppsPage } from './pages/Apps';
 import { ParkingPage } from './pages/Parking';
 
@@ -373,10 +373,16 @@ function Shell({ branding, me, onLogout }: { branding: Branding; me: Me; onLogou
   const menu = useRef<HTMLDetailsElement>(null);
   useEffect(() => { if (menu.current) menu.current.open = false; }, [pathname]);
   const tabs = current ? items.filter((n) => n.group === current.group) : [];
+  const [menuOpen, setMenuOpen] = useState(false);
+  useEffect(() => { setMenuOpen(false); }, [pathname]);
 
   return (
     <div className="admin">
       <header className="a-bar">
+        <button type="button" className="a-menu-btn" aria-expanded={menuOpen} aria-controls="a-sidemenu" onClick={() => setMenuOpen(true)}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden><path d="M4 7h16M4 12h16M4 17h16" /></svg>
+          <span className="sr-only">{t.portal.menu}</span>
+        </button>
         <NavLink to="" end className="a-bar-brand" aria-label={`${t.portal.home} · ${branding.name}`}>
           {branding.logo ? <img src={branding.logo} alt="" className="logo" /> : <MortiseMark size={30} dark />}
           <span>{branding.name}</span>
@@ -395,6 +401,7 @@ function Shell({ branding, me, onLogout }: { branding: Branding; me: Me; onLogou
           </div>
         </details>
       </header>
+      {menuOpen && <SideMenu items={items} onClose={() => setMenuOpen(false)} />}
       {current && (
         <div className="a-section">
           <div className="a-section-in">
@@ -443,6 +450,45 @@ function Shell({ branding, me, onLogout }: { branding: Branding; me: Me; onLogou
 const DATA_GROUPS: NavGroup[] = ['data', 'settings', 'compliance'];
 
 /**
+ * The console's menu on a phone (Mortise mobile navigation: six destinations or more). It slides in
+ * from the left edge and closes with a visible X, a tap outside or Escape; the active page is a black
+ * pill with yellow text. Focus moves in on opening and back to the menu button on closing.
+ */
+function SideMenu({ items, onClose }: { items: typeof NAV; onClose: () => void }) {
+  const { t } = useI18n();
+  const close = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    const opener = document.activeElement as HTMLElement | null;
+    close.current?.focus();
+    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', key);
+    document.body.style.overflow = 'hidden';
+    return () => { document.removeEventListener('keydown', key); document.body.style.overflow = ''; opener?.focus(); };
+  }, [onClose]);
+  const groups = [...APP_GROUPS, ...DATA_GROUPS].map((g) => ({ g, pages: items.filter((n) => n.group === g) })).filter((x) => x.pages.length);
+  return (
+    <div className="a-side-wrap">
+      <div className="a-side-scrim" onClick={onClose} aria-hidden />
+      <nav id="a-sidemenu" className="a-sidemenu" aria-label={t.portal.menu}>
+        <div className="a-sidemenu-head">
+          <button ref={close} type="button" className="a-sidemenu-close" onClick={onClose}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden><path d="M6 6l12 12M18 6L6 18" /></svg>
+            <span className="sr-only">{t.portal.close}</span>
+          </button>
+        </div>
+        <NavLink to="" end className="a-sidemenu-link">{t.portal.home}</NavLink>
+        {groups.map(({ g, pages }) => (
+          <section key={g} aria-labelledby={`sm-${g}`}>
+            <h2 id={`sm-${g}`}><GroupIcon group={g} />{t.navGroups[g]}</h2>
+            {pages.map((n) => <NavLink key={n.to} to={n.to} className="a-sidemenu-link">{t.nav[n.key]}</NavLink>)}
+          </section>
+        ))}
+      </nav>
+    </div>
+  );
+}
+
+/**
  * The console's home: one card per app the person can open (by role, while the organisation has it
  * on), then the shared data and the settings. Each card opens its section.
  */
@@ -451,6 +497,9 @@ function PortalHome({ me, items }: { me: Me; items: typeof NAV }) {
   const P = t.portal;
   const first = me.displayName.trim().split(/\s+/)[0];
   const apps = APP_GROUPS.map((g) => ({ g, pages: items.filter((n) => n.group === g) })).filter((x) => x.pages.length);
+  // Apps not in the organisation's service: the last tile of the grid says how to get them.
+  const missing = APP_KEYS.filter((a) => !me.apps.includes(a));
+  const showAdd = apps.length > 0 && missing.length > 0 && items.some((n) => n.to === 'apps');
   return (
     <div className="portal">
       <section className="portal-hero">
@@ -458,7 +507,8 @@ function PortalHome({ me, items }: { me: Me; items: typeof NAV }) {
           <h1>{P.hello.replace('{name}', first)}</h1>
           <p>{apps.length ? P.intro : P.noApps}</p>
         </div>
-        <Mo size={112} mood={apps.length ? 'happy' : 'wink'} />
+        {/* One Mo per screen: when the grid ends with the tile to add an app, Mo lives there. */}
+        {!showAdd && <Mo size={112} mood={apps.length ? 'happy' : 'wink'} />}
       </section>
       {apps.length > 0 && (
         <section aria-labelledby="pt-apps">
@@ -478,6 +528,16 @@ function PortalHome({ me, items }: { me: Me; items: typeof NAV }) {
                 )}
               </li>
             ))}
+            {showAdd && (
+              <li className="portal-app portal-add">
+                <NavLink to="apps" className="portal-app-main">
+                  <span className="portal-add-icon" aria-hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M12 6v12M6 12h12" /></svg></span>
+                  <h3>{P.addApp}</h3>
+                  <p>{P.addAppText.replace('{apps}', missing.map((a) => t.apps.items[a].name).join(', '))}</p>
+                  <Mo size={56} mood="wink" />
+                </NavLink>
+              </li>
+            )}
           </ul>
         </section>
       )}

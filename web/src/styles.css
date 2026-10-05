@@ -805,15 +805,6 @@ code.mfa-secret { font-size: 14px; overflow-wrap: anywhere; max-width: 100%; }
 .mb-parcels { display: grid; gap: 4px; border: 1px solid var(--brand); border-left-width: 4px; border-radius: 14px; padding: 14px; background: var(--mb-surface); animation: mb-rise .35s cubic-bezier(.34, 1.36, .64, 1) both; }
 .mb-parcels strong { font-size: 16px; font-weight: 800; }
 .mb-parcels span { font-size: 14px; color: var(--mb-ink2); }
-.mb-apps { display: grid; gap: 10px; }
-.mb-apps h2 { margin: 0; font-size: 13px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--mb-ink2); }
-.mb-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
-.mb-tile { position: relative; display: grid; gap: 4px; align-content: start; min-height: 104px; text-align: left; font: inherit; color: var(--mb-ink); background: var(--mb-surface); border: 1px solid var(--mb-line); border-radius: 16px; padding: 20px 16px 16px; cursor: pointer; overflow: hidden; transition: transform .12s ease; }
-.mb-tile::before { content: ''; position: absolute; inset: 0 0 auto; height: 4px; background: var(--brand); }
-.mb-tile:active { transform: scale(.97); }
-.mb-tile strong { font-size: 17px; font-weight: 800; }
-.mb-tile span { font-size: 14px; line-height: 1.35; color: var(--mb-ink2); }
-.mb-tile em { position: absolute; top: 14px; right: 14px; min-width: 26px; height: 26px; border-radius: 13px; display: grid; place-items: center; padding: 0 7px; font-style: normal; font-weight: 800; font-size: 14px; background: var(--brand); color: var(--on-brand); }
 .mb-row-card { display: grid; gap: 4px; border: 1px solid var(--mb-line); border-radius: 14px; padding: 14px; background: var(--mb-surface); }
 .mb-row-card strong { font-size: 16px; }
 .mb-row-card span { font-size: 14px; color: var(--mb-ink2); }
@@ -1008,7 +999,41 @@ code { border-radius: 6px; }
 .portal-page:hover { border-color: var(--ink); }
 .portal-page strong { font-family: var(--disp); font-weight: 600; font-size: 19px; }
 .portal-page span { color: var(--ink-2); font-size: 14px; line-height: 1.45; }
+/* phone: the side menu (six destinations or more), opened from the button at the left of the bar */
+.a-menu-btn { display: none; flex: none; width: 44px; height: 44px; margin-left: -6px; place-items: center; background: none; border: 0; border-radius: 12px; color: var(--on-brand-2); cursor: pointer; }
+.a-menu-btn svg { width: 24px; height: 24px; }
+.a-side-wrap { position: fixed; inset: 0; z-index: 60; }
+.a-side-scrim { position: absolute; inset: 0; background: rgba(10, 10, 10, .5); }
+.a-sidemenu { position: absolute; inset: 0 auto 0 0; width: min(320px, 86vw); overflow-y: auto; overscroll-behavior: contain; display: grid; align-content: start; gap: 4px;
+  padding: max(12px, env(safe-area-inset-top)) 14px calc(24px + env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left)); background: var(--surface); color: var(--ink); box-shadow: var(--shadow-pop); }
+.a-sidemenu-head { display: flex; justify-content: flex-start; margin-bottom: 4px; }
+.a-sidemenu-close { width: 44px; height: 44px; display: grid; place-items: center; background: var(--surface-2); color: var(--ink); border: 0; border-radius: 999px; cursor: pointer; }
+.a-sidemenu-close svg { width: 22px; height: 22px; }
+.a-sidemenu section { display: grid; gap: 2px; margin-top: 12px; }
+.a-sidemenu h2 { display: flex; align-items: center; gap: 8px; margin: 0 0 4px; padding: 0 14px; font-size: 14px; color: var(--ink-2); }
+.a-sidemenu h2 svg { width: 18px; height: 18px; }
+.a-sidemenu-link { display: flex; align-items: center; min-height: 44px; padding: 0 16px; border-radius: 999px; color: var(--ink); text-decoration: none; font-weight: 600; font-size: 15px; }
+.a-sidemenu-link:hover { background: var(--surface-2); }
+.a-sidemenu-link.active { background: var(--brand-2); color: var(--brand-on-2); }
+.a-sidemenu :focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+@media (prefers-reduced-motion: no-preference) {
+  .a-sidemenu { animation: a-side-in .2s ease-out; }
+  .a-side-scrim { animation: a-fade-in .2s ease-out; }
+}
+@keyframes a-side-in { from { transform: translateX(-100%); } to { transform: none; } }
+@keyframes a-fade-in { from { opacity: 0; } to { opacity: 1; } }
+
+/* the portal's grid ends with the tile to add an app (Mo lives here, an empty state) */
+.portal-add { background: transparent; border: 2px dashed var(--line-strong); }
+.portal-add:hover { border-color: var(--ink); border-style: dashed; }
+.portal-add .portal-app-main { padding-bottom: 22px; }
+.portal-add-icon { width: 52px; height: 52px; border-radius: 14px; border: 2px dashed var(--ink-3); color: var(--ink); display: grid; place-items: center; }
+.portal-add-icon svg { width: 24px; height: 24px; }
+.portal-add .mo { justify-self: end; margin-top: 4px; }
+
 @media (max-width: 640px) {
+  .a-menu-btn { display: grid; }
+  .a-tabs a { min-height: 44px; display: inline-flex; align-items: center; }
   .a-user-name, .a-bar-nav { display: none; }
   .a-user { margin-left: auto; }
   .portal-hero .mo { width: 72px; height: 72px; }
@@ -1033,7 +1058,22 @@ code { border-radius: 6px; }
 @media (prefers-color-scheme: dark) { .mb { --mb-ground: #0A0A0A; --mb-surface: #1F1F1F; --mb-ink: #FFFFFF; --mb-ink2: #A3A3A3; --mb-line: #2E2E2E; } }
 .mb-btn { border-radius: 999px; font-weight: 600; }
 .mb-input { border-radius: 14px; border-width: 1.5px; }
-.mb-card, .mb-tile, .mb-row-card, .mb-park-day { border-radius: 22px; }
-.mb-tile strong, .mb-name, .mb-header h1 { font-family: var(--disp); font-weight: 600; }
-.mb-btn:focus-visible, .mb-chip:focus-visible, .mb-back:focus-visible, .mb-tile:focus-visible, .mb-link:focus-visible { outline: 3px solid var(--mb-ink); outline-offset: 3px; }
+.mb-card, .mb-row-card, .mb-park-day { border-radius: 22px; }
+.mb-btn:focus-visible, .mb-chip:focus-visible, .mb-back:focus-visible, .mb-tab:focus-visible, .mb-link:focus-visible { outline: 3px solid var(--mb-ink); outline-offset: 3px; }
 .kiosk h1, .kiosk h2, .kiosk h3, .k-choice strong, .k-invite-btn strong, .k-done h1 { font-family: var(--disp); font-weight: 600; }
+
+/* /badge: tab bar at the bottom. Every tab has its label; the active one is a black pill with
+   yellow text (the organisation's secondary colour and its readable accent). Taps of 56px. */
+.mb-with-tabs .mb-content { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
+.mb-with-tabs .mb-content.mb-center { min-height: calc(100dvh - 72px - env(safe-area-inset-bottom)); }
+.mb-tabs { position: fixed; inset: auto 0 0; z-index: 5; background: var(--mb-surface); border-top: 1.5px solid var(--mb-line); padding: 6px max(8px, env(safe-area-inset-right)) calc(6px + env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left)); }
+.mb-tabs ul { list-style: none; margin: 0 auto; padding: 0; display: flex; gap: 4px; max-width: 460px; }
+.mb-tabs li { flex: 1; min-width: 0; }
+.mb-tab { position: relative; width: 100%; min-height: 56px; display: grid; place-items: center; background: none; border: 0; padding: 0; font: inherit; color: var(--mb-ink2); cursor: pointer; border-radius: 18px; }
+.mb-tab-pill { display: grid; justify-items: center; gap: 2px; padding: 6px 12px; border-radius: 16px; max-width: 100%; }
+.mb-tab-pill svg { width: 22px; height: 22px; }
+.mb-tab-pill span { font-size: 12px; font-weight: 600; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.mb-tab[aria-current='page'] { color: var(--brand-on-2); }
+.mb-tab[aria-current='page'] .mb-tab-pill { background: var(--brand-2); }
+.mb-tab em { position: absolute; top: 2px; left: calc(50% + 8px); min-width: 20px; height: 20px; border-radius: 10px; display: grid; place-items: center; padding: 0 6px; font-style: normal; font-weight: 700; font-size: 12px; background: var(--brand); color: var(--on-brand); box-shadow: 0 0 0 2px var(--mb-surface); }
+@media (prefers-reduced-motion: no-preference) { .mb-tab-pill { transition: background-color .15s ease; } }

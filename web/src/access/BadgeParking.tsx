@@ -14,7 +14,7 @@ const longDay = (d: string) => {
 const explain = (e: unknown) => (e instanceof ApiError ? (P.errors as Record<string, string>)[e.code] ?? t.errors.generic : t.errors.offline);
 
 /** The Parking app on /badge, the same screen as in the phone app. */
-export function ParkingScreen({ token, onBack }: { token: string; onBack: () => void }) {
+export function ParkingScreen({ token, onBack }: { token: string; onBack?: () => void }) {
   const [view, setView] = useState<ParkingView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);

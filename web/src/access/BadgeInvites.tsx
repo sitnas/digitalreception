@@ -26,7 +26,7 @@ export async function me<R>(token: string, path = '', init?: RequestInit): Promi
 const explain = (e: unknown) => (e instanceof ApiError ? (t.invites.errors as Record<string, string>)[e.code] ?? t.errors.generic : t.errors.offline);
 
 /** Upcoming guests of the signed-in employee, by day. */
-export function InvitesList({ token, onBack, onNew, onOpen }: { token: string; onBack: () => void; onNew: () => void; onOpen: (id: string) => void }) {
+export function InvitesList({ token, onBack, onNew, onOpen }: { token: string; onBack?: () => void; onNew: () => void; onOpen: (id: string) => void }) {
   const [rows, setRows] = useState<Invite[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const load = useCallback(async () => {

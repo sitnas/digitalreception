@@ -1,7 +1,8 @@
-import { router, useFocusEffect } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, Alert, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { TabBar } from '../components/TabBar';
 import { Button, Chip, ErrorText, ScreenHeader } from '../components/ui';
 import { ApiError, bookParking, cancelParking, getParking } from '../lib/api';
 import { useBadge } from '../lib/badge-context';
@@ -60,8 +61,8 @@ export default function ParkingScreen() {
   ]);
 
   return (
-    <SafeAreaView style={[styles.screen, { backgroundColor: theme.ground }]}>
-      <ScreenHeader title={P.title} backLabel={t.settings.back} onBack={() => router.back()} theme={theme} />
+    <SafeAreaView edges={['top', 'left', 'right']} style={[styles.screen, { backgroundColor: theme.ground }]}>
+      <ScreenHeader title={P.title} backLabel={t.settings.back} theme={theme} />
       <ScrollView contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await load(); setRefreshing(false); }} />}>
         {!view && !error ? <ActivityIndicator accessibilityLabel={t.loading} color={theme.ink2} /> : null}
@@ -104,6 +105,7 @@ export default function ParkingScreen() {
           </View>
         ))}
       </ScrollView>
+      <TabBar active="parking" theme={theme} />
     </SafeAreaView>
   );
 }

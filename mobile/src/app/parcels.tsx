@@ -1,6 +1,6 @@
-import { router } from 'expo-router';
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { TabBar } from '../components/TabBar';
 import { useState } from 'react';
 import { parcelLine, useParcels } from '../components/Parcels';
 import { ScreenHeader } from '../components/ui';
@@ -15,9 +15,10 @@ export default function ParcelsScreen() {
   const [tick, setTick] = useState(0);
   if (!badge) return null;
   return (
-    <SafeAreaView style={[styles.screen, { backgroundColor: theme.ground }]}>
-      <ScreenHeader title={t.portal.parcels} backLabel={t.settings.back} onBack={() => router.back()} theme={theme} />
+    <SafeAreaView edges={['top', 'left', 'right']} style={[styles.screen, { backgroundColor: theme.ground }]}>
+      <ScreenHeader title={t.portal.parcels} backLabel={t.settings.back} theme={theme} />
       <List key={tick} onRefresh={() => setTick((n) => n + 1)} />
+      <TabBar active="parcels" theme={theme} />
     </SafeAreaView>
   );
 }

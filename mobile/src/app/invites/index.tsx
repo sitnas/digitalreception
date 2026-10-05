@@ -2,6 +2,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { TabBar } from '../../components/TabBar';
 import { SkeletonRows } from '../../components/motion';
 import { Button, ErrorText, ScreenHeader } from '../../components/ui';
 import { ApiError, listInvites } from '../../lib/api';
@@ -36,8 +37,8 @@ export default function InvitesScreen() {
       : new Intl.DateTimeFormat(locale, { timeZone: tz, weekday: 'long', day: 'numeric', month: 'long' }).format(new Date(`${date}T12:00:00Z`));
 
   return (
-    <SafeAreaView style={[styles.screen, { backgroundColor: theme.ground }]}>
-      <ScreenHeader title={t.invites.title} backLabel={t.invites.back} onBack={() => router.back()} theme={theme} />
+    <SafeAreaView edges={['top', 'left', 'right']} style={[styles.screen, { backgroundColor: theme.ground }]}>
+      <ScreenHeader title={t.invites.title} backLabel={t.invites.back} theme={theme} />
       <ScrollView contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await load(); setRefreshing(false); }} />}>
         <Button label={t.invites.new} theme={theme} onPress={() => router.push('/invites/new')} />
@@ -63,6 +64,7 @@ export default function InvitesScreen() {
           </View>
         ))}
       </ScrollView>
+      <TabBar active="invites" theme={theme} />
     </SafeAreaView>
   );
 }
