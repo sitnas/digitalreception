@@ -6,6 +6,11 @@ export const en: AdminStrings = {
   openMenu: 'Open the menu', closeMenu: 'Close the menu',
   nav: { parking: 'Parking', apps: 'Apps', projects: 'Projects', parcels: 'Parcels', documents: 'Documents to accept', evacuation: 'Evacuation', employees: 'Employees', doors: 'Doors and readers', accessLog: 'Door log', integration: 'API integration', today: 'Today', invites: 'Invitations', history: 'History', stats: 'Statistics', devices: 'Tablets', sites: 'Sites', hosts: 'People to visit', users: 'Users', privacy: 'Privacy', audit: 'Audit log', notifications: 'Notifications', org: 'Organisation' },
   navGroups: { data: 'Data', reception: 'Reception', access: 'Doors', parcels: 'Parcels', parking: 'Parking', settings: 'Settings', compliance: 'Privacy and oversight' },
+  portal: {
+    home: 'Portal', account: 'Account', hello: 'Hi, {name}', intro: 'These are the apps and the data you can manage. Open a card to go in.', noApps: 'No apps are on for your role. Ask the administrator.',
+    groupText: { reception: 'Visitors at the tablet, invitations, evacuation, people to visit and documents to accept.', access: 'Doors, readers and the employees’ access log.', parcels: 'Parcels and letters at reception, waiting to be handed over.', parking: 'Parking spots, each site’s week and who has the benefit.' },
+    pageText: { employees: 'Details, job, permissions and apps of each person.', projects: 'The jobs the employees work on.', sites: 'Sites, addresses and time zones.', users: 'Who signs in to this console, and with which role.', integration: 'Keys for the HR system.', apps: 'Turn the organisation’s apps on and off.', notifications: 'Alerts to Teams, Slack and other systems.', org: 'Name, logo, colours, email and company sign-in.', privacy: 'Notices and data retention per country.', audit: 'Who did what, and when.' },
+  },
   navApps: 'Apps',
   apps: {
     title: 'Apps', intro: 'Each app is turned on for the whole organisation. The shared data (employees, jobs, sites, users) is always there: turning an app off hides it from the console, the tablet and the employees’ phones, and deletes nothing.',
@@ -39,7 +44,7 @@ export const en: AdminStrings = {
     emailTest: 'Send a test email', emailSending: 'Sending…', emailSent: 'Test email sent to {to}. If it doesn’t arrive, check the spam folder.', emailFailed: 'Sending failed:',
     title: 'Organisation', intro: 'The name, logo and colours your organisation shows on tablets, console, sign-in page and emails.',
     uploadLogo: 'Upload logo', changeLogo: 'Change logo',
-    colorNames: { '#FFD100': 'Yellow', '#F97316': 'Orange', '#DC2626': 'Red', '#DB2777': 'Fuchsia', '#7C3AED': 'Purple', '#2563EB': 'Blue', '#0E7490': 'Teal', '#16A34A': 'Green', '#111111': 'Black', '#2B2B2B': 'Graphite', '#1F2937': 'Slate', '#0F2A44': 'Midnight blue', '#123524': 'Forest green', '#3B1D2E': 'Plum' },
+    colorNames: { '#FFD60A': 'Yellow', '#F97316': 'Orange', '#DC2626': 'Red', '#DB2777': 'Fuchsia', '#7C3AED': 'Purple', '#2563EB': 'Blue', '#0E7490': 'Teal', '#16A34A': 'Green', '#0A0A0A': 'Black', '#2B2B2B': 'Graphite', '#1F2937': 'Slate', '#0F2A44': 'Midnight blue', '#123524': 'Forest green', '#3B1D2E': 'Plum' },
     name: 'Organisation name', logo: 'Logo', logoHint: 'PNG or JPEG, up to 200 KB. A transparent background works best.', removeLogo: 'Remove logo', save: 'Save', saved: 'Saved.',
     plan: 'Plan', usage: 'Usage', unlimited: 'unlimited', sites: 'Active sites', devices: 'Active tablets', users: 'Active users', address: 'Console address', planHint: 'To raise the limits, contact your service provider.',
     identity: 'Identity', colors: 'Colours', colorsIntro: 'Used on tablets, console, sign-in page and the badge email. Text colour adjusts itself so it stays readable.',

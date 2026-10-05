@@ -15,8 +15,8 @@ interface Org {
   usage: { sites: number; devices: number; users: number }; limits: { sites: number | null; devices: number | null; users: number | null };
 }
 
-const PRIMARY_PRESETS = ['#FFD100', '#F97316', '#DC2626', '#DB2777', '#7C3AED', '#2563EB', '#0E7490', '#16A34A'];
-const SECONDARY_PRESETS = ['#111111', '#2B2B2B', '#1F2937', '#0F2A44', '#123524', '#3B1D2E'];
+const PRIMARY_PRESETS = ['#FFD60A', '#F97316', '#DC2626', '#DB2777', '#7C3AED', '#2563EB', '#0E7490', '#16A34A'];
+const SECONDARY_PRESETS = ['#0A0A0A', '#2B2B2B', '#1F2937', '#0F2A44', '#123524', '#3B1D2E'];
 
 /** Resizes the logo in the browser (max 400 px, PNG) so the stored data URL stays small. */
 async function toLogo(file: File): Promise<string> {

@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { ApiError, api } from '../lib/api';
+import { MortiseMark, Mo } from '../lib/mortise';
 import { applyBrand } from '../lib/theme';
 import { ADMIN_STRINGS, AdminLocale, I18nContext, useI18n } from './i18n';
 import { AccountPage, MfaEnroll, RecoveryCodes } from './pages/Account';
@@ -111,7 +112,7 @@ function FatalScreen({ code }: { code: string }) {
 function Brand({ branding }: { branding: Branding }) {
   return (
     <div className="a-brand">
-      <img src={branding.logo ?? '/icon.svg'} alt="" className={branding.logo ? 'logo' : undefined} />
+      {branding.logo ? <img src={branding.logo} alt="" className="logo" /> : <MortiseMark size={32} dark />}
       <span>{branding.name}</span>
     </div>
   );
@@ -364,65 +365,51 @@ function Shell({ branding, me, onLogout }: { branding: Branding; me: Me; onLogou
   const { t } = useI18n();
   const items = NAV.filter((n) => n.roles.includes(me.role) && (!n.app || me.apps.includes(n.app)));
   const logout = async () => { try { await api.post('/auth/logout'); } finally { onLogout(); } };
-  // Land in the first app (the daily work), else in the first page of data.
-  const home = items.find((n) => n.app)?.to ?? items[0]?.to ?? 'today';
   const { pathname } = useLocation();
   const current = items.find((n) => pathname.startsWith(`/admin/${n.to}`));
-  const title = current ? t.nav[current.key] : pathname.startsWith('/admin/account') ? t.mfa.nav : branding.name;
-  const [menuOpen, setMenuOpen] = useState(false);
-  const menuBtn = useRef<HTMLButtonElement>(null);
-  const side = useRef<HTMLElement>(null);
   const main = useRef<HTMLElement>(null);
   useCardTables(main);
-
-  // Phones and tablets: the menu is an off-canvas panel. It closes on navigation, Escape or a tap
-  // outside; while open the page behind does not scroll and focus moves into the panel.
-  useEffect(() => { setMenuOpen(false); }, [pathname]);
-  useEffect(() => {
-    document.documentElement.classList.toggle('menu-open', menuOpen);
-    if (!menuOpen) return;
-    side.current?.querySelector<HTMLElement>('a.active, a')?.focus();
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { setMenuOpen(false); menuBtn.current?.focus(); } };
-    window.addEventListener('keydown', onKey);
-    return () => { window.removeEventListener('keydown', onKey); document.documentElement.classList.remove('menu-open'); };
-  }, [menuOpen]);
+  // The user menu closes on navigation.
+  const menu = useRef<HTMLDetailsElement>(null);
+  useEffect(() => { if (menu.current) menu.current.open = false; }, [pathname]);
+  const tabs = current ? items.filter((n) => n.group === current.group) : [];
 
   return (
     <div className="admin">
-      <header className="a-topbar">
-        <button ref={menuBtn} type="button" className="a-menu-btn" aria-expanded={menuOpen} aria-controls="a-side" aria-label={menuOpen ? t.closeMenu : t.openMenu} onClick={() => setMenuOpen((o) => !o)}>
-          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>{menuOpen ? <path d="M6 6l12 12M18 6L6 18" /> : <path d="M4 7h16M4 12h16M4 17h16" />}</svg>
-        </button>
-        <span className="a-topbar-title">{title}</span>
-        <img src={branding.logo ?? '/icon.svg'} alt="" className={`a-topbar-logo${branding.logo ? ' logo' : ''}`} />
-      </header>
-      {menuOpen && <div className="a-scrim" onClick={() => setMenuOpen(false)} aria-hidden />}
-      <aside ref={side} id="a-side" className={`a-side${menuOpen ? ' open' : ''}`}>
-        <Brand branding={branding} />
-        <nav className="a-nav" aria-label="Menu">
-          {(Object.keys(t.navGroups) as NavGroup[]).map((g) => {
-            const group = items.filter((n) => n.group === g);
-            const firstApp = APP_GROUPS.find((a) => items.some((n) => n.group === a));
-            return group.length > 0 && (
-              <div key={g} className={`a-nav a-nav-section${APP_GROUPS.includes(g) ? ' a-nav-app' : ''}`} role="group" aria-label={t.navGroups[g]}>
-                {g === firstApp && <span className="a-nav-super">{t.navApps}</span>}
-                <span className="a-nav-group" aria-hidden><GroupIcon group={g} />{t.navGroups[g]}</span>
-                {group.map((n) => <NavLink key={n.to} to={n.to}>{t.nav[n.key]}</NavLink>)}
-              </div>
-            );
-          })}
+      <header className="a-bar">
+        <NavLink to="" end className="a-bar-brand" aria-label={`${t.portal.home} · ${branding.name}`}>
+          {branding.logo ? <img src={branding.logo} alt="" className="logo" /> : <MortiseMark size={30} dark />}
+          <span>{branding.name}</span>
+        </NavLink>
+        <nav className="a-bar-nav" aria-label={t.portal.home}>
+          <NavLink to="" end>{t.portal.home}</NavLink>
         </nav>
-        <div className="a-me">
-          <strong>{me.displayName}</strong>
-          <span>{t.roles[me.role]}</span>
-          <LangSwitch />
-          <NavLink to="account" className="btn-link a-me-link">{t.mfa.nav}</NavLink>
-          <button type="button" className="btn-link" onClick={logout}>{t.logout}</button>
+        <details className="a-user" ref={menu}>
+          <summary aria-label={t.portal.account}><span className="a-avatar" aria-hidden>{me.displayName.trim().charAt(0).toUpperCase()}</span><span className="a-user-name">{me.displayName}</span></summary>
+          <div className="a-user-pop">
+            <strong>{me.displayName}</strong>
+            <span className="muted">{me.email} · {t.roles[me.role]}</span>
+            <LangSwitch />
+            <NavLink to="account" className="btn-link">{t.mfa.nav}</NavLink>
+            <button type="button" className="btn-link" onClick={logout}>{t.logout}</button>
+          </div>
+        </details>
+      </header>
+      {current && (
+        <div className="a-section">
+          <div className="a-section-in">
+            <p className="a-crumb"><NavLink to="">{t.portal.home}</NavLink> <span aria-hidden>›</span> <span className="a-crumb-group"><GroupIcon group={current.group} />{t.navGroups[current.group]}</span></p>
+            {tabs.length > 1 && (
+              <nav className="a-tabs" aria-label={t.navGroups[current.group]}>
+                {tabs.map((n) => <NavLink key={n.to} to={n.to}>{t.nav[n.key]}</NavLink>)}
+              </nav>
+            )}
+          </div>
         </div>
-      </aside>
-      <main ref={main} className="a-main">
+      )}
+      <main ref={main} className={`a-main${current ? '' : ' is-home'}`}>
         <Routes>
-          <Route index element={<Navigate to={home} replace />} />
+          <Route index element={<PortalHome me={me} items={items} />} />
           {items.some((i) => i.to === 'today') && <Route path="today" element={<TodayPage />} />}
           {items.some((i) => i.to === 'invites') && <Route path="invites" element={<InvitationsPage />} />}
           {items.some((i) => i.to === 'projects') && <Route path="projects" element={<ProjectsPage />} />}
@@ -446,9 +433,72 @@ function Shell({ branding, me, onLogout }: { branding: Branding; me: Me; onLogou
           {items.some((i) => i.to === 'apps') && <Route path="apps" element={<AppsPage />} />}
           {items.some((i) => i.to === 'parking') && <Route path="parking" element={<ParkingPage />} />}
           <Route path="account" element={<AccountPage />} />
-          <Route path="*" element={<Navigate to={home} replace />} />
+          <Route path="*" element={<Navigate to="/admin" replace />} />
         </Routes>
       </main>
+    </div>
+  );
+}
+
+const DATA_GROUPS: NavGroup[] = ['data', 'settings', 'compliance'];
+
+/**
+ * The console's home: one card per app the person can open (by role, while the organisation has it
+ * on), then the shared data and the settings. Each card opens its section.
+ */
+function PortalHome({ me, items }: { me: Me; items: typeof NAV }) {
+  const { t } = useI18n();
+  const P = t.portal;
+  const first = me.displayName.trim().split(/\s+/)[0];
+  const apps = APP_GROUPS.map((g) => ({ g, pages: items.filter((n) => n.group === g) })).filter((x) => x.pages.length);
+  return (
+    <div className="portal">
+      <section className="portal-hero">
+        <div>
+          <h1>{P.hello.replace('{name}', first)}</h1>
+          <p>{apps.length ? P.intro : P.noApps}</p>
+        </div>
+        <Mo size={112} mood={apps.length ? 'happy' : 'wink'} />
+      </section>
+      {apps.length > 0 && (
+        <section aria-labelledby="pt-apps">
+          <h2 id="pt-apps" className="portal-h">{t.navApps}</h2>
+          <ul className="portal-apps" role="list">
+            {apps.map(({ g, pages }) => (
+              <li key={g} className="portal-app">
+                <NavLink to={pages[0].to} className="portal-app-main">
+                  <span className="portal-icon" aria-hidden><GroupIcon group={g} /></span>
+                  <h3>{t.navGroups[g]}</h3>
+                  <p>{P.groupText[g as keyof typeof P.groupText]}</p>
+                </NavLink>
+                {pages.length > 1 && (
+                  <div className="portal-links">
+                    {pages.map((n) => <NavLink key={n.to} to={n.to}>{t.nav[n.key]}</NavLink>)}
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+      {DATA_GROUPS.map((g) => {
+        const pages = items.filter((n) => n.group === g);
+        return pages.length > 0 && (
+          <section key={g} aria-labelledby={`pt-${g}`}>
+            <h2 id={`pt-${g}`} className="portal-h">{t.navGroups[g]}</h2>
+            <ul className="portal-pages" role="list">
+              {pages.map((n) => (
+                <li key={n.to}>
+                  <NavLink to={n.to} className="portal-page">
+                    <strong>{t.nav[n.key]}</strong>
+                    <span>{P.pageText[n.key as keyof typeof P.pageText]}</span>
+                  </NavLink>
+                </li>
+              ))}
+            </ul>
+          </section>
+        );
+      })}
     </div>
   );
 }
