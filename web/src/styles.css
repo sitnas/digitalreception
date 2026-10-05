@@ -430,9 +430,17 @@ code.secret { font-size: 16px; padding: 6px 10px; letter-spacing: .04em; user-se
 .k-clock { text-align: right; line-height: 1.15; }
 .k-clock strong { display: block; font-size: 26px; font-variant-numeric: tabular-nums; }
 .k-clock span { font-size: 14px; color: var(--ink-2); }
-.k-langs { display: inline-flex; padding: 3px; border: 1px solid var(--line-strong); border-radius: var(--r-lg); background: var(--surface); }
-.k-lang { background: none; border: 0; height: 44px; padding: 0 14px; border-radius: var(--r); font-size: 16px; font-weight: 700; color: var(--ink-2); }
-.k-lang[aria-pressed='true'] { background: var(--brand-2); color: var(--on-brand-2); }
+/* Language switch: equal segments and a pill that slides under the chosen one. */
+.k-langs { position: relative; display: grid; grid-template-columns: repeat(var(--n, 3), minmax(0, 1fr)); padding: 4px; border: 1px solid var(--line-strong); border-radius: var(--r-lg); background: var(--surface); isolation: isolate; }
+.k-langs-pill { position: absolute; z-index: -1; top: 4px; bottom: 4px; left: 4px; width: calc((100% - 8px) / var(--n, 3)); border-radius: var(--r); background: var(--brand-2);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .18); transform: translateX(calc(var(--i, 0) * 100%)); transition: transform .32s cubic-bezier(.34, 1.36, .64, 1); }
+.k-lang { position: relative; background: none; border: 0; height: 44px; padding: 0 16px; border-radius: var(--r); font-size: 16px; font-weight: 700; color: var(--ink-2); white-space: nowrap; cursor: pointer; transition: color .2s, transform .12s; }
+.k-lang[aria-pressed='true'] { color: var(--on-brand-2); }
+.k-lang:active { transform: scale(.94); }
+.k-lang:focus-visible { outline: 3px solid var(--brand-strong); outline-offset: 2px; }
+/* The welcome text changes language with a short fade, so the switch is felt on the whole screen. */
+.k-swap { animation: k-swap-in .35s ease both; }
+@keyframes k-swap-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 
 .k-main { width: 100%; max-width: 840px; margin: 0 auto; align-self: start; padding-top: 3vh; }
 .k-foot { text-align: center; color: var(--ink-3); font-size: 14px; padding-top: 16px; }
@@ -786,4 +794,44 @@ code.mfa-secret { font-size: 14px; overflow-wrap: anywhere; max-width: 100%; }
   .mb-check circle, .mb-check path, .mb-skeleton, .mb-spinner { animation: none; }
   .mb-check path { stroke-dashoffset: 0; }
   .mb-activated { animation-duration: 1ms; }
+}
+
+/* ================================================================ MICRO-ANIMATIONS
+   Short and functional: a press you can feel, a selection that pops, an error that shows up. All of
+   it stops with prefers-reduced-motion (see the block at the end). */
+.btn { transition: background-color .12s, border-color .12s, transform .12s cubic-bezier(.34, 1.56, .64, 1), box-shadow .15s; }
+.btn:active:not(:disabled) { transform: scale(.97); }
+@media (hover: hover) and (pointer: fine) {
+  .btn-primary:hover:not(:disabled) { box-shadow: 0 4px 12px color-mix(in srgb, var(--brand) 40%, transparent); }
+  .k-choice:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 10px 28px rgba(0, 0, 0, .14); }
+}
+.k-choice { transition: transform .15s cubic-bezier(.34, 1.56, .64, 1), box-shadow .2s; }
+.k-choice:active:not(:disabled) { transform: scale(.98); }
+.k-choice .glyph { transition: transform .2s; }
+.k-choice:active:not(:disabled) .glyph { transform: translateX(4px); }
+.k-chip { transition: background-color .15s, border-color .15s, transform .12s cubic-bezier(.34, 1.56, .64, 1); cursor: pointer; }
+.k-chip:active { transform: scale(.97); }
+.k-chip[aria-pressed='true']::before { animation: tick-pop .3s cubic-bezier(.34, 1.56, .64, 1); }
+@keyframes tick-pop { 0% { transform: scale(.4); } 100% { transform: scale(1); } }
+.k-invite-btn { transition: border-color .15s, background-color .15s, transform .12s; }
+.k-invite-btn:active { transform: scale(.985); }
+.mb-btn { transition: transform .12s cubic-bezier(.34, 1.56, .64, 1), opacity .12s, box-shadow .15s; }
+.mb-btn:active:not(:disabled) { transform: scale(.97); opacity: 1; }
+.mb-chip { transition: background-color .15s, border-color .15s, color .15s, transform .12s cubic-bezier(.34, 1.56, .64, 1); }
+.mb-chip:active { transform: scale(.95); }
+.segmented button { transition: background-color .15s, color .15s, box-shadow .15s; }
+.input, .mb-input { transition: border-color .15s, box-shadow .15s; }
+
+/* Errors: they slide in and give one short shake, so they are noticed where they appear. */
+.alert, .error, .mb-error, .mb-error-block { animation: msg-in .22s ease-out both; }
+.alert:not(.alert-info), .error, .mb-error, .mb-error-block { animation: msg-in .22s ease-out both, msg-shake .42s cubic-bezier(.36, .07, .19, .97) .05s both; }
+.input[aria-invalid='true'], .mb-input[aria-invalid='true'] { animation: msg-shake .42s cubic-bezier(.36, .07, .19, .97) both; }
+@keyframes msg-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+@keyframes msg-shake { 10%, 90% { translate: -1px 0; } 20%, 80% { translate: 2px 0; } 30%, 50%, 70% { translate: -4px 0; } 40%, 60% { translate: 4px 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .btn, .k-choice, .k-choice .glyph, .k-chip, .k-invite-btn, .mb-btn, .mb-chip, .segmented button, .input, .mb-input, .k-lang, .k-langs-pill { transition: none; }
+  .btn:active:not(:disabled), .k-choice:active:not(:disabled), .k-chip:active, .k-invite-btn:active, .mb-btn:active:not(:disabled), .mb-chip:active, .k-lang:active { transform: none; }
+  .k-choice:hover:not(:disabled) { transform: none; }
+  .k-chip[aria-pressed='true']::before, .k-swap, .alert, .error, .mb-error, .mb-error-block, .input[aria-invalid='true'], .mb-input[aria-invalid='true'] { animation: none; }
 }

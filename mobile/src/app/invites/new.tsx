@@ -2,7 +2,7 @@ import { router } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Button, Chip, Field, ScreenHeader } from '../../components/ui';
+import { Button, Chip, ErrorText, Field, ScreenHeader } from '../../components/ui';
 import { ApiError, createInvite, getProfile } from '../../lib/api';
 import { useBadge } from '../../lib/badge-context';
 import { lang, t } from '../../lib/i18n';
@@ -59,7 +59,7 @@ export default function NewInviteScreen() {
       <ScreenHeader title={t.invites.new} backLabel={t.invites.back} onBack={() => router.back()} theme={theme} />
       <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         {!profile ? (
-          errors.form ? <Text accessibilityRole="alert" style={[styles.error, { color: theme.danger, margin: 20 }]}>{errors.form}</Text> : <ActivityIndicator style={{ marginTop: 32 }} color={theme.ink2} />
+          errors.form ? <ErrorText text={errors.form} color={theme.danger} style={{ margin: 20 }} /> : <ActivityIndicator style={{ marginTop: 32 }} color={theme.ink2} />
         ) : (
           <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
             <Text accessibilityRole="header" style={[styles.section, { color: theme.ink2 }]}>{t.invites.guest}</Text>
@@ -96,7 +96,7 @@ export default function NewInviteScreen() {
               </View>
             </View>
 
-            {errors.form ? <Text accessibilityRole="alert" style={[styles.error, { color: theme.danger }]}>{errors.form}</Text> : null}
+            {errors.form ? <ErrorText text={errors.form} color={theme.danger} /> : null}
             <Button label={t.invites.create} theme={theme} busy={busy} onPress={submit} />
           </ScrollView>
         )}

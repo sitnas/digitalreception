@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { compressPhoto } from '../lib/image';
-import type { Strings } from './strings';
+import { LOCALE_NAMES, type Locale, type Strings } from './strings';
 
 /** Segmented progress bar with "Step n of N" and the current step's name. */
 export function Steps({ labels, current, caption }: { labels: string[]; current: number; caption: string }) {
@@ -100,5 +100,19 @@ export function PhotoCapture({ title, hint, value, onChange, t }: { title: strin
         {busy ? '…' : value ? t.retakePhoto : t.takePhoto}
       </button>
     </div>
+  );
+}
+
+/**
+ * Language switch of the tablet: equal segments with a pill that slides to the chosen language,
+ * so the change is visible from a step away. Plain buttons underneath (aria-pressed).
+ */
+export function LangSwitch({ locales, value, onChange }: { locales: Locale[]; value: Locale; onChange: (l: Locale) => void }) {
+  const index = Math.max(0, locales.indexOf(value));
+  return (
+    <nav className="k-langs" aria-label="Language" style={{ '--n': locales.length, '--i': index } as React.CSSProperties}>
+      <span className="k-langs-pill" aria-hidden />
+      {locales.map((l) => <button key={l} type="button" className="k-lang" aria-pressed={l === value} onClick={() => onChange(l)} lang={l}>{LOCALE_NAMES[l]}</button>)}
+    </nav>
   );
 }
