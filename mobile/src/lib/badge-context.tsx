@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { Badge } from './badge';
+import type { AppKey } from './invites';
 import { ApiError, getTenant, revokeBadge } from './api';
 import { disablePush, forgetPushToken, syncPush } from './push';
 import { clearBadge, loadBadge, saveBadge } from './storage';
@@ -9,12 +10,19 @@ interface BadgeState {
   badge: Badge | null | undefined;
   save: (b: Badge) => Promise<void>;
   remove: () => Promise<void>;
+  /** What the tab bar shows: the apps on for this person and the parcels waiting. null until the server answers. */
+  portal: Portal | null;
+  setPortal: (p: Portal | null) => void;
 }
+export interface Portal { apps: AppKey[]; canInvite: boolean; parcels: number }
 
 const Ctx = createContext<BadgeState | null>(null);
 
 export function BadgeProvider({ children }: { children: React.ReactNode }) {
   const [badge, setBadge] = useState<Badge | null | undefined>(undefined);
+  const [portal, setPortal] = useState<Portal | null>(null);
+  // Another badge (or none): what the previous one could open no longer counts.
+  useEffect(() => { setPortal(null); }, [badge?.employeeId, badge?.appToken]);
   useEffect(() => { loadBadge().then(setBadge); }, []);
   // A new activation makes the server forget this phone's notices: start again from "off".
   const save = useCallback(async (b: Badge) => { await forgetPushToken(); await saveBadge(b); setBadge(b); }, []);
@@ -45,7 +53,7 @@ export function BadgeProvider({ children }: { children: React.ReactNode }) {
       await saveBadge(next); setBadge(next);
     }, () => {});
   }, [badge]);
-  const value = useMemo(() => ({ badge, save, remove }), [badge, save, remove]);
+  const value = useMemo(() => ({ badge, save, remove, portal, setPortal }), [badge, save, remove, portal]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 

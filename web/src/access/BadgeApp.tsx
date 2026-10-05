@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ApiError } from '../lib/api';
 import { applyBrand } from '../lib/theme';
 import { intlLocale, lang, t } from './badge-strings';
-import { Button, Field, QrRing, Screen, ScreenHeader, SquaresBand, SuccessCheck } from './badge-ui';
+import { Button, Field, QrRing, Screen, ScreenHeader, SquaresBand, SuccessCheck, TabBar, type Tab, type TabKey } from './badge-ui';
 import { InviteDetail, InvitesList, NewInvite, me, type Profile } from './BadgeInvites';
 import type { AppKey } from './invites';
 import { forgetWebPush } from './BadgePush';
@@ -130,7 +130,8 @@ export function BadgeApp() {
   // Screens are browser history entries, so the phone's back gesture works like in the app.
   const setView = useCallback((v: View) => { window.history.pushState(v, ''); setViewState(v); window.scrollTo(0, 0); }, []);
   useEffect(() => {
-    const pop = (e: PopStateEvent) => setViewState((e.state as View | null) ?? { name: 'badge' });
+    // The router's own entries ({ idx }) carry no screen: they are the badge.
+    const pop = (e: PopStateEvent) => { const v = e.state as View | null; setViewState(v && typeof v.name === 'string' ? v : { name: 'badge' }); };
     window.addEventListener('popstate', pop);
     return () => window.removeEventListener('popstate', pop);
   }, []);
@@ -138,21 +139,43 @@ export function BadgeApp() {
 
   const activated = (b: Badge) => { save(b); setBadge(b); setJustActivated(true); };
 
+  // Apps on for this person; null while unknown (offline, loading): the badge shows as before.
+  const apps: AppKey[] | null = profile ? profile.apps ?? ['reception', 'access', 'parcels'] : null;
+  const parcels = useParcels(badge?.appToken, apps === null || apps.includes('parcels'));
+  // The destinations of the tab bar: the badge (or a home without it), then the apps this person has.
+  const tabs: Tab[] = [
+    apps === null || apps.includes('access') ? { key: 'badge', label: t.portal.badge } : { key: 'home', label: t.portal.home },
+    ...(profile?.canInvite ? [{ key: 'invites' as const, label: t.portal.invites }] : []),
+    ...(apps?.includes('parcels') ? [{ key: 'parcels' as const, label: t.portal.parcels, count: parcels.reduce((n, r) => n + r.pieces, 0) }] : []),
+    ...(apps?.includes('parking') ? [{ key: 'parking' as const, label: t.parking.tile }] : []),
+  ];
+  const tabOf = (v: View): TabKey | null => (v.name === 'badge' ? tabs[0].key : v.name === 'invites' || v.name === 'parcels' || v.name === 'parking' ? v.name : null);
+  const activeTab = tabOf(view);
+  // Tabs do not pile up in the history: the back gesture from any tab goes to the badge, then out.
+  const selectTab = (k: TabKey) => {
+    if (k === activeTab) { window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+    if (k === 'badge' || k === 'home') { window.history.back(); return; }
+    const v: View = { name: k };
+    if (view.name === 'badge') setView(v);
+    else { window.history.replaceState(v, ''); setViewState(v); window.scrollTo(0, 0); }
+  };
+  const withTabs = tabs.length > 1 && activeTab !== null;
+
   if (!badge) return <div className="mb"><Setup tenant={tenant} onDone={activated} /></div>;
   const token = badge.appToken;
   return (
-    <div className="mb">
-      {view.name === 'invites' && token ? <InvitesList token={token} onBack={back} onNew={() => setView({ name: 'new' })} onOpen={(id) => setView({ name: 'detail', id })} />
+    <div className={`mb${withTabs ? ' mb-with-tabs' : ''}`}>
+      {view.name === 'invites' && token ? <InvitesList token={token} onNew={() => setView({ name: 'new' })} onOpen={(id) => setView({ name: 'detail', id })} />
         : view.name === 'new' && token && profile ? <NewInvite token={token} profile={profile} onBack={back}
             onCreated={(id, emailStatus) => { window.history.replaceState({ name: 'detail', id, created: emailStatus }, ''); setViewState({ name: 'detail', id, created: emailStatus }); }} />
         : view.name === 'detail' && token ? <InviteDetail token={token} id={view.id} created={view.created} organisation={badge.organisation} host={badge.firstName} onBack={back} />
-        : view.name === 'parcels' && token ? <ParcelsScreen token={token} onBack={back} />
-        : view.name === 'parking' && token ? <ParkingScreen token={token} onBack={back} />
+        : view.name === 'parcels' && token ? <ParcelsScreen rows={parcels} />
+        : view.name === 'parking' && token ? <ParkingScreen token={token} />
         : view.name === 'settings' ? <SettingsScreen badge={badge} onBack={back}
             onRemoved={() => { save(null); setBadge(null); setJustActivated(false); window.history.replaceState(null, ''); setViewState({ name: 'badge' }); }} />
-        : <BadgeScreen badge={badge} justActivated={justActivated} canInvite={!!profile?.canInvite} server={server} onInvites={() => setView({ name: 'invites' })}
-            apps={profile ? profile.apps ?? ['reception', 'access', 'parcels'] : null} onParcels={() => setView({ name: 'parcels' })} onParking={() => setView({ name: 'parking' })}
+        : <BadgeScreen badge={badge} justActivated={justActivated} server={server} apps={apps} parcels={parcels}
             onSettings={() => setView({ name: 'settings' })} onReactivate={reactivate} />}
+      {withTabs && activeTab && <TabBar label={t.portal.title} tabs={tabs} active={activeTab} onSelect={selectTab} />}
     </div>
   );
 }
@@ -260,11 +283,10 @@ function ParcelsCard({ rows }: { rows: Parcel[] }) {
 }
 
 /** The Parcels app: what is waiting at reception. */
-function ParcelsScreen({ token, onBack }: { token: string; onBack: () => void }) {
-  const rows = useParcels(token, true);
+function ParcelsScreen({ rows }: { rows: Parcel[] }) {
   return (
     <>
-      <ScreenHeader title={t.portal.parcels} backLabel={t.settings.back} onBack={onBack} />
+      <ScreenHeader title={t.portal.parcels} backLabel={t.settings.back} />
       <Screen>
         {rows.length === 0 && <p className="mb-text mb-centered">{t.portal.parcelsEmpty}</p>}
         {rows.map((r) => (
@@ -275,25 +297,6 @@ function ParcelsScreen({ token, onBack }: { token: string; onBack: () => void })
         ))}
       </Screen>
     </>
-  );
-}
-
-interface Tile { key: string; label: string; detail: string; onClick: () => void; count?: number }
-/** The apps of the organisation this person can open, as tiles under the badge (as in the app). */
-function AppTiles({ tiles }: { tiles: Tile[] }) {
-  if (!tiles.length) return null;
-  return (
-    <section className="mb-apps" aria-labelledby="mb-apps-t">
-      <h2 id="mb-apps-t">{t.portal.title}</h2>
-      <div className="mb-tiles">
-        {tiles.map((x) => (
-          <button key={x.key} type="button" className="mb-tile" onClick={x.onClick}>
-            <strong>{x.label}</strong><span>{x.detail}</span>
-            {x.count ? <em aria-hidden>{x.count}</em> : null}
-          </button>
-        ))}
-      </div>
-    </section>
   );
 }
 
@@ -310,14 +313,13 @@ function Activated() {
   );
 }
 
-function BadgeScreen({ badge, justActivated, canInvite, server, apps, onInvites, onParcels, onParking, onSettings, onReactivate }: {
-  badge: Badge; justActivated: boolean; canInvite: boolean; server: 'ok' | 'stale' | 'offline' | null;
+function BadgeScreen({ badge, justActivated, server, apps, parcels, onSettings, onReactivate }: {
+  badge: Badge; justActivated: boolean; server: 'ok' | 'stale' | 'offline' | null;
   /** Apps on for this person; null while unknown (offline, loading): the badge shows as before. */
-  apps: AppKey[] | null; onInvites: () => void; onParcels: () => void; onParking: () => void; onSettings: () => void; onReactivate: () => void;
+  apps: AppKey[] | null; parcels: Parcel[]; onSettings: () => void; onReactivate: () => void;
 }) {
   const stale = server === 'stale';
   const showBadge = apps === null || apps.includes('access');
-  const parcels = useParcels(badge.appToken, apps === null || apps.includes('parcels'));
   const [now, setNow] = useState(() => Date.now());
   const [svg, setSvg] = useState('');
   const step = Math.floor(now / 1000 / badge.step);
@@ -380,12 +382,6 @@ function BadgeScreen({ badge, justActivated, canInvite, server, apps, onInvites,
         {clockOff && <p className="mb-warn" role="alert">{t.clock}</p>}
       </section>
       <ParcelsCard rows={parcels} />
-      <AppTiles tiles={[
-        ...(canInvite ? [{ key: 'invites', label: t.portal.invites, detail: t.portal.invitesDetail, onClick: onInvites }] : []),
-        ...(apps?.includes('parcels') ? [{ key: 'parcels', label: t.portal.parcels, count: parcels.length, onClick: onParcels,
-          detail: parcels.length ? t.portal.parcelsSome.replace('{n}', String(parcels.reduce((n, r) => n + r.pieces, 0))) : t.portal.parcelsNone }] : []),
-        ...(apps?.includes('parking') ? [{ key: 'parking', label: t.parking.tile, detail: t.parking.tileDetail, onClick: onParking }] : []),
-      ]} />
       {!badge.appToken && <><p className="mb-small mb-centered">{t.stale.old}</p><Button label={t.stale.action} kind="ghost" onClick={onReactivate} /></>}
       {server === 'offline' && <p className="mb-small mb-centered" role="status">{t.stale.offline}</p>}
       {/* Removing the badge lives in the settings, away from the buttons used every day. */}

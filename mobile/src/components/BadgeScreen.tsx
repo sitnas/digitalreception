@@ -14,7 +14,7 @@ import { t } from '../lib/i18n';
 import { useTheme } from '../lib/theme';
 import { QrRing, SquaresBand, SuccessCheck } from './motion';
 import { ParcelsCard, useParcels } from './Parcels';
-import { AppTiles } from './Portal';
+import { TabBar } from './TabBar';
 import type { AppKey } from '../lib/invites';
 import { Button } from './ui';
 
@@ -111,7 +111,7 @@ export function BadgeScreen({ badge, justActivated = false }: { badge: Badge; ju
   // What the server says about this badge: 'stale' when another activation or the console replaced it
   // (the reader refuses the QR too), 'offline' when it cannot be reached (the QR still works).
   const [server, setServer] = useState<'ok' | 'stale' | 'offline' | null>(null);
-  const { remove } = useBadge();
+  const { remove, setPortal } = useBadge();
   const checkServer = useCallback(() => {
     if (!badge.appToken) return;
     getProfile(badge).then((p) => { setCanInvite(p.canInvite); setApps(p.apps ?? ['reception', 'access', 'parcels']); setServer('ok'); },
@@ -122,6 +122,9 @@ export function BadgeScreen({ badge, justActivated = false }: { badge: Badge; ju
     const sub = AppState.addEventListener('change', (st) => { if (st === 'active') checkServer(); });
     return () => sub.remove();
   }, [checkServer]));
+  // The tab bar (here and on the other tabs) follows what the server said.
+  const pieces = parcels.reduce((n, r) => n + r.pieces, 0);
+  useEffect(() => { if (apps) setPortal({ apps, canInvite, parcels: pieces }); }, [apps, canInvite, pieces, setPortal]);
   const stale = server === 'stale';
 
   const [now, setNow] = useState(() => Date.now());
@@ -137,7 +140,7 @@ export function BadgeScreen({ badge, justActivated = false }: { badge: Badge; ju
   const qrSize = Math.min(width - 116, 300);
 
   return (
-    <SafeAreaView style={[styles.screen, { backgroundColor: theme.ground }]}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={[styles.screen, { backgroundColor: theme.ground }]}>
       <ScrollView contentContainerStyle={styles.content}>
         {justActivated ? <Activated theme={theme} /> : null}
         <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.line }]}>
@@ -169,13 +172,6 @@ export function BadgeScreen({ badge, justActivated = false }: { badge: Badge; ju
           {clockOff ? <Text accessibilityRole="alert" style={[styles.warn, { color: theme.danger }]}>{t.clock}</Text> : null}
         </View>
         <ParcelsCard rows={parcels} theme={theme} />
-        <AppTiles title={t.portal.title} theme={theme} tiles={[
-          ...(canInvite ? [{ key: 'invites', label: t.portal.invites, detail: t.portal.invitesDetail, onPress: () => router.push('/invites') }] : []),
-          ...(apps?.includes('parcels') ? [{ key: 'parcels', label: t.portal.parcels, badge: parcels.length,
-            detail: parcels.length ? t.portal.parcelsSome.replace('{n}', String(parcels.reduce((n, r) => n + r.pieces, 0))) : t.portal.parcelsNone,
-            onPress: () => router.push('/parcels') }] : []),
-          ...(apps?.includes('parking') ? [{ key: 'parking', label: t.parking.tile, detail: t.parking.tileDetail, onPress: () => router.push('/parking') }] : []),
-        ]} />
         {!badge.appToken ? (
           <View style={styles.nfcOff}>
             <Text style={[styles.small, { color: theme.ink2, textAlign: 'center' }]}>{t.stale.old}</Text>
@@ -194,6 +190,7 @@ export function BadgeScreen({ badge, justActivated = false }: { badge: Badge; ju
           <Text style={[styles.settingsText, { color: theme.ink2 }]}>{t.settings.open}</Text>
         </Pressable>
       </ScrollView>
+      <TabBar active={showBadge ? 'badge' : 'home'} theme={theme} />
     </SafeAreaView>
   );
 }

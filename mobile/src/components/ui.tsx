@@ -63,12 +63,15 @@ export function ErrorText({ text, color, style }: { text: string; color: string;
 }
 
 /** Title row of a secondary screen, with the way back. */
-export function ScreenHeader({ title, onBack, backLabel, theme, right }: { title: string; onBack: () => void; backLabel: string; theme: Theme; right?: React.ReactNode }) {
+/** Title row of a screen; the way back only on screens opened from another one (not on the tabs). */
+export function ScreenHeader({ title, onBack, backLabel, theme, right }: { title: string; onBack?: () => void; backLabel: string; theme: Theme; right?: React.ReactNode }) {
   return (
     <View style={styles.header}>
-      <Pressable accessibilityRole="button" accessibilityLabel={backLabel} onPress={onBack} hitSlop={12} style={({ pressed }) => [styles.back, { opacity: pressed ? 0.6 : 1 }]}>
-        <Text style={[styles.backText, { color: theme.ink }]}>‹ {backLabel}</Text>
-      </Pressable>
+      {onBack ? (
+        <Pressable accessibilityRole="button" accessibilityLabel={backLabel} onPress={onBack} hitSlop={12} style={({ pressed }) => [styles.back, { opacity: pressed ? 0.6 : 1 }]}>
+          <Text style={[styles.backText, { color: theme.ink }]}>‹ {backLabel}</Text>
+        </Pressable>
+      ) : <View style={styles.back} />}
       <Text accessibilityRole="header" numberOfLines={1} style={[styles.headerTitle, { color: theme.ink }]}>{title}</Text>
       <View style={styles.headerRight}>{right}</View>
     </View>

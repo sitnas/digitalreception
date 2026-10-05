@@ -104,6 +104,7 @@ Cosa porta ciascuna:
 
 - **Per cliente**: le attiva chi gestisce la piattaforma, con `npm run tenant -- apps --slug acme --apps reception,access`. L'elenco sostituisce quello di prima e vale subito, senza riavvii. L'organizzazione non può cambiarlo dalla console: in *Impostazioni → App attive* vede le app incluse, quante persone usano ciascuna e, per le altre, che deve chiederle al fornitore. Un'app tolta sparisce dal menu, il tablet mostra che il registro non è attivo e le sue API rispondono `403 APP_DISABLED`. I dati restano: riattivandola si ritrova tutto.
 - **Per dipendente**: nella scheda in *Dipendenti*, sezione "App per questa persona". Il sistema HR non tocca questa scelta. Porte spente: il telefono non mostra il QR e il lettore rifiuta con `APP_DISABLED`. Pacchi spenti: la persona non compare tra i destinatari. Reception spenta: niente inviti dall'app.
+- Sul telefono (app e `/badge`) ogni app attiva per la persona è una scheda della barra in basso, accanto al badge. Con una sola destinazione la barra non compare. In console, sul telefono, tutte le pagine sono nel menu che si apre dal tasto a sinistra della barra nera.
 - Le organizzazioni esistenti hanno Reception, Porte e Pacchi, come prima. Parcheggi va aggiunta con il comando `apps`.
 
 ### Parcheggi
