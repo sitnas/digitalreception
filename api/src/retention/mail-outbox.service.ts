@@ -9,7 +9,7 @@ import { guestLink } from '../invitations/guest-link';
 import { MailService } from '../common/mail.service';
 import { TenantKeysService } from '../common/tenant-keys.service';
 import { renderNotice } from '../kiosk/kiosk.service';
-import { CountryPolicy, Host, Invitation, InvitationStatus, NoticeEmailStatus, PrivacyNotice, Site, Tenant, Visit, VisitStatus } from '../entities';
+import { CARRIER_NAMES, CountryPolicy, Employee, Host, Invitation, InvitationStatus, NoticeEmailStatus, Parcel, PrivacyNotice, Site, Tenant, Visit, VisitStatus } from '../entities';
 
 const MAX_ATTEMPTS = 3;
 
@@ -44,6 +44,7 @@ export class MailOutboxService {
     await this.sendBadges();
     await this.sendHostArrivals();
     await this.sendInvitations();
+    await this.sendParcels();
   }
 
   private next(ok: boolean, attempts: number): NoticeEmailStatus {
@@ -157,6 +158,28 @@ export class MailOutboxService {
       });
       const attempts = inv.emailAttempts + 1;
       await repo.update({ id: inv.id }, { emailAttempts: attempts, emailStatus: this.next(ok, attempts) });
+    }
+  }
+
+  /** "A parcel for you": only while the parcel is still waiting. */
+  private async sendParcels() {
+    const repo = this.ds.getRepository(Parcel);
+    const pending = await repo.find({ where: { emailStatus: NoticeEmailStatus.PENDING }, order: { receivedAt: 'ASC' }, take: 100 });
+    for (const p of pending) {
+      if (p.status !== 'WAITING') { await repo.update({ id: p.id }, { emailStatus: NoticeEmailStatus.SKIPPED }); continue; }
+      const tc = await this.keys.forTenant(p.tenantId);
+      const employee = await this.ds.getRepository(Employee).findOne({ where: { id: p.employeeId, tenantId: p.tenantId } });
+      const site = await this.ds.getRepository(Site).findOne({ where: { id: p.siteId, tenantId: p.tenantId } });
+      const policy = site && await this.ds.getRepository(CountryPolicy).findOne({ where: { tenantId: p.tenantId, countryCode: site.countryCode } });
+      const tenant = await this.ds.getRepository(Tenant).findOne({ where: { id: p.tenantId }, select: { id: true, name: true, primaryColor: true } });
+      const email = employee && tc.decrypt(employee.emailEnc, 'employee.email');
+      if (!employee || !email || !site || !policy || !tenant) { await repo.update({ id: p.id }, { emailStatus: NoticeEmailStatus.FAILED }); continue; }
+      const ok = await this.mail.sendParcel(email, tenant.name, {
+        locale: policy.defaultLocale, firstName: tc.decrypt(employee.firstNameEnc, 'employee.firstName') ?? '', siteName: site.name,
+        carrier: CARRIER_NAMES[p.carrier], pieces: p.pieces, note: tc.decrypt(p.noteEnc, 'parcel.note'), primaryColor: tenant.primaryColor,
+      });
+      const attempts = p.emailAttempts + 1;
+      await repo.update({ id: p.id }, { emailAttempts: attempts, emailStatus: this.next(ok, attempts) });
     }
   }
 }

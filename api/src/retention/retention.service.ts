@@ -9,7 +9,8 @@ import { markJobRun } from '../common/job-runs';
 import { FilesService } from '../common/files.service';
 import { addDays, startOfLocalDay } from '../common/time.util';
 import { VisitLifecycleService } from '../common/visit-lifecycle.service';
-import { AccessEvent, CountryPolicy, Invitation, Site, SsoRequest, StoredFile, Visit, VisitStatus, WebhookDelivery, PushDelivery } from '../entities';
+import { expiredParcels } from '../admin/parcels.controller';
+import { AccessEvent, CountryPolicy, Invitation, Parcel, Site, SsoRequest, StoredFile, Visit, VisitStatus, WebhookDelivery, PushDelivery } from '../entities';
 import { INVITATION_KEEP_DAYS } from '../invitations/invitations.service';
 
 const BATCH = 500;
@@ -89,6 +90,8 @@ export class RetentionService {
     }
 
     const inv = await this.ds.getRepository(Invitation).delete({ validUntil: LessThan(addDays(now, -INVITATION_KEEP_DAYS)) });
+    // Collected parcels: the handover record stays six months, then goes (the photo went a week after collection).
+    await this.ds.getRepository(Parcel).delete(expiredParcels(now));
     if (inv.affected) this.log.log(`Retention: ${inv.affected} past invitations deleted`);
     const ev = await this.ds.getRepository(AccessEvent).delete({ at: LessThan(addDays(now, -this.cfg.access.logRetentionDays)) });
     if (ev.affected) this.log.log(`Retention: ${ev.affected} access events deleted`);

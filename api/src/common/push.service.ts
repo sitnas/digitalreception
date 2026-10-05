@@ -17,22 +17,31 @@ const EXPO_TOKEN = /^Expo(nent)?PushToken\[[A-Za-z0-9_-]{10,100}\]$/;
 
 export interface WebSubscription { endpoint: string; keys: { p256dh: string; auth: string } }
 export interface ArrivalData { site: string; visitor: string; company: string | null }
+/** A parcel waiting at reception. `carrier` is a display name, null when unknown. */
+export interface ParcelData { kind: 'parcel'; site: string; carrier: string | null; pieces: number }
+type Payload = (ArrivalData & { kind?: 'arrival' }) | ParcelData;
 
 const TEXT = {
   it: {
     title: 'È arrivato il tuo ospite',
     body: (d: ArrivalData, names: boolean) => names ? `${d.visitor}${d.company ? ` (${d.company})` : ''} ti aspetta in reception, sede di ${d.site}.` : `Ti aspetta in reception, sede di ${d.site}.`,
     testTitle: 'Notifiche attive', testBody: 'Quando arriva un tuo ospite te lo diciamo qui.',
+    parcelTitle: (d: ParcelData) => (d.pieces > 1 ? `Ci sono ${d.pieces} pacchi per te` : 'C’è un pacco per te'),
+    parcelBody: (d: ParcelData) => `Ritiralo in reception, sede di ${d.site}${d.carrier ? ` (${d.carrier})` : ''}.`,
   },
   es: {
     title: 'Ha llegado su visita',
     body: (d: ArrivalData, names: boolean) => names ? `${d.visitor}${d.company ? ` (${d.company})` : ''} le espera en recepción, sede de ${d.site}.` : `Le espera en recepción, sede de ${d.site}.`,
     testTitle: 'Avisos activados', testBody: 'Cuando llegue una visita suya, se lo diremos aquí.',
+    parcelTitle: (d: ParcelData) => (d.pieces > 1 ? `Tiene ${d.pieces} paquetes` : 'Tiene un paquete'),
+    parcelBody: (d: ParcelData) => `Recójalo en recepción, sede de ${d.site}${d.carrier ? ` (${d.carrier})` : ''}.`,
   },
   en: {
     title: 'Your guest has arrived',
     body: (d: ArrivalData, names: boolean) => names ? `${d.visitor}${d.company ? ` (${d.company})` : ''} is waiting at reception, ${d.site}.` : `Waiting at reception, ${d.site}.`,
     testTitle: 'Notifications on', testBody: 'When a guest of yours arrives, you will hear it here.',
+    parcelTitle: (d: ParcelData) => (d.pieces > 1 ? `${d.pieces} parcels for you` : 'A parcel for you'),
+    parcelBody: (d: ParcelData) => `Collect it at reception, ${d.site}${d.carrier ? ` (${d.carrier})` : ''}.`,
   },
 };
 const lang = (l: string) => (['it', 'es', 'en'].includes(l) ? l : 'en') as keyof typeof TEXT;
@@ -40,7 +49,7 @@ const lang = (l: string) => (['it', 'es', 'en'].includes(l) ? l : 'en') as keyof
 type SendResult = 'OK' | 'GONE' | 'RETRY';
 
 /**
- * Tells an employee on their phone that their guest has arrived: the Expo push service for the app,
+ * Tells an employee on their phone that their guest has arrived (or that a parcel is waiting): the Expo push service for the app,
  * Web Push for the /badge page. Like webhooks, arrivals go through an outbox written with the visit;
  * here the delivery is attempted right after the check-in commits, and the worker only retries.
  */
@@ -132,6 +141,14 @@ export class PushService {
     return true;
   }
 
+  /** Inside the parcel transaction: queues "a parcel for you" for the employee, if they have a device. */
+  async enqueueParcel(em: EntityManager, tenantId: string, employeeId: string, data: Omit<ParcelData, 'kind'>) {
+    if (!(await em.exists(PushDevice, { where: { tenantId, employeeId } }))) return false;
+    const tc = await this.keys.forTenant(tenantId);
+    await em.insert(PushDelivery, { tenantId, employeeId, payloadEnc: tc.encrypt(JSON.stringify({ kind: 'parcel', ...data }), 'push.payload')!, status: 'PENDING', attempts: 0, nextAt: new Date() });
+    return true;
+  }
+
   /** Called after the check-in commits: deliver now instead of waiting for the next worker run. */
   kick() {
     withDbLock(this.ds, 'push-outbox', async () => { await this.deliverDue(); })
@@ -143,12 +160,14 @@ export class PushService {
     const due = await this.deliveries.createQueryBuilder('d').where('d.status = :s AND d.nextAt <= :now', { s: 'PENDING', now: new Date() }).orderBy('d.nextAt', 'ASC').take(limit).getMany();
     for (const d of due) {
       const tc = await this.keys.forTenant(d.tenantId);
-      const data = JSON.parse(tc.decrypt(d.payloadEnc, 'push.payload')!) as ArrivalData;
+      const data = JSON.parse(tc.decrypt(d.payloadEnc, 'push.payload')!) as Payload;
       const tenant = await this.tenants.findOne({ where: { id: d.tenantId }, select: { id: true, pushIncludeNames: true } });
       const devices = await this.devices.find({ where: { tenantId: d.tenantId, employeeId: d.employeeId } });
       const results = await Promise.all(devices.map((dev) => {
         const t = TEXT[lang(dev.locale)];
-        return this.send(dev, tc.decrypt(dev.targetEnc, 'push.target')!, t.title, t.body(data, !!tenant?.pushIncludeNames));
+        const target = tc.decrypt(dev.targetEnc, 'push.target')!;
+        return data.kind === 'parcel' ? this.send(dev, target, t.parcelTitle(data), t.parcelBody(data))
+          : this.send(dev, target, t.title, t.body(data, !!tenant?.pushIncludeNames));
       }));
       const attempts = d.attempts + 1;
       const retry = results.includes('RETRY') && !results.includes('OK');

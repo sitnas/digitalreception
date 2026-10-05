@@ -3,13 +3,13 @@ import { Throttle } from '@nestjs/throttler';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Transform, Type } from 'class-transformer';
 import { IsEmail, IsEnum, IsIn, IsNumber, IsOptional, IsString, IsUUID, Length, Matches, MaxLength, ValidateIf, ValidateNested } from 'class-validator';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { AuditService } from '../common/audit.service';
 import { inviteQrPayload } from '../common/exit-qr';
 import { AppRequest, AuthEmployee } from '../common/request-context';
 import { TenantKeysService } from '../common/tenant-keys.service';
 import { PushService } from '../common/push.service';
-import { Employee, Host, PushDevice, Tenant, VisitPurpose } from '../entities';
+import { CARRIER_NAMES, Employee, Host, Parcel, PushDevice, Site, Tenant, VisitPurpose } from '../entities';
 import { InvitationsService } from '../invitations/invitations.service';
 import { SUPPORTED_LOCALES } from '../kiosk/kiosk.dto';
 import { CurrentEmployee, EmployeeAppGuard } from './access.guards';
@@ -114,6 +114,15 @@ export class EmployeeAppController {
       sites: h ? h.sites.map((s) => ({ id: s.id, name: s.name, timezone: s.timezone })) : [],
       purposes: Object.values(VisitPurpose),
     };
+  }
+
+  /** Parcels waiting for me at reception (any site), newest first. */
+  @Get('parcels')
+  async parcels(@CurrentEmployee() me: AuthEmployee) {
+    const rows = await this.employees.manager.find(Parcel, { where: { tenantId: me.tenantId, employeeId: me.id, status: 'WAITING' }, order: { receivedAt: 'DESC' }, take: 50 });
+    if (!rows.length) return [];
+    const sites = new Map((await this.employees.manager.find(Site, { where: { tenantId: me.tenantId, id: In([...new Set(rows.map((r) => r.siteId))]) } })).map((s) => [s.id, s]));
+    return rows.map((r) => ({ id: r.id, siteName: sites.get(r.siteId)?.name ?? '', timezone: sites.get(r.siteId)?.timezone ?? 'UTC', carrier: CARRIER_NAMES[r.carrier], pieces: r.pieces, receivedAt: r.receivedAt }));
   }
 
   @Get('invitations')

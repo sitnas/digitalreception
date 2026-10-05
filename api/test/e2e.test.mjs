@@ -737,6 +737,35 @@ describe('end-to-end', { skip: !enabled && 'E2E_DB_HOST not set' }, () => {
       await new Promise((r) => setTimeout(r, 800));
       assert.equal(got.length, 0);
 
+      // A parcel for her at the Milan reception: she hears it on the phone and sees it in the app.
+      {
+        const found = (await admin.get('/admin/parcels/recipients?q=sara pu')).data;
+        assert.equal(found.length, 1); assert.equal(found[0].id, emp.id); assert.equal(found[0].email, undefined, 'only what is needed to pick the person');
+        assert.equal((await ctx.aud.post('/admin/parcels', { siteId: ctx.milano.id, employeeId: emp.id, carrier: 'DHL' })).status, 403);
+        assert.equal((await admin.post('/admin/parcels', { siteId: ctx.milano.id, employeeId: ctx.milano.id, carrier: 'DHL' })).data.message, 'EMPLOYEE_NOT_FOUND');
+        assert.equal((await admin.post('/admin/parcels', { siteId: ctx.milano.id, employeeId: emp.id, carrier: 'PIGEON' })).status, 400);
+        got.length = 0;
+        const parcel = await admin.post('/admin/parcels', { siteId: ctx.milano.id, employeeId: emp.id, carrier: 'DHL', pieces: 2, tracking: 'JD0146 0000 1234', note: 'Scatola grande', photo: PNG });
+        assert.equal(parcel.status, 201, JSON.stringify(parcel.data));
+        assert.equal(parcel.data.pushQueued, true); assert.equal(parcel.data.emailStatus, 'SKIPPED', 'no SMTP in tests');
+        const notice = JSON.parse((await waitFor((g) => g.path === '/expo')).body)[0];
+        assert.equal(notice.title, 'Ci sono 2 pacchi per te'); assert.equal(notice.body, 'Ritiralo in reception, sede di Milano (DHL).');
+        const mine = (await me('GET', '/parcels')).data;
+        assert.equal(mine.length, 1); assert.equal(mine[0].carrier, 'DHL'); assert.equal(mine[0].pieces, 2); assert.equal(mine[0].siteName, 'Milano');
+        const waiting = (await ctx.aud.get(`/admin/parcels?siteId=${ctx.milano.id}`)).data;
+        const row = waiting.find((r) => r.id === parcel.data.id);
+        assert.equal(row.recipient.lastName, 'Push'); assert.equal(row.tracking, 'JD0146 0000 1234'); assert.equal(row.hasPhoto, true);
+        assert.equal((await admin.get(`/admin/parcels/${row.id}/photo`)).status, 200);
+        assert.equal((await admin.post(`/admin/parcels/${row.id}/collect`)).status, 200);
+        assert.equal((await admin.post(`/admin/parcels/${row.id}/collect`)).data.message, 'PARCEL_ALREADY_COLLECTED');
+        assert.deepEqual((await me('GET', '/parcels')).data, [], 'collected: gone from the app');
+        assert.ok((await admin.get(`/admin/parcels?siteId=${ctx.milano.id}&status=COLLECTED`)).data.some((r) => r.id === row.id));
+        assert.equal((await admin.del(`/admin/parcels/${row.id}`)).data.message, 'PARCEL_ALREADY_COLLECTED');
+        const mistake = (await admin.post('/admin/parcels', { siteId: ctx.milano.id, employeeId: emp.id, carrier: 'OTHER' })).data;
+        assert.equal((await admin.del(`/admin/parcels/${mistake.id}`)).status, 200, 'registered by mistake');
+        assert.deepEqual((await me('GET', '/parcels')).data, []);
+      }
+
       // Removed from this phone; then the badge is revoked: no devices left.
       assert.equal((await me('DELETE', '/push', { kind: 'expo', target: expoToken })).status, 200);
       assert.equal(await devices(), 1);

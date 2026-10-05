@@ -94,6 +94,22 @@ export class MailService implements OnApplicationBootstrap {
     return this.send(to, fromName, subject, text, html);
   }
 
+  /** A parcel waiting at reception for an employee. */
+  async sendParcel(to: string, fromName: string, m: { locale: string; firstName: string; siteName: string; carrier: string | null; pieces: number; note: string | null; primaryColor?: string | null }): Promise<boolean> {
+    const s = PARCEL_STRINGS[m.locale as keyof typeof PARCEL_STRINGS] ?? PARCEL_STRINGS.en;
+    const title = m.pieces > 1 ? s.many.replace('{n}', String(m.pieces)) : s.one;
+    const lines = [s.hello.replace('{name}', m.firstName), '', `${title}.`, s.where.replace('{site}', m.siteName)];
+    if (m.carrier) lines.push(`${s.carrier}: ${m.carrier}`);
+    if (m.note) lines.push(`${s.note}: ${m.note}`);
+    const html = `<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;line-height:1.5;color:#1A1A1A">
+<div style="border-left:4px solid ${m.primaryColor ?? DEFAULT_PRIMARY};padding:4px 0 4px 16px;margin-bottom:16px"><div style="font-size:13px;color:#5C5C58">${esc(fromName)} · ${esc(m.siteName)}</div>
+<div style="font-size:20px;font-weight:700">${esc(title)}</div></div>
+<p>${esc(s.hello.replace('{name}', m.firstName))}</p><p>${esc(s.where.replace('{site}', m.siteName))}</p>
+${m.carrier ? `<p style="margin:4px 0;color:#5C5C58">${esc(s.carrier)}: <strong style="color:#1A1A1A">${esc(m.carrier)}</strong></p>` : ''}
+${m.note ? `<p style="margin:4px 0;color:#5C5C58">${esc(s.note)}: <span style="color:#1A1A1A">${esc(m.note)}</span></p>` : ''}</div>`;
+    return this.send(to, fromName, `${title} - ${m.siteName}`, lines.join('\n'), html);
+  }
+
   /** Invitation: when and where the guest is expected, with the QR that fills the tablet form. */
   async sendInvitation(to: string, fromName: string, m: InvitationMail): Promise<boolean> {
     const s = INVITE_STRINGS[m.locale as keyof typeof INVITE_STRINGS] ?? INVITE_STRINGS.en;
@@ -172,6 +188,12 @@ const INVITE_STRINGS = {
     how: 'When you arrive, tap “I have an invitation” on the reception tablet and show this QR to the camera: your details will already be filled in, you will only need to read the privacy notice and sign.',
     privacy: '{org} recorded your name, company and email only to prepare this visit. We delete the invitation data a few days after the expected date.',
     pre: 'Want to save time? Complete your registration from your phone: details, privacy notice and signature. At reception you then just show the QR.', preButton: 'Register now' },
+};
+
+const PARCEL_STRINGS = {
+  it: { one: 'C’è un pacco per te in reception', many: 'Ci sono {n} pacchi per te in reception', hello: 'Ciao {name},', where: 'Puoi ritirarlo alla reception della sede di {site}.', carrier: 'Corriere', note: 'Nota' },
+  es: { one: 'Tiene un paquete en recepción', many: 'Tiene {n} paquetes en recepción', hello: 'Hola {name}:', where: 'Puede recogerlo en la recepción de la sede de {site}.', carrier: 'Transportista', note: 'Nota' },
+  en: { one: 'A parcel is waiting for you at reception', many: '{n} parcels are waiting for you at reception', hello: 'Hi {name},', where: 'You can collect it at reception, {site}.', carrier: 'Carrier', note: 'Note' },
 };
 
 const ARRIVAL_STRINGS = {

@@ -782,6 +782,10 @@ code.mfa-secret { font-size: 14px; overflow-wrap: anywhere; max-width: 100%; }
 .mb-notice div { display: grid; gap: 4px; }
 .mb-notice strong { font-size: 16px; font-weight: 800; }
 .mb-notice span { font-size: 15px; color: var(--mb-ink2); }
+.mb-parcels { display: grid; gap: 4px; border: 1px solid var(--brand); border-left-width: 4px; border-radius: 14px; padding: 14px; background: var(--mb-surface); animation: mb-rise .35s cubic-bezier(.34, 1.36, .64, 1) both; }
+.mb-parcels strong { font-size: 16px; font-weight: 800; }
+.mb-parcels span { font-size: 14px; color: var(--mb-ink2); }
+@keyframes mb-rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
 .mb-invite { gap: 6px; padding: 22px; }
 .mb-status-big { font-size: 13px; font-weight: 800; color: var(--mb-ink2); text-transform: uppercase; letter-spacing: .6px; }
 .mb-invite-name { margin: 0; font-size: 22px; font-weight: 800; }
@@ -791,10 +795,31 @@ code.mfa-secret { font-size: 14px; overflow-wrap: anywhere; max-width: 100%; }
 .mb-code { margin: 0; font-size: 26px; font-weight: 800; letter-spacing: 4px; font-variant-numeric: tabular-nums; user-select: all; }
 @media (prefers-reduced-motion: reduce) {
   .mb-ring-drain, .mb-switch span, .mb-switch span::after { transition: none; }
-  .mb-check circle, .mb-check path, .mb-skeleton, .mb-spinner { animation: none; }
+  .mb-check circle, .mb-check path, .mb-skeleton, .mb-spinner, .mb-parcels { animation: none; }
   .mb-check path { stroke-dashoffset: 0; }
   .mb-activated { animation-duration: 1ms; }
 }
+
+/* ---------------------------------------------------------------- parcels at reception */
+.parcel-carriers { display: flex; flex-wrap: wrap; gap: 6px; }
+.parcel-chip { height: 36px; padding: 0 14px; border-radius: 18px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); font: inherit; font-weight: 700; font-size: 14px; cursor: pointer;
+  transition: background-color .15s, border-color .15s, transform .12s cubic-bezier(.34, 1.56, .64, 1); }
+.parcel-chip:active { transform: scale(.95); }
+.parcel-chip[aria-checked='true'] { background: var(--brand); border-color: var(--brand); color: var(--on-brand); }
+.parcel-results { list-style: none; margin: 0; padding: 4px; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); display: grid; gap: 2px; max-height: 260px; overflow-y: auto; animation: msg-in .18s ease-out both; }
+.parcel-results button { width: 100%; text-align: left; background: none; border: 0; padding: 10px 12px; border-radius: var(--r-sm); font: inherit; color: var(--ink); cursor: pointer; }
+.parcel-results button:hover, .parcel-results button:focus-visible { background: var(--surface-2); }
+.parcel-who { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 1px solid var(--brand-strong); border-radius: var(--r); background: var(--brand-soft); color: var(--ink); }
+.parcel-thumb { width: 64px; height: 64px; object-fit: cover; border-radius: var(--r-sm); border: 1px solid var(--line); }
+.parcel-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.parcel-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); animation: msg-in .2s ease-out both; }
+.parcel-main { display: grid; gap: 2px; min-width: 0; }
+.parcel-main strong { font-size: 16px; }
+.parcel-note { font-size: 14px; color: var(--ink); overflow-wrap: anywhere; }
+.parcel-when { font-size: 13px; color: var(--ink-3); }
+.parcel-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+@media (max-width: 600px) { .parcel-actions { width: 100%; } .parcel-actions .btn-primary { flex: 1; height: 44px; } }
+@media (prefers-reduced-motion: reduce) { .parcel-chip, .parcel-results, .parcel-row { transition: none; animation: none; } .parcel-chip:active { transform: none; } }
 
 /* ================================================================ MICRO-ANIMATIONS
    Short and functional: a press you can feel, a selection that pops, an error that shows up. All of
