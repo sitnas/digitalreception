@@ -59,7 +59,7 @@ export default function Setup() {
     try { await requestCode(org!.origin, cleanEmail(), lang); setSent(true); setStep('code'); } catch (e) { fail(e); }
   });
   const finish = async (res: Awaited<ReturnType<typeof activate>>) => {
-    const badge = { ...res, origin: org!.origin, primaryColor: org!.tenant.primaryColor };
+    const badge = { ...res, origin: org!.origin, primaryColor: org!.tenant.primaryColor, secondaryColor: org!.tenant.secondaryColor };
     if (!isBadge(badge)) { setError(t.errors.generic); return; }
     await save(badge);
     router.replace('/?activated=1');

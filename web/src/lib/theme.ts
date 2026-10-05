@@ -77,3 +77,32 @@ export function applyBrand(colors: BrandColors): void {
   for (const [k, v] of Object.entries(vars)) root.style.setProperty(k, v);
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', vars['--brand-2']);
 }
+
+/** Grey, black and white make dull squares: only a real colour (some saturation) counts as a second one. */
+const chromatic = (hex: string) => { const c = rgb(hex); return (Math.max(...c) - Math.min(...c)) / 255 >= 0.25; };
+
+/**
+ * Colours of the twinkling squares (tablet, /badge): the primary, plus the secondary on about a third
+ * of them when it is a real colour that differs from the primary. Same rule as the app.
+ */
+export function squareColors(primary: string | null | undefined, secondary: string | null | undefined): { primary: [number, number, number]; secondary: [number, number, number] | null } {
+  const p = isHex(primary) ? primary : DEFAULT_PRIMARY;
+  const ok = isHex(secondary) && chromatic(secondary) && contrast(secondary, p) >= 1.3;
+  return { primary: rgb(p), secondary: ok ? rgb(secondary) : null };
+}
+
+/** Deterministic per square: about a third of them take the secondary colour. */
+export const usesSecondary = (i: number) => { const v = Math.sin(i * 1.731 + 9.21) * 4321.123; return v - Math.floor(v) < 0.35; };
+
+/** The brand colours currently applied to the page (they may arrive after the first paint). */
+export function currentBrand(): { primary: string; secondary: string } {
+  const cs = getComputedStyle(document.documentElement);
+  return { primary: cs.getPropertyValue('--brand').trim(), secondary: cs.getPropertyValue('--brand-2').trim() };
+}
+
+/** Calls `fn` whenever applyBrand changes the colours on the document. Returns the unsubscribe. */
+export function onBrandChange(fn: () => void): () => void {
+  const mo = new MutationObserver(fn);
+  mo.observe(document.documentElement, { attributes: true, attributeFilter: ['style'] });
+  return () => mo.disconnect();
+}

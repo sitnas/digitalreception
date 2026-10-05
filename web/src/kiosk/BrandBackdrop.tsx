@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react';
+import { currentBrand, onBrandChange, squareColors, usesSecondary } from '../lib/theme';
 
 /**
- * Twinkling squares in the organisation's colour along the bottom of the welcome screen.
+ * Twinkling squares in the organisation's colours along the bottom of the welcome screen.
  * Adapted from Originkit's "Blinking Squares" (canvas 2D, no dependencies), tuned for a tablet that
  * stays on all day: about 24 frames a second, paused while the page is hidden, a single still frame
  * when the system asks for reduced motion, and never behind the text (it fades out well before it).
@@ -18,17 +19,7 @@ const SPEED = 0.35;
 /** Deterministic pseudo-random values per cell, so the pattern does not jump on resize. */
 function cellSeed(i: number) {
   const f = (a: number, b: number, c: number) => { const s = Math.sin(i * a + b) * c; return s - Math.floor(s); };
-  return { phase: f(12.9898, 78.233, 43758.5453) * Math.PI * 2, rate: 0.6 + f(7.137, 33.71, 12345.6789) * 0.8 };
-}
-
-function brandRgb(el: HTMLElement): [number, number, number] {
-  const probe = document.createElement('span');
-  probe.style.color = 'var(--brand)';
-  probe.style.display = 'none';
-  (el.parentElement ?? document.body).appendChild(probe);
-  const m = getComputedStyle(probe).color.match(/[\d.]+/g);
-  probe.remove();
-  return m && m.length >= 3 ? [+m[0], +m[1], +m[2]] : [255, 209, 0];
+  return { phase: f(12.9898, 78.233, 43758.5453) * Math.PI * 2, rate: 0.6 + f(7.137, 33.71, 12345.6789) * 0.8, second: usesSecondary(i) };
 }
 
 export function BrandBackdrop() {
@@ -41,7 +32,8 @@ export function BrandBackdrop() {
     const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
     let w = 0, h = 0, cols = 0, rows = 0, cell = 0;
     let seeds: ReturnType<typeof cellSeed>[] = [];
-    let rgb = brandRgb(canvas);
+    const colors = () => { const b = currentBrand(); return squareColors(b.primary, b.secondary); };
+    let rgb = colors();
     let raf = 0, last = 0;
     const start = performance.now();
 
@@ -53,7 +45,6 @@ export function BrandBackdrop() {
       cell = Math.max(w, window.innerHeight) / CELLS_ON_LONG_SIDE;
       cols = Math.ceil(w / cell); rows = Math.ceil(h / cell);
       seeds = Array.from({ length: cols * rows }, (_, i) => cellSeed(i));
-      rgb = brandRgb(canvas); // the organisation's colours may have arrived since
     };
 
     const draw = (now: number) => {
@@ -70,7 +61,8 @@ export function BrandBackdrop() {
           const twinkle = reduced ? 0.5 + 0.5 * Math.sin(s.phase) : 0.5 + 0.5 * Math.sin(t * SPEED * s.rate * Math.PI * 2 + s.phase);
           const a = envelope * twinkle * MAX_ALPHA;
           if (a < 0.01) continue;
-          ctx.fillStyle = `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${a.toFixed(3)})`;
+          const c = s.second && rgb.secondary ? rgb.secondary : rgb.primary;
+          ctx.fillStyle = `rgba(${c[0]},${c[1]},${c[2]},${a.toFixed(3)})`;
           ctx.fillRect(x * cell + inset, h - (rows - y) * cell + inset, size, size);
         }
       }
@@ -94,7 +86,9 @@ export function BrandBackdrop() {
     draw(performance.now());
     gate();
     document.addEventListener('visibilitychange', gate);
-    return () => { ro.disconnect(); cancelAnimationFrame(raf); document.removeEventListener('visibilitychange', gate); };
+    // The organisation's colours can arrive (or change in the console) after the first paint.
+    const off = onBrandChange(() => { rgb = colors(); draw(performance.now()); });
+    return () => { ro.disconnect(); off(); cancelAnimationFrame(raf); document.removeEventListener('visibilitychange', gate); };
   }, []);
 
   return <canvas ref={canvasRef} className="k-backdrop" aria-hidden="true" />;

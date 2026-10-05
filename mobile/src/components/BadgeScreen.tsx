@@ -96,7 +96,7 @@ function Activated({ theme }: { theme: ReturnType<typeof useTheme> }) {
 }
 
 export function BadgeScreen({ badge, justActivated = false }: { badge: Badge; justActivated?: boolean }) {
-  const theme = useTheme(badge.primaryColor);
+  const theme = useTheme(badge.primaryColor, badge.secondaryColor);
   const { remove } = useBadge();
   const { width } = useWindowDimensions();
   useBadgeInFront();

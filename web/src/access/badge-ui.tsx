@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { currentBrand, onBrandChange, squareColors, usesSecondary } from '../lib/theme';
 
 /**
  * Building blocks of the "My badge" page, drawn like the phone app (mobile/src/components/ui.tsx
@@ -104,7 +105,7 @@ export function SuccessCheck({ size = 64 }: { size?: number }) {
 }
 
 /**
- * The tablet's twinkling squares at the top of the badge card, in the brand colour, fading towards
+ * The tablet's twinkling squares at the top of the badge card, in the organisation's colours, fading towards
  * the name. Canvas at about 24 frames a second, paused while the page is hidden; still with reduced motion.
  */
 export function SquaresBand({ height = 64 }: { height?: number }) {
@@ -117,13 +118,10 @@ export function SquaresBand({ height = 64 }: { height?: number }) {
     const dark = window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false;
     const MAX_ALPHA = dark ? 0.34 : 0.28;
     let w = 0, cols = 0, rows = 0, raf = 0, last = 0;
-    let squares: { x: number; y: number; peak: number; period: number; delay: number }[] = [];
+    let squares: { x: number; y: number; peak: number; period: number; delay: number; second: boolean }[] = [];
     const rnd = (i: number, a: number, b: number, c: number) => { const v = Math.sin(i * a + b) * c; return v - Math.floor(v); };
-    const brand = () => {
-      const m = getComputedStyle(canvas).getPropertyValue('--brand').trim();
-      return /^#[0-9A-Fa-f]{6}$/.test(m) ? [1, 3, 5].map((i) => parseInt(m.slice(i, i + 2), 16)) : [255, 209, 0];
-    };
-    let rgb = brand();
+    const colors = () => { const b = currentBrand(); return squareColors(b.primary, b.secondary); };
+    let rgb = colors();
     const layout = () => {
       const dpr = Math.min(2, window.devicePixelRatio || 1);
       w = Math.max(1, canvas.clientWidth);
@@ -139,10 +137,9 @@ export function SquaresBand({ height = 64 }: { height?: number }) {
           const peak = envelope * (0.35 + 0.65 * rnd(i, 12.9898, 78.233, 43758.5453)) * MAX_ALPHA;
           if (peak < 0.03) continue;
           squares.push({ x: x * CELL + (CELL * (1 - FILL)) / 2, y: y * CELL + (CELL * (1 - FILL)) / 2, peak,
-            period: 1400 + rnd(i, 7.137, 33.71, 12345.6789) * 2200, delay: rnd(i, 3.51, 5.91, 9876.54321) * 2400 });
+            period: 1400 + rnd(i, 7.137, 33.71, 12345.6789) * 2200, delay: rnd(i, 3.51, 5.91, 9876.54321) * 2400, second: usesSecondary(i) });
         }
       }
-      rgb = brand();
     };
     const draw = (now: number) => {
       ctx.clearRect(0, 0, w, height);
@@ -151,7 +148,8 @@ export function SquaresBand({ height = 64 }: { height?: number }) {
         // Breathes between 12 % and 100 % of its peak, like the app's sine loop.
         const phase = still ? 0.5 : 0.5 - 0.5 * Math.cos(((now + q.delay) / q.period) * Math.PI * 2);
         const a = q.peak * (0.12 + 0.88 * phase);
-        ctx.fillStyle = `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${a.toFixed(3)})`;
+        const c = q.second && rgb.secondary ? rgb.secondary : rgb.primary;
+        ctx.fillStyle = `rgba(${c[0]},${c[1]},${c[2]},${a.toFixed(3)})`;
         ctx.fillRect(q.x, q.y, size, size);
       }
     };
@@ -168,7 +166,9 @@ export function SquaresBand({ height = 64 }: { height?: number }) {
     ro.observe(canvas);
     layout(); draw(performance.now()); gate();
     document.addEventListener('visibilitychange', gate);
-    return () => { ro.disconnect(); cancelAnimationFrame(raf); document.removeEventListener('visibilitychange', gate); };
+    // The organisation's colours arrive from /api/tenant after the first paint.
+    const off = onBrandChange(() => { rgb = colors(); draw(performance.now()); });
+    return () => { ro.disconnect(); off(); cancelAnimationFrame(raf); document.removeEventListener('visibilitychange', gate); };
   }, [height]);
   return <canvas ref={ref} className="mb-squares" style={{ height }} aria-hidden />;
 }

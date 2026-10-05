@@ -3,12 +3,14 @@ import { onColor } from './color';
 
 const DEFAULT_PRIMARY = '#FFD100';
 
-export function useTheme(primaryColor?: string | null) {
+export function useTheme(primaryColor?: string | null, secondaryColor?: string | null) {
   const dark = useColorScheme() === 'dark';
   const primary = primaryColor && /^#[0-9A-Fa-f]{6}$/.test(primaryColor) ? primaryColor : DEFAULT_PRIMARY;
   return {
     dark,
     primary,
+    /** The organisation's second colour, when it has a valid one (used by the twinkling squares). */
+    secondary: secondaryColor && /^#[0-9A-Fa-f]{6}$/.test(secondaryColor) ? secondaryColor : null,
     onPrimary: onColor(primary),
     ground: dark ? '#121211' : '#F6F6F4',
     surface: dark ? '#1A1A19' : '#FFFFFF',
