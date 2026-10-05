@@ -1,33 +1,33 @@
 import QRCode from 'qrcode';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ApiError } from '../lib/api';
 import { applyBrand } from '../lib/theme';
-import { BadgeInvites, inviteStrings, me, type Profile } from './BadgeInvites';
+import { lang, t } from './badge-strings';
+import { Button, Field, QrRing, Screen, SquaresBand, SuccessCheck } from './badge-ui';
+import { InviteDetail, InvitesList, NewInvite, me, type Profile } from './BadgeInvites';
 import { forgetWebPush } from './BadgePush';
 
 /**
- * "My badge" on the employee's phone. After a one-time email code the phone keeps a secret and
- * draws a QR that changes every 30 seconds (HMAC of the time step): a screenshot stops working
- * within a minute. Everything is computed on the phone, it works without network at the door.
+ * "My badge" on the employee's phone, in the browser: the same screens as the phone app. After a
+ * one-time email code (or the company account) the phone keeps a secret and draws a QR that
+ * changes every 30 seconds (HMAC of the time step): a screenshot stops working within a minute.
+ * Everything is computed on the phone, it works without network at the door.
  */
 
 interface Badge { employeeId: string; secret: string; step: number; organisation: string; firstName: string; lastName: string;
   /** For the employee's own requests (invitations); missing on badges activated before it existed. */
   appToken?: string }
+interface Tenant { name: string; primaryColor: string | null; secondaryColor: string | null; sso: { provider: 'microsoft' | 'google' } | null }
+
 const KEY = 'rs_badge';
+const VERIFIER_KEY = 'rs_badge_sso';
 const load = (): Badge | null => { try { return JSON.parse(localStorage.getItem(KEY) ?? 'null'); } catch { return null; } };
 const save = (b: Badge | null) => { try { if (b) localStorage.setItem(KEY, JSON.stringify(b)); else localStorage.removeItem(KEY); } catch { /* storage unavailable */ } };
-
-type Lang = 'it' | 'es' | 'en';
-const lang: Lang = (['it', 'es', 'en'] as const).find((l) => navigator.language.toLowerCase().startsWith(l)) ?? 'en';
-const T = {
-  it: { title: 'Il mio badge', intro: 'Attiva il badge sul telefono con la tua email di lavoro: ti mandiamo un codice.', email: 'Email di lavoro', send: 'Inviami il codice', sent: 'Se l’indirizzo è registrato, riceverai un codice di 6 cifre entro un minuto. Controlla anche lo spam.', code: 'Codice ricevuto', activate: 'Attiva il badge', back: 'Cambia email', hint: 'Mostra il QR al lettore della porta. Cambia ogni 30 secondi: foto e screenshot non funzionano.', remove: 'Rimuovi il badge da questo telefono', removeConfirm: 'Rimuovere il badge da questo telefono? Per usarlo di nuovo dovrai chiedere un nuovo codice.', next: 'Nuovo codice tra', errors: { CODE_INVALID: 'Codice non valido o scaduto. Chiedine uno nuovo.', generic: 'Non è andata a buon fine. Riprova tra qualche secondo.', offline: 'Connessione non disponibile.' } },
-  es: { title: 'Mi credencial', intro: 'Active la credencial en el teléfono con su correo de trabajo: le enviamos un código.', email: 'Correo de trabajo', send: 'Enviarme el código', sent: 'Si la dirección está registrada, recibirá un código de 6 cifras en un minuto. Revise también el spam.', code: 'Código recibido', activate: 'Activar la credencial', back: 'Cambiar correo', hint: 'Muestre el QR al lector de la puerta. Cambia cada 30 segundos: fotos y capturas no funcionan.', remove: 'Quitar la credencial de este teléfono', removeConfirm: '¿Quitar la credencial de este teléfono? Para usarla de nuevo tendrá que pedir un código nuevo.', next: 'Nuevo código en', errors: { CODE_INVALID: 'Código no válido o caducado. Pida uno nuevo.', generic: 'No ha funcionado. Inténtelo de nuevo en unos segundos.', offline: 'Sin conexión.' } },
-  en: { title: 'My badge', intro: 'Activate the badge on your phone with your work email: we will send you a code.', email: 'Work email', send: 'Send me the code', sent: 'If the address is registered, you will receive a 6-digit code within a minute. Check your spam folder too.', code: 'Code received', activate: 'Activate badge', back: 'Change email', hint: 'Show the QR to the door reader. It changes every 30 seconds: photos and screenshots do not work.', remove: 'Remove the badge from this phone', removeConfirm: 'Remove the badge from this phone? To use it again you will need a new code.', next: 'New code in', errors: { CODE_INVALID: 'Invalid or expired code. Ask for a new one.', generic: 'That didn’t work. Try again in a few seconds.', offline: 'No connection.' } },
-}[lang];
+/** Seconds of clock difference with the server beyond which the reader may refuse the QR. */
+const CLOCK_TOLERANCE_S = 20;
 
 async function post<R>(path: string, body: unknown): Promise<R> {
-  const r = await fetch(`/api/badge/${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), cache: 'no-store' });
+  const r = await fetch(`/api/${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), cache: 'no-store' });
   const data = await r.json().catch(() => ({}));
   if (!r.ok) throw new ApiError(r.status, Array.isArray(data.message) ? data.message[0] : data.message ?? r.statusText);
   return data as R;
@@ -41,17 +41,54 @@ async function sign(secretB64: string, message: string): Promise<string> {
   return [...sig].map((b) => b.toString(16).padStart(2, '0')).join('').slice(0, 16);
 }
 
+const base64url = (bytes: Uint8Array) => btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+
+/** Company account: like the app, a random verifier stays on this phone and only its SHA-256 leaves. */
+async function startSso() {
+  const verifier = base64url(crypto.getRandomValues(new Uint8Array(32)));
+  const hash = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier)));
+  const challenge = [...hash].map((b) => b.toString(16).padStart(2, '0')).join('');
+  try { sessionStorage.setItem(VERIFIER_KEY, verifier); } catch { /* storage unavailable */ }
+  window.location.assign(`/api/auth/sso/badge?challenge=${challenge}&return=${encodeURIComponent('/badge')}`);
+}
+
+/** Back from the provider: /badge?code=… (or ?error=…). The address is cleaned at once. */
+function readSsoReturn(): { code: string; verifier: string | null } | { error: string } | null {
+  const q = new URLSearchParams(window.location.search);
+  const code = q.get('code'), error = q.get('error');
+  if (!code && !error) return null;
+  window.history.replaceState(null, '', '/badge');
+  let verifier: string | null = null;
+  try { verifier = sessionStorage.getItem(VERIFIER_KEY); sessionStorage.removeItem(VERIFIER_KEY); } catch { /* storage unavailable */ }
+  return code ? { code, verifier } : { error: error! };
+}
+
 /** The page forgets the badge at once; the server is told too (best effort), so nothing issued here keeps working. */
 async function removeBadge(token: string | undefined) {
   await forgetWebPush(token);
   if (token) await me(token, '/revoke', { method: 'POST', body: '{}' }).catch(() => undefined);
 }
 
+/** A known reason in plain words; otherwise the generic message with status and code for whoever helps. */
+function explain(e: unknown): string {
+  if (!(e instanceof ApiError)) return t.errors.offline;
+  const known = (t.errors as Record<string, string>)[e.code];
+  if (known) return known;
+  if (e.status === 429) return t.errors.tooMany;
+  if (e.status === 400 && /email/i.test(e.code)) return t.errors.invalidEmail;
+  return `${t.errors.generic}\n${t.errors.detail}: ${e.status} ${e.code}`;
+}
+
+type View = { name: 'badge' } | { name: 'invites' } | { name: 'new' } | { name: 'detail'; id: string; created?: string };
+
 export function BadgeApp() {
   const [badge, setBadge] = useState<Badge | null>(load);
+  const [tenant, setTenant] = useState<Tenant | null>(null);
+  const [justActivated, setJustActivated] = useState(false);
+  const [view, setViewState] = useState<View>({ name: 'badge' });
   // People who can be visited also invite their guests from here.
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [inviting, setInviting] = useState(false);
+
   useEffect(() => {
     setProfile(null);
     if (badge?.appToken) me<Profile>(badge.appToken).then(setProfile).catch(() => undefined);
@@ -61,99 +98,167 @@ export function BadgeApp() {
     const link = document.querySelector<HTMLLinkElement>('link[rel="manifest"]');
     const previous = link?.getAttribute('href');
     link?.setAttribute('href', '/manifest-badge.webmanifest');
+    document.title = t.title;
+    document.documentElement.lang = lang;
+    // The organisation's colours and sign-in, also before activation (public endpoint, no personal data).
+    fetch('/api/tenant').then((r) => (r.ok ? r.json() : null)).then((b: Tenant | null) => { if (b) { applyBrand(b); setTenant(b); } }).catch(() => undefined);
     return () => { if (previous) link?.setAttribute('href', previous); };
   }, []);
+
+  // Screens are browser history entries, so the phone's back gesture works like in the app.
+  const setView = useCallback((v: View) => { window.history.pushState(v, ''); setViewState(v); window.scrollTo(0, 0); }, []);
   useEffect(() => {
-    document.title = T.title;
-    // The organisation's colours, also before activation (public endpoint, no personal data).
-    fetch('/api/tenant').then((r) => (r.ok ? r.json() : null)).then((b) => b && applyBrand(b)).catch(() => undefined);
+    const pop = (e: PopStateEvent) => setViewState((e.state as View | null) ?? { name: 'badge' });
+    window.addEventListener('popstate', pop);
+    return () => window.removeEventListener('popstate', pop);
   }, []);
+  const back = () => window.history.back();
+
+  const activated = (b: Badge) => { save(b); setBadge(b); setJustActivated(true); };
+
+  if (!badge) return <div className="mb"><Setup tenant={tenant} onDone={activated} /></div>;
+  const token = badge.appToken;
   return (
-    <div className="badge-app">
-      {!badge ? <Activate onDone={(b) => { save(b); setBadge(b); }} />
-        : inviting && profile?.canInvite && badge.appToken ? <BadgeInvites token={badge.appToken} profile={profile} lang={lang} onBack={() => setInviting(false)} />
-        : <BadgeView badge={badge} canInvite={!!profile?.canInvite} onInvites={() => setInviting(true)} onRemove={() => { removeBadge(badge.appToken); save(null); setBadge(null); setInviting(false); }} />}
+    <div className="mb">
+      {view.name === 'invites' && token ? <InvitesList token={token} onBack={back} onNew={() => setView({ name: 'new' })} onOpen={(id) => setView({ name: 'detail', id })} />
+        : view.name === 'new' && token && profile ? <NewInvite token={token} profile={profile} onBack={back}
+            onCreated={(id, emailStatus) => { window.history.replaceState({ name: 'detail', id, created: emailStatus }, ''); setViewState({ name: 'detail', id, created: emailStatus }); }} />
+        : view.name === 'detail' && token ? <InviteDetail token={token} id={view.id} created={view.created} organisation={badge.organisation} host={badge.firstName} onBack={back} />
+        : <BadgeScreen badge={badge} justActivated={justActivated} canInvite={!!profile?.canInvite} onInvites={() => setView({ name: 'invites' })}
+            onRemove={() => { removeBadge(token); save(null); setBadge(null); setJustActivated(false); }} />}
     </div>
   );
 }
 
-function Activate({ onDone }: { onDone: (b: Badge) => void }) {
+/** First run: work email → 6-digit code from the email, or the company account when the organisation has one. */
+function Setup({ tenant, onDone }: { tenant: Tenant | null; onDone: (b: Badge) => void }) {
+  const [step, setStep] = useState<'email' | 'code'>('email');
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
-  const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const fail = (e: unknown) => setError(e instanceof ApiError ? (T.errors as Record<string, string>)[e.code] ?? T.errors.generic : T.errors.offline);
+  const codeInput = useRef<HTMLInputElement>(null);
+  useEffect(() => { if (step === 'code') codeInput.current?.focus(); }, [step]);
 
-  const request = async (e: React.FormEvent) => {
-    e.preventDefault(); setBusy(true); setError(null);
-    try { await post('request', { email: email.trim(), locale: lang }); setSent(true); } catch (err) { fail(err); } finally { setBusy(false); }
+  // Back from Microsoft or Google: redeem the one-time code with the verifier kept on this phone.
+  useEffect(() => {
+    const back = readSsoReturn();
+    if (!back) return;
+    if ('error' in back) { setError((t.errors as Record<string, string>)[back.error] ?? t.errors.generic); return; }
+    if (!back.verifier) { setError(t.errors.OTHER_APP); return; }
+    setBusy(true);
+    post<Badge>('auth/sso/badge/redeem', { code: back.code, verifier: back.verifier }).then(onDone, (e) => setError(explain(e))).finally(() => setBusy(false));
+  }, [onDone]);
+
+  // Autofill and keyboards can add spaces or invisible characters around the address.
+  const cleanEmail = () => email.replace(/[\s​-‍﻿]/g, '');
+  const run = async (fn: () => Promise<void>) => { setBusy(true); setError(null); try { await fn(); } catch (e) { setError(explain(e)); } finally { setBusy(false); } };
+  const submitEmail = (e: React.FormEvent) => { e.preventDefault(); run(async () => { await post('badge/request', { email: cleanEmail(), locale: lang }); setStep('code'); }); };
+  const submitCode = (e: React.FormEvent) => {
+    e.preventDefault();
+    run(async () => {
+      try { onDone(await post<Badge>('badge/activate', { email: cleanEmail(), code })); }
+      catch (err) { setCode(''); codeInput.current?.focus(); throw err; }
+    });
   };
-  const activate = async (e: React.FormEvent) => {
-    e.preventDefault(); setBusy(true); setError(null);
-    try {
-      onDone(await post<Badge>('activate', { email: email.trim(), code }));
-    } catch (err) { fail(err); } finally { setBusy(false); }
-  };
+  const sso = tenant?.sso;
+  const providerName = sso?.provider === 'microsoft' ? 'Microsoft' : 'Google';
 
   return (
-    <main className="badge-card stack">
-      <h1>{T.title}</h1>
-      <p className="muted" style={{ margin: 0 }}>{sent ? T.sent : T.intro}</p>
-      {error && <p className="alert" role="alert" style={{ margin: 0 }}>{error}</p>}
-      {!sent ? (
-        <form className="stack" onSubmit={request}>
-          <div className="field"><label htmlFor="be">{T.email}</label><input id="be" name="email" className="input" type="email" autoComplete="email" spellCheck={false} value={email} onChange={(e) => setEmail(e.target.value)} required /></div>
-          <button className="btn btn-primary" disabled={busy} aria-busy={busy}>{T.send}</button>
+    <Screen center>
+      <h1 className="mb-title">{tenant?.name ?? t.title}</h1>
+      <p className="mb-intro">{step === 'code' ? t.sent : t.emailIntro}</p>
+      {step === 'email' ? (
+        <form className="mb-form" onSubmit={submitEmail} noValidate>
+          {sso && (
+            <>
+              <Button label={t.ssoSignIn.replace('{provider}', providerName)} busy={busy} onClick={startSso} />
+              <p className="mb-hint">{t.ssoHint}</p>
+              <p className="mb-or">{t.ssoOr}</p>
+            </>
+          )}
+          <Field id="be" label={t.email} error={error} type="email" name="email" autoComplete="email" autoCapitalize="none" spellCheck={false}
+            inputMode="email" enterKeyHint="send" value={email} onChange={(e) => setEmail(e.target.value)} />
+          <Button type="submit" label={t.send} kind={sso ? 'ghost' : 'primary'} busy={busy} />
         </form>
       ) : (
-        <form className="stack" onSubmit={activate}>
-          <div className="field"><label htmlFor="bc">{T.code}</label><input id="bc" name="code" className="input badge-code-input" translate="no" inputMode="numeric" autoComplete="one-time-code" pattern="\d{6}" maxLength={6} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} required /></div>
-          <button className="btn btn-primary" disabled={busy} aria-busy={busy}>{T.activate}</button>
-          <button type="button" className="btn btn-ghost" onClick={() => { setSent(false); setCode(''); setError(null); }}>{T.back}</button>
+        <form className="mb-form" onSubmit={submitCode} noValidate>
+          <Field id="bc" label={t.code} error={error} inputRef={codeInput} className="mb-code-input" translate="no" inputMode="numeric"
+            autoComplete="one-time-code" maxLength={6} enterKeyHint="done" value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))} />
+          <Button type="submit" label={t.activate} busy={busy} />
+          <Button label={t.changeEmail} kind="ghost" onClick={() => { setStep('email'); setCode(''); setError(null); }} />
         </form>
       )}
-    </main>
+    </Screen>
   );
 }
 
-function BadgeView({ badge, canInvite, onInvites, onRemove }: { badge: Badge; canInvite: boolean; onInvites: () => void; onRemove: () => void }) {
-  const I = inviteStrings(lang);
+/** Right after activation: a tick and a line that fade away by themselves. */
+function Activated() {
+  const [gone, setGone] = useState(false);
+  useEffect(() => { const h = setTimeout(() => setGone(true), 2600); return () => clearTimeout(h); }, []);
+  if (gone) return null;
+  return (
+    <div className="mb-activated" role="alert">
+      <SuccessCheck size={40} />
+      <span>{t.activated}</span>
+    </div>
+  );
+}
+
+function BadgeScreen({ badge, justActivated, canInvite, onInvites, onRemove }: { badge: Badge; justActivated: boolean; canInvite: boolean; onInvites: () => void; onRemove: () => void }) {
   const [now, setNow] = useState(() => Date.now());
   const [svg, setSvg] = useState('');
   const step = Math.floor(now / 1000 / badge.step);
   const left = badge.step - (Math.floor(now / 1000) % badge.step);
 
   useEffect(() => { const h = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(h); }, []);
+  // HMAC once per step, not once per second.
   useEffect(() => {
     let alive = true;
     sign(badge.secret, `${badge.employeeId}.${step}`)
-      .then((sig) => QRCode.toString(`DRE1:${badge.employeeId}.${step}.${sig}`, { type: 'svg', margin: 0, errorCorrectionLevel: 'M' }))
+      .then((sig) => QRCode.toString(`DRE1:${badge.employeeId}.${step}.${sig}`, { type: 'svg', margin: 2, errorCorrectionLevel: 'M', color: { dark: '#000000', light: '#FFFFFF' } }))
       .then((s) => { if (alive) setSvg(s); });
     return () => { alive = false; };
   }, [badge, step]);
-  // Keep the screen on while the badge is shown (where the browser allows it).
+  // Keep the screen on while the badge is shown (where the browser allows it), again after coming back.
   useEffect(() => {
     let lock: { release: () => Promise<void> } | null = null;
     const nav = navigator as Navigator & { wakeLock?: { request: (t: 'screen') => Promise<{ release: () => Promise<void> }> } };
-    nav.wakeLock?.request('screen').then((l) => { lock = l; }).catch(() => undefined);
-    return () => { lock?.release().catch(() => undefined); };
+    const take = () => { if (!document.hidden) nav.wakeLock?.request('screen').then((l) => { lock = l; }).catch(() => undefined); };
+    take();
+    document.addEventListener('visibilitychange', take);
+    return () => { document.removeEventListener('visibilitychange', take); lock?.release().catch(() => undefined); };
+  }, []);
+  // A phone clock off by more than the tolerance makes the reader refuse the QR: say so.
+  const [clockOff, setClockOff] = useState(false);
+  useEffect(() => {
+    const before = Date.now();
+    fetch('/api/health', { cache: 'no-store' }).then((r) => {
+      const date = r.headers.get('date');
+      if (date) setClockOff(Math.abs(Date.parse(date) - (before + Date.now()) / 2) > CLOCK_TOLERANCE_S * 1000);
+    }).catch(() => undefined);
   }, []);
   const src = useMemo(() => (svg ? `data:image/svg+xml;utf8,${encodeURIComponent(svg)}` : ''), [svg]);
 
   return (
-    <main className="badge-card badge-live">
-      <div className="badge-org">{badge.organisation}</div>
-      <div className="badge-name">{badge.firstName} {badge.lastName}</div>
-      <div className="badge-qr-box">{src && <img src={src} alt="QR" />}</div>
-      <div className="badge-timer" aria-live="off">
-        <span className="badge-timer-bar" style={{ width: `${(left / badge.step) * 100}%` }} />
-      </div>
-      <p className="muted" style={{ margin: 0, fontSize: 14 }}>{T.next} {left}s</p>
-      <p style={{ margin: 0 }}>{T.hint}</p>
-      {canInvite && <button type="button" className="btn btn-primary" onClick={onInvites}>{I.open}</button>}
-      {!badge.appToken && <p className="muted" style={{ margin: 0, fontSize: 13 }}>{I.reactivate}</p>}
-      <button type="button" className="btn btn-ghost btn-sm" onClick={() => { if (window.confirm(T.removeConfirm)) onRemove(); }}>{T.remove}</button>
-    </main>
+    <Screen center>
+      {justActivated && <Activated />}
+      <section className="mb-card mb-badge" aria-label={t.title}>
+        <SquaresBand />
+        <h1 className="mb-org">{badge.organisation}</h1>
+        <p className="mb-name">{badge.firstName} {badge.lastName}</p>
+        {/* Always black on white with a quiet zone: the reader camera needs contrast, also in dark mode. */}
+        <QrRing codeStep={step} left={left} step={badge.step}>
+          <div className="mb-qr">{src ? <img src={src} alt={t.hint} /> : <span className="mb-qr-empty" />}</div>
+        </QrRing>
+        <p className="mb-small" aria-live="off">{t.next.replace('{n}', String(left))}</p>
+        <p className="mb-hint-strong">{t.hint}</p>
+        {clockOff && <p className="mb-warn" role="alert">{t.clock}</p>}
+      </section>
+      {canInvite && <Button label={t.invites.open} onClick={onInvites} />}
+      {!badge.appToken && <p className="mb-small mb-centered">{t.invites.reactivate}</p>}
+      <Button label={t.remove} kind="ghost" onClick={() => { if (window.confirm(`${t.removeTitle}\n${t.removeText}`)) onRemove(); }} />
+    </Screen>
   );
 }

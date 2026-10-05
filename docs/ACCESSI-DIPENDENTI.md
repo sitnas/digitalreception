@@ -202,8 +202,10 @@ In elenco i dipendenti creati in console hanno l'etichetta "a mano". Vale l'ulti
 
 Se l'organizzazione ha collegato Microsoft o Google (**Organizzazione → Accesso con l'account aziendale**), nell'app *Il mio badge* compare **Accedi con Microsoft** (o Google) subito dopo l'indirizzo dell'organizzazione. Il dipendente entra con l'account di lavoro nel browser del telefono e il badge si attiva, senza codice via email. Il codice via email resta disponibile come alternativa.
 
+Lo stesso pulsante c'è sulla pagina web `/badge`: dopo Microsoft o Google il browser torna su `/badge` dello stesso indirizzo e il badge si attiva. La pagina web ha le stesse schermate dell'app (badge con l'anello del tempo, inviti per giorno, notifiche), con gli stessi testi.
+
 - Il server accetta solo account della directory collegata (tenant Microsoft o dominio Workspace) e cerca il dipendente con **la stessa email**: chi non è tra i dipendenti riceve "non risulta tra i dipendenti".
-- Il ritorno nell'app è protetto come nelle app bancarie (PKCE): l'app tiene un segreto e manda solo la sua impronta. Un'altra app che intercettasse l'indirizzo `drbadge://` non potrebbe usare il codice.
+- Il ritorno nell'app è protetto come nelle app bancarie (PKCE): l'app tiene un segreto e manda solo la sua impronta. Un'altra app che intercettasse l'indirizzo `drbadge://` non potrebbe usare il codice. Sulla pagina web il segreto resta nella scheda del browser che ha iniziato l'accesso, e il server rimanda solo a `/badge` dell'organizzazione, mai a un indirizzo esterno.
 - Non serve registrare nulla di nuovo presso Microsoft o Google: si usa lo stesso indirizzo di ritorno della console.
 - Come con il codice, attivare il badge su un telefono nuovo disattiva quello vecchio.
 

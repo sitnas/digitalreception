@@ -532,6 +532,7 @@ describe('end-to-end', { skip: !enabled && 'E2E_DB_HOST not set' }, () => {
       const RET = 'drbadge://sso';
       const startApp = (ret = RET) => new Browser(IP).go(`/auth/sso/badge?challenge=${challenge}&return=${encodeURIComponent(ret)}`);
       assert.equal((await startApp('https://evil.example/steal')).status, 400, 'only app addresses, never a web page');
+      for (const bad of ['//evil.example/badge', '/badge/../admin', '/badgex', '/badge?next=https://evil.example']) assert.equal((await startApp(bad)).status, 400, bad);
       const appTrip = async (claims, opts = {}) => {
         const s = await startApp();
         assert.equal(s.status, 302, s.body);
@@ -552,6 +553,15 @@ describe('end-to-end', { skip: !enabled && 'E2E_DB_HOST not set' }, () => {
       assert.equal((await appTrip({ tid: TID, oid: 'o-ghost', preferred_username: 'ghost@contoso.com' })).res.data.message, 'NO_EMPLOYEE');
       const other = await appTrip({ tid: '99999999-2222-3333-4444-555555555555', oid: 'o-bea', preferred_username: 'bea@contoso.com' }, { tid: '99999999-2222-3333-4444-555555555555' });
       assert.equal(other.res.status, 400, 'another directory is refused');
+      // The "My badge" web page does the same, coming back to /badge of the organisation's own address.
+      {
+        const s = await startApp('/badge');
+        assert.equal(s.status, 302, s.body);
+        const cb = await new Browser(IP).go(`/auth/sso/callback?${idp.issueCode(s.location, { tid: TID, oid: 'o-bea', preferred_username: 'bea@contoso.com' }, { issuer: ms(TID) })}`);
+        assert.match(cb.location, /^https?:\/\/[^/]+\/badge\?code=/);
+        const web = await new Client(IP).post('/auth/sso/badge/redeem', { code: new URL(cb.location).searchParams.get('code'), verifier }, { csrf: false });
+        assert.equal(web.status, 200, JSON.stringify(web.data)); assert.equal(web.data.employeeId, bea.id);
+      }
       assert.equal((await admin.del(`/admin/access/employees/${bea.id}`)).status, 200);
     }
 
