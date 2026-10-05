@@ -5,6 +5,7 @@ import { applyBrand } from '../lib/theme';
 import { intlLocale, lang, t } from './badge-strings';
 import { Button, Field, QrRing, Screen, ScreenHeader, SquaresBand, SuccessCheck } from './badge-ui';
 import { InviteDetail, InvitesList, NewInvite, me, type Profile } from './BadgeInvites';
+import type { AppKey } from './invites';
 import { forgetWebPush } from './BadgePush';
 
 /**
@@ -85,7 +86,7 @@ function explain(e: unknown): string {
   return `${t.errors.generic}\n${t.errors.detail}: ${e.status} ${e.code}`;
 }
 
-type View = { name: 'badge' } | { name: 'settings' } | { name: 'invites' } | { name: 'new' } | { name: 'detail'; id: string; created?: string };
+type View = { name: 'badge' } | { name: 'settings' } | { name: 'parcels' } | { name: 'invites' } | { name: 'new' } | { name: 'detail'; id: string; created?: string };
 
 export function BadgeApp() {
   const [badge, setBadge] = useState<Badge | null>(load);
@@ -144,9 +145,11 @@ export function BadgeApp() {
         : view.name === 'new' && token && profile ? <NewInvite token={token} profile={profile} onBack={back}
             onCreated={(id, emailStatus) => { window.history.replaceState({ name: 'detail', id, created: emailStatus }, ''); setViewState({ name: 'detail', id, created: emailStatus }); }} />
         : view.name === 'detail' && token ? <InviteDetail token={token} id={view.id} created={view.created} organisation={badge.organisation} host={badge.firstName} onBack={back} />
+        : view.name === 'parcels' && token ? <ParcelsScreen token={token} onBack={back} />
         : view.name === 'settings' ? <SettingsScreen badge={badge} onBack={back}
             onRemoved={() => { save(null); setBadge(null); setJustActivated(false); window.history.replaceState(null, ''); setViewState({ name: 'badge' }); }} />
         : <BadgeScreen badge={badge} justActivated={justActivated} canInvite={!!profile?.canInvite} server={server} onInvites={() => setView({ name: 'invites' })}
+            apps={profile ? profile.apps ?? ['reception', 'access', 'parcels'] : null} onParcels={() => setView({ name: 'parcels' })}
             onSettings={() => setView({ name: 'settings' })} onReactivate={reactivate} />}
     </div>
   );
@@ -226,22 +229,68 @@ function arrived(r: Parcel) {
     : t.parcels.day.replace('{site}', r.siteName).replace('{date}', new Intl.DateTimeFormat(intlLocale, { timeZone: r.timezone, day: 'numeric', month: 'long' }).format(new Date(at)));
 }
 
-/** Parcels waiting at reception, under the badge card (as in the app): refreshed on return and once a minute. */
-function ParcelsCard({ token }: { token: string }) {
+/** Parcels waiting for this person: refreshed on return to the page and once a minute. */
+function useParcels(token: string | undefined, enabled: boolean) {
   const [rows, setRows] = useState<Parcel[]>([]);
   useEffect(() => {
+    if (!token || !enabled) { setRows([]); return; }
     const load = () => { if (!document.hidden) me<Parcel[]>(token, '/parcels').then((r) => setRows(Array.isArray(r) ? r : []), () => undefined); };
     load();
     const h = setInterval(load, 60_000);
     document.addEventListener('visibilitychange', load);
     return () => { clearInterval(h); document.removeEventListener('visibilitychange', load); };
-  }, [token]);
+  }, [token, enabled]);
+  return rows;
+}
+
+const parcelLine = (r: Parcel) => [r.carrier, r.pieces > 1 ? t.parcels.pieces.replace('{n}', String(r.pieces)) : null, arrived(r)].filter(Boolean).join(' · ');
+
+/** Parcels waiting at reception, under the badge card (as in the app). */
+function ParcelsCard({ rows }: { rows: Parcel[] }) {
   if (!rows.length) return null;
   const total = rows.reduce((n, r) => n + r.pieces, 0);
   return (
     <section className="mb-parcels" aria-live="polite">
       <strong>{total > 1 ? t.parcels.many.replace('{n}', String(total)) : t.parcels.one}</strong>
-      {rows.map((r) => <span key={r.id}>{[r.carrier, r.pieces > 1 ? t.parcels.pieces.replace('{n}', String(r.pieces)) : null, arrived(r)].filter(Boolean).join(' · ')}</span>)}
+      {rows.map((r) => <span key={r.id}>{parcelLine(r)}</span>)}
+    </section>
+  );
+}
+
+/** The Parcels app: what is waiting at reception. */
+function ParcelsScreen({ token, onBack }: { token: string; onBack: () => void }) {
+  const rows = useParcels(token, true);
+  return (
+    <>
+      <ScreenHeader title={t.portal.parcels} backLabel={t.settings.back} onBack={onBack} />
+      <Screen>
+        {rows.length === 0 && <p className="mb-text mb-centered">{t.portal.parcelsEmpty}</p>}
+        {rows.map((r) => (
+          <div key={r.id} className="mb-row-card">
+            <strong>{r.pieces > 1 ? t.parcels.many.replace('{n}', String(r.pieces)) : t.parcels.one}</strong>
+            <span>{parcelLine(r)}</span>
+          </div>
+        ))}
+      </Screen>
+    </>
+  );
+}
+
+interface Tile { key: string; label: string; detail: string; onClick: () => void; count?: number }
+/** The apps of the organisation this person can open, as tiles under the badge (as in the app). */
+function AppTiles({ tiles }: { tiles: Tile[] }) {
+  if (!tiles.length) return null;
+  return (
+    <section className="mb-apps" aria-labelledby="mb-apps-t">
+      <h2 id="mb-apps-t">{t.portal.title}</h2>
+      <div className="mb-tiles">
+        {tiles.map((x) => (
+          <button key={x.key} type="button" className="mb-tile" onClick={x.onClick}>
+            <strong>{x.label}</strong><span>{x.detail}</span>
+            {x.count ? <em aria-hidden>{x.count}</em> : null}
+          </button>
+        ))}
+      </div>
     </section>
   );
 }
@@ -259,10 +308,14 @@ function Activated() {
   );
 }
 
-function BadgeScreen({ badge, justActivated, canInvite, server, onInvites, onSettings, onReactivate }: {
-  badge: Badge; justActivated: boolean; canInvite: boolean; server: 'ok' | 'stale' | 'offline' | null; onInvites: () => void; onSettings: () => void; onReactivate: () => void;
+function BadgeScreen({ badge, justActivated, canInvite, server, apps, onInvites, onParcels, onSettings, onReactivate }: {
+  badge: Badge; justActivated: boolean; canInvite: boolean; server: 'ok' | 'stale' | 'offline' | null;
+  /** Apps on for this person; null while unknown (offline, loading): the badge shows as before. */
+  apps: AppKey[] | null; onInvites: () => void; onParcels: () => void; onSettings: () => void; onReactivate: () => void;
 }) {
   const stale = server === 'stale';
+  const showBadge = apps === null || apps.includes('access');
+  const parcels = useParcels(badge.appToken, apps === null || apps.includes('parcels'));
   const [now, setNow] = useState(() => Date.now());
   const [svg, setSvg] = useState('');
   const step = Math.floor(now / 1000 / badge.step);
@@ -282,10 +335,11 @@ function BadgeScreen({ badge, justActivated, canInvite, server, onInvites, onSet
     let lock: { release: () => Promise<void> } | null = null;
     const nav = navigator as Navigator & { wakeLock?: { request: (t: 'screen') => Promise<{ release: () => Promise<void> }> } };
     const take = () => { if (!document.hidden) nav.wakeLock?.request('screen').then((l) => { lock = l; }).catch(() => undefined); };
+    if (!showBadge) return;
     take();
     document.addEventListener('visibilitychange', take);
     return () => { document.removeEventListener('visibilitychange', take); lock?.release().catch(() => undefined); };
-  }, []);
+  }, [showBadge]);
   // A phone clock off by more than the tolerance makes the reader refuse the QR: say so.
   const [clockOff, setClockOff] = useState(false);
   useEffect(() => {
@@ -312,18 +366,23 @@ function BadgeScreen({ badge, justActivated, canInvite, server, onInvites, onSet
             <Button label={t.stale.action} onClick={onReactivate} />
           </div>
         )}
+        {!showBadge && <p className="mb-text mb-centered">{t.portal.noBadge}</p>}
         {/* Faded when the server refuses it: the reader would refuse it as well. */}
-        <div className={`mb-qr-block${stale ? ' mb-faded' : ''}`} aria-hidden={stale || undefined}>
+        {showBadge && <div className={`mb-qr-block${stale ? ' mb-faded' : ''}`} aria-hidden={stale || undefined}>
           <QrRing codeStep={step} left={left} step={badge.step}>
             <div className="mb-qr">{src ? <img src={src} alt={t.hint} /> : <span className="mb-qr-empty" />}</div>
           </QrRing>
           <p className="mb-small" aria-live="off">{t.next.replace('{n}', String(left))}</p>
           <p className="mb-hint-strong">{t.hint}</p>
-        </div>
+        </div>}
         {clockOff && <p className="mb-warn" role="alert">{t.clock}</p>}
       </section>
-      {badge.appToken && <ParcelsCard token={badge.appToken} />}
-      {canInvite && <Button label={t.invites.open} onClick={onInvites} />}
+      <ParcelsCard rows={parcels} />
+      <AppTiles tiles={[
+        ...(canInvite ? [{ key: 'invites', label: t.portal.invites, detail: t.portal.invitesDetail, onClick: onInvites }] : []),
+        ...(apps?.includes('parcels') ? [{ key: 'parcels', label: t.portal.parcels, count: parcels.length, onClick: onParcels,
+          detail: parcels.length ? t.portal.parcelsSome.replace('{n}', String(parcels.reduce((n, r) => n + r.pieces, 0))) : t.portal.parcelsNone }] : []),
+      ]} />
       {!badge.appToken && <><p className="mb-small mb-centered">{t.stale.old}</p><Button label={t.stale.action} kind="ghost" onClick={onReactivate} /></>}
       {server === 'offline' && <p className="mb-small mb-centered" role="status">{t.stale.offline}</p>}
       {/* Removing the badge lives in the settings, away from the buttons used every day. */}

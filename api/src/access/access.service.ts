@@ -260,6 +260,7 @@ export class AccessService {
     const site = await this.sites.findOneOrFail({ where: { id: door.siteId, tenantId: reader.tenantId } });
     if (!reason && employee) {
       if (!employee.active) reason = 'EMPLOYEE_INACTIVE';
+      else if (employee.appsOff.includes('access')) reason = 'APP_DISABLED';
       else if (employee.validFrom && now < employee.validFrom) reason = 'NOT_YET_VALID';
       else if (employee.validUntil && now >= employee.validUntil) reason = 'EXPIRED';
       else if (!door.active) reason = 'DOOR_INACTIVE';

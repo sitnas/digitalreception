@@ -1,7 +1,8 @@
+import { APP_KEYS, RequireApp, type AppKey } from '../common/apps';
 import { BadRequestException, Body, ConflictException, Controller, Delete, Get, HttpCode, NotFoundException, Param, ParseUUIDPipe, Patch, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Transform, Type } from 'class-transformer';
-import { IsBoolean, IsIn, IsInt, IsISO8601, IsOptional, IsString, IsUUID, Length, Matches, Max, MaxLength, Min } from 'class-validator';
+import { ArrayUnique, IsArray, IsBoolean, IsIn, IsInt, IsISO8601, IsOptional, IsString, IsUUID, Length, Matches, Max, MaxLength, Min } from 'class-validator';
 import { Between, In, IsNull, Repository } from 'typeorm';
 import { AuditService } from '../common/audit.service';
 import { CryptoService } from '../common/crypto.service';
@@ -55,6 +56,10 @@ export class AccessEventsQuery {
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(2000) limit?: number;
 }
 
+export class EmployeeAppsDto {
+  @IsArray() @ArrayUnique() @IsIn(APP_KEYS, { each: true }) appsOff: AppKey[];
+}
+
 export class AccessSettingsDto {
   @IsBoolean() selfRemove: boolean;
 }
@@ -105,6 +110,7 @@ export class AccessAdminController {
 
   // ------------------------------------------------------------------ doors and readers
   @Get('doors')
+  @RequireApp('access')
   @Roles(...READ)
   async listDoors(@CurrentUser() user: AuthUser) {
     const doors = await this.visibleDoors(user);
@@ -117,6 +123,7 @@ export class AccessAdminController {
   }
 
   @Post('doors')
+  @RequireApp('access')
   @Roles(...MANAGE)
   async createDoor(@CurrentUser() user: AuthUser, @Body() dto: CreateDoorDto, @Req() req: AppRequest) {
     assertSiteAccess(user, dto.siteId);
@@ -128,6 +135,7 @@ export class AccessAdminController {
   }
 
   @Patch('doors/:id')
+  @RequireApp('access')
   @Roles(...MANAGE)
   async updateDoor(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateDoorDto, @Req() req: AppRequest) {
     const door = await this.doors.findOne({ where: { id, tenantId: user.tenantId } });
@@ -140,6 +148,7 @@ export class AccessAdminController {
 
   /** One-time code to enrol a reader at this door (same flow as reception tablets). */
   @Post('doors/:id/reader-code')
+  @RequireApp('access')
   @Roles(...MANAGE)
   async readerCode(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Body() dto: ReaderCodeDto, @Req() req: AppRequest) {
     const door = await this.doors.findOne({ where: { id, tenantId: user.tenantId } });
@@ -153,6 +162,7 @@ export class AccessAdminController {
   }
 
   @Post('readers/:id/revoke')
+  @RequireApp('access')
   @HttpCode(200)
   @Roles(...MANAGE)
   async revokeReader(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Req() req: AppRequest) {
@@ -231,7 +241,7 @@ export class AccessAdminController {
       email: tc.decrypt(e.emailEnc, 'employee.email'), department: tc.decrypt(e.departmentEnc, 'employee.department'), jobTitle: tc.decrypt(e.jobTitleEnc, 'employee.jobTitle'),
       source: e.source, active: e.active, validFrom: e.validFrom, validUntil: e.validUntil,
       project: e.projectId && projects.has(e.projectId) ? { id: e.projectId, code: projects.get(e.projectId)!.code, name: projects.get(e.projectId)!.name } : null,
-      badgeHint: e.badgeHint, phoneBadge: !!e.credentialSecretEnc, phoneBadgeIssuedAt: e.credentialIssuedAt, updatedAt: e.updatedAt,
+      appsOff: e.appsOff, badgeHint: e.badgeHint, phoneBadge: !!e.credentialSecretEnc, phoneBadgeIssuedAt: e.credentialIssuedAt, updatedAt: e.updatedAt,
       permissions: rules.filter((r) => r.employeeId === e.id && doorById.has(r.doorId)).map((r) => {
         const d = doorById.get(r.doorId)!;
         return { doorExternalId: d.externalId, door: d.name, site: sites.get(d.siteId) ?? '—', days: r.days ? r.days.split(',').map(Number) : null, from: r.fromTime, to: r.toTime };
@@ -265,6 +275,18 @@ export class AccessAdminController {
     await this.access.upsertEmployee(user.tenantId, e.externalId, dto, 'CONSOLE');
     await this.audit.fromRequest(req, { action: 'EMPLOYEE_UPDATED', entityType: 'employee', entityId: e.id, details: { externalId: e.externalId, wasFromApi: e.source === 'API', permissions: dto.permissions.length, badge: dto.badgeUid === undefined ? 'kept' : dto.badgeUid ? 'set' : 'removed' } });
     return { ok: true };
+  }
+
+  /** Apps turned off for this person (console only: the HR system does not send it and never resets it). */
+  @Put('employees/:id/apps')
+  @Roles(Role.SUPER_ADMIN)
+  async employeeApps(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Body() dto: EmployeeAppsDto, @Req() req: AppRequest) {
+    const e = await this.employees.findOne({ where: { id, tenantId: user.tenantId }, select: { id: true, appsOff: true } });
+    if (!e) throw new NotFoundException('EMPLOYEE_NOT_FOUND');
+    const appsOff = APP_KEYS.filter((a) => dto.appsOff.includes(a));
+    await this.employees.update(e.id, { appsOff });
+    await this.audit.fromRequest(req, { action: 'EMPLOYEE_APPS_UPDATED', entityType: 'employee', entityId: e.id, details: { before: e.appsOff, after: appsOff } });
+    return { appsOff };
   }
 
   @Delete('employees/:id')
@@ -308,6 +330,7 @@ export class AccessAdminController {
 
   // ------------------------------------------------------------------ access log
   @Get('events')
+  @RequireApp('access')
   @Roles(...READ)
   async listEvents(@CurrentUser() user: AuthUser, @Query() q: AccessEventsQuery, @Req() req: AppRequest) {
     const from = new Date(q.from), to = new Date(q.to);

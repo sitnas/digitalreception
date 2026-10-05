@@ -1,3 +1,4 @@
+import { RequireApp } from '../common/apps';
 import { Body, Controller, Get, HttpCode, Logger, Post, Req, UnauthorizedException, UseGuards } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { Throttle } from '@nestjs/throttler';
@@ -30,6 +31,7 @@ export class BadgeActivateDto {
 
 /** The reader at a door: pairing, its configuration and the verification of each QR / badge. */
 @Controller('reader')
+@RequireApp('access')
 export class ReaderController {
   constructor(
     private readonly access: AccessService,

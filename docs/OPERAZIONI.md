@@ -81,6 +81,20 @@ Senza `PUBLIC_URL` il sistema usa l'origine di `SSO_REDIRECT_URI`; se mancano tu
 
 Firma e foto del documento caricate dal telefono restano cifrate e legate all'invito; all'arrivo passano alla visita e prendono i tempi di conservazione della visita. Se l'invito viene annullato le cancelliamo subito, se l'ospite non arriva le cancella il job di retention 7 giorni dopo il giorno previsto.
 
+## App del portale
+
+La console e il telefono dei dipendenti sono un portale. I **dati comuni** (dipendenti, commesse, sedi, utenti della console, integrazione API) ci sono sempre. Le **app** si accendono e spengono:
+
+| App | In console | Sul telefono |
+|---|---|---|
+| Reception | Oggi, Inviti, Storico, Evacuazione, Statistiche, Persone da visitare, Tablet, Documenti | I miei inviti, avviso quando arriva un ospite |
+| Porte | Porte e lettori, Passaggi | Il badge con QR e NFC |
+| Pacchi | Consegne | Avviso e elenco dei pacchi da ritirare |
+
+- **Per organizzazione**: *Impostazioni → App attive*, solo l'Amministratore. Un'app spenta sparisce dal menu, il tablet mostra che il registro non è attivo e le sue API rispondono `403 APP_DISABLED`. I dati restano: riaccendendola si ritrova tutto.
+- **Per dipendente**: nella scheda in *Dipendenti*, sezione "App per questa persona". Il sistema HR non tocca questa scelta. Porte spente: il telefono non mostra il QR e il lettore rifiuta con `APP_DISABLED`. Pacchi spenti: la persona non compare tra i destinatari. Reception spenta: niente inviti dall'app.
+- Le organizzazioni esistenti hanno tutte le app accese, come prima.
+
 ## Notifiche push ai dipendenti
 
 Funzionano senza configurazione: la chiave per il Web Push (pagina `/badge`) viene creata al primo uso e salvata cifrata nel database. Servono soltanto:

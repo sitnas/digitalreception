@@ -1,3 +1,4 @@
+import { RequireApp } from '../common/apps';
 import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { Transform } from 'class-transformer';
 import { IsEmail, IsEnum, IsIn, IsOptional, IsString, IsUUID, Length, Matches, MaxLength } from 'class-validator';
@@ -38,6 +39,7 @@ const STAFF = [Role.SUPER_ADMIN, Role.SITE_MANAGER, Role.RECEPTIONIST];
 
 /** Pre-registered visits, managed by the reception staff on behalf of the people being visited. */
 @Controller('admin/invitations')
+@RequireApp('reception')
 @UseGuards(AdminAuthGuard)
 export class InvitationsController {
   constructor(private readonly invitations: InvitationsService, private readonly audit: AuditService) {}

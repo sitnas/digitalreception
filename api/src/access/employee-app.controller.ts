@@ -1,3 +1,4 @@
+import { employeeApps, RequireApp } from '../common/apps';
 import { Body, Controller, Delete, ForbiddenException, Get, HttpCode, NotFoundException, Param, ParseUUIDPipe, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -74,6 +75,15 @@ export class EmployeeAppController {
     @InjectRepository(PushDevice) private readonly pushDevices: Repository<PushDevice>,
   ) {}
 
+  /** The apps this employee sees: the organisation's, minus the ones turned off for them. */
+  private async apps(me: AuthEmployee) {
+    const [t, e] = await Promise.all([
+      this.tenants.findOneOrFail({ where: { id: me.tenantId }, select: { id: true, apps: true } }),
+      this.employees.findOneOrFail({ where: { id: me.id, tenantId: me.tenantId }, select: { id: true, appsOff: true } }),
+    ]);
+    return employeeApps(t.apps, e.appsOff);
+  }
+
   /** The active entry in the directory of people to visit, with its active sites. */
   private async host(me: AuthEmployee) {
     const h = await this.hosts.findOne({ where: { tenantId: me.tenantId, employeeId: me.id, active: true }, relations: { sites: true } });
@@ -82,6 +92,7 @@ export class EmployeeAppController {
   }
 
   private async requireHost(me: AuthEmployee) {
+    if (!(await this.apps(me)).includes('reception')) throw new ForbiddenException('NOT_A_HOST');
     const h = await this.host(me);
     if (!h) throw new ForbiddenException('NOT_A_HOST');
     return h;
@@ -109,12 +120,15 @@ export class EmployeeAppController {
   async profile(@CurrentEmployee() me: AuthEmployee) {
     const e = await this.employees.findOneOrFail({ where: { id: me.id, tenantId: me.tenantId } });
     const tc = await this.keys.forTenant(me.tenantId);
-    const t = await this.tenants.findOneOrFail({ where: { id: me.tenantId }, select: { id: true, name: true, badgeSelfRemove: true } });
-    const h = await this.host(me);
+    const t = await this.tenants.findOneOrFail({ where: { id: me.tenantId }, select: { id: true, name: true, badgeSelfRemove: true, apps: true } });
+    const apps = employeeApps(t.apps, e.appsOff);
+    const h = apps.includes('reception') ? await this.host(me) : null;
     return {
       firstName: tc.decrypt(e.firstNameEnc, 'employee.firstName'), lastName: tc.decrypt(e.lastNameEnc, 'employee.lastName'), organisation: t.name,
       canInvite: !!h,
       canRemove: t.badgeSelfRemove,
+      /** Apps to show in the phone's portal. */
+      apps,
       sites: h ? h.sites.map((s) => ({ id: s.id, name: s.name, timezone: s.timezone })) : [],
       purposes: Object.values(VisitPurpose),
     };
@@ -122,7 +136,9 @@ export class EmployeeAppController {
 
   /** Parcels waiting for me at reception (any site), newest first. */
   @Get('parcels')
+  @RequireApp('parcels')
   async parcels(@CurrentEmployee() me: AuthEmployee) {
+    if (!(await this.apps(me)).includes('parcels')) return [];
     const rows = await this.employees.manager.find(Parcel, { where: { tenantId: me.tenantId, employeeId: me.id, status: 'WAITING' }, order: { receivedAt: 'DESC' }, take: 50 });
     if (!rows.length) return [];
     const sites = new Map((await this.employees.manager.find(Site, { where: { tenantId: me.tenantId, id: In([...new Set(rows.map((r) => r.siteId))]) } })).map((s) => [s.id, s]));
@@ -130,6 +146,7 @@ export class EmployeeAppController {
   }
 
   @Get('invitations')
+  @RequireApp('reception')
   async list(@CurrentEmployee() me: AuthEmployee, @Query() q: AppInvitationsQuery) {
     const h = await this.requireHost(me);
     const rows = await this.invitations.list(me, undefined, q.scope ?? 'upcoming', h.id);
@@ -138,6 +155,7 @@ export class EmployeeAppController {
   }
 
   @Post('invitations')
+  @RequireApp('reception')
   @Throttle({ default: { limit: 20, ttl: 60_000 } })
   async create(@CurrentEmployee() me: AuthEmployee, @Body() dto: AppInvitationDto, @Req() req: AppRequest) {
     const h = await this.requireHost(me);
@@ -155,6 +173,7 @@ export class EmployeeAppController {
   }
 
   @Post('invitations/:id/cancel')
+  @RequireApp('reception')
   @HttpCode(200)
   async cancel(@CurrentEmployee() me: AuthEmployee, @Param('id', ParseUUIDPipe) id: string, @Req() req: AppRequest) {
     const inv = await this.mine(me, id);
@@ -165,6 +184,7 @@ export class EmployeeAppController {
 
   /** Code and QR content, for the host to forward when the email did not arrive. */
   @Get('invitations/:id/qr')
+  @RequireApp('reception')
   async qr(@CurrentEmployee() me: AuthEmployee, @Param('id', ParseUUIDPipe) id: string) {
     await this.mine(me, id);
     const { code } = await this.invitations.qr(me, id);

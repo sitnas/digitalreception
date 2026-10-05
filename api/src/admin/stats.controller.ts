@@ -1,3 +1,4 @@
+import { RequireApp } from '../common/apps';
 import { BadRequestException, Controller, Get, Query, Req, UseGuards } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsISO8601, IsOptional, IsUUID } from 'class-validator';
@@ -21,6 +22,7 @@ const DAY_MS = 86_400_000;
  * so the numbers stay valid after visits are anonymised and never expose who visited.
  */
 @Controller('admin/stats')
+@RequireApp('reception')
 @UseGuards(AdminAuthGuard)
 export class StatsController {
   constructor(

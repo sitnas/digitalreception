@@ -1,3 +1,4 @@
+import { RequireApp } from '../common/apps';
 import { BadRequestException, Body, ConflictException, Controller, Get, HttpCode, NotFoundException, Param, ParseUUIDPipe, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { IsBoolean, IsIn, IsUUID } from 'class-validator';
@@ -35,6 +36,7 @@ export interface EvacuationPerson {
  * the marshals tick who reached the assembly point; several phones can do it at once.
  */
 @Controller('admin/evacuations')
+@RequireApp('reception')
 @UseGuards(AdminAuthGuard)
 @Roles(...MARSHALS)
 export class EvacuationsController {

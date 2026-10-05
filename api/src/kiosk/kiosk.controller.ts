@@ -1,3 +1,4 @@
+import { RequireApp } from '../common/apps';
 import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { CurrentDevice, CurrentTenant, DeviceGuard } from '../common/guards';
@@ -7,6 +8,7 @@ import { KioskService } from './kiosk.service';
 import { InvitationsService } from '../invitations/invitations.service';
 
 @Controller('kiosk')
+@RequireApp('reception')
 export class KioskController {
   constructor(private readonly kiosk: KioskService, private readonly invitations: InvitationsService) {}
 

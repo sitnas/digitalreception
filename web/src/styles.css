@@ -125,6 +125,7 @@ select.input { appearance: none; -webkit-appearance: none; padding-right: 34px; 
 .a-nav-section + .a-nav-section { border-top: 1px solid var(--brand-2-line); margin-top: 10px; }
 .a-nav-group { display: flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--brand-on-2); padding: 16px 10px 8px; }
 .a-nav-group svg { width: 16px; height: 16px; flex: none; }
+.a-nav-super { display: block; font-size: 10px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: var(--on-brand-2-muted); padding: 14px 10px 0; }
 .a-side .a-nav-section a { padding-left: 34px; font-weight: 400; }
 .a-side .a-nav-section a.active { font-weight: 700; }
 .a-nav a { position: relative; display: flex; align-items: center; height: 34px; padding: 0 10px; border-radius: var(--r-sm); color: var(--on-brand-2-muted); text-decoration: none; font-weight: 700; }
@@ -797,6 +798,18 @@ code.mfa-secret { font-size: 14px; overflow-wrap: anywhere; max-width: 100%; }
 .mb-parcels { display: grid; gap: 4px; border: 1px solid var(--brand); border-left-width: 4px; border-radius: 14px; padding: 14px; background: var(--mb-surface); animation: mb-rise .35s cubic-bezier(.34, 1.36, .64, 1) both; }
 .mb-parcels strong { font-size: 16px; font-weight: 800; }
 .mb-parcels span { font-size: 14px; color: var(--mb-ink2); }
+.mb-apps { display: grid; gap: 10px; }
+.mb-apps h2 { margin: 0; font-size: 13px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--mb-ink2); }
+.mb-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+.mb-tile { position: relative; display: grid; gap: 4px; align-content: start; min-height: 104px; text-align: left; font: inherit; color: var(--mb-ink); background: var(--mb-surface); border: 1px solid var(--mb-line); border-radius: 16px; padding: 20px 16px 16px; cursor: pointer; overflow: hidden; transition: transform .12s ease; }
+.mb-tile::before { content: ''; position: absolute; inset: 0 0 auto; height: 4px; background: var(--brand); }
+.mb-tile:active { transform: scale(.97); }
+.mb-tile strong { font-size: 17px; font-weight: 800; }
+.mb-tile span { font-size: 14px; line-height: 1.35; color: var(--mb-ink2); }
+.mb-tile em { position: absolute; top: 14px; right: 14px; min-width: 26px; height: 26px; border-radius: 13px; display: grid; place-items: center; padding: 0 7px; font-style: normal; font-weight: 800; font-size: 14px; background: var(--brand); color: var(--on-brand); }
+.mb-row-card { display: grid; gap: 4px; border: 1px solid var(--mb-line); border-radius: 14px; padding: 14px; background: var(--mb-surface); }
+.mb-row-card strong { font-size: 16px; }
+.mb-row-card span { font-size: 14px; color: var(--mb-ink2); }
 @keyframes mb-rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
 .mb-invite { gap: 6px; padding: 22px; }
 .mb-status-big { font-size: 13px; font-weight: 800; color: var(--mb-ink2); text-transform: uppercase; letter-spacing: .6px; }
@@ -872,3 +885,13 @@ code.mfa-secret { font-size: 14px; overflow-wrap: anywhere; max-width: 100%; }
   .k-choice:hover:not(:disabled) { transform: none; }
   .k-chip[aria-pressed='true']::before, .k-swap, .alert, .error, .mb-error, .mb-error-block, .input[aria-invalid='true'], .mb-input[aria-invalid='true'] { animation: none; }
 }
+
+/* ---------- apps of the portal ---------- */
+.app-tiles { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+.app-tile { margin: 0; display: flex; flex-direction: column; gap: 10px; border-top: 4px solid var(--line, #e4e4e0); }
+.app-tile.is-on { border-top-color: var(--brand-strong); }
+.app-tile h2 { margin: 0; font-size: 18px; }
+.app-tile p { margin: 0; flex: 1; color: var(--ink-2, #5b5b57); line-height: 1.45; }
+.app-tile-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.pill-on { background: var(--brand-soft); color: var(--ink, #1a1a1a); }
+.app-checks { display: flex; flex-wrap: wrap; gap: 8px 20px; }

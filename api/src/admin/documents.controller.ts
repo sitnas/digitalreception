@@ -1,3 +1,4 @@
+import { RequireApp } from '../common/apps';
 import { BadRequestException, Body, Controller, Get, NotFoundException, Param, ParseUUIDPipe, Patch, Post, Req, UseGuards } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Transform } from 'class-transformer';
@@ -32,6 +33,7 @@ export class DocumentVersionDto {
  * Texts are immutable: saving publishes a new version, and each visit keeps the version it accepted.
  */
 @Controller('admin/documents')
+@RequireApp('reception')
 @UseGuards(AdminAuthGuard)
 export class DocumentsController {
   constructor(

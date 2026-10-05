@@ -23,15 +23,22 @@ function arrived(r: Parcel) {
  * Parcels waiting at reception, under the badge card: refreshed when the badge comes back in front
  * and once a minute while it stays there. Nothing is shown when there are none.
  */
-export function ParcelsCard({ badge, theme }: { badge: Badge; theme: Theme }) {
+export function useParcels(badge: Badge, enabled: boolean) {
   const [rows, setRows] = useState<Parcel[]>([]);
-  const load = useCallback(() => { if (badge.appToken) listParcels(badge).then(setRows, () => {}); }, [badge]);
+  const load = useCallback(() => { if (badge.appToken && enabled) listParcels(badge).then(setRows, () => {}); else setRows([]); }, [badge, enabled]);
   useFocusEffect(useCallback(() => {
     load();
     const h = setInterval(load, REFRESH_MS);
     const sub = AppState.addEventListener('change', (s) => { if (s === 'active') load(); });
     return () => { clearInterval(h); sub.remove(); };
   }, [load]));
+  return rows;
+}
+
+/** One line per parcel: carrier, pieces, when and where it arrived. */
+export const parcelLine = (r: Parcel) => [r.carrier, r.pieces > 1 ? t.parcels.pieces.replace('{n}', String(r.pieces)) : null, arrived(r)].filter(Boolean).join(' · ');
+
+export function ParcelsCard({ rows, theme }: { rows: Parcel[]; theme: Theme }) {
 
   // Slides in when a parcel appears.
   const reduced = useReducedMotion();
@@ -52,7 +59,7 @@ export function ParcelsCard({ badge, theme }: { badge: Badge; theme: Theme }) {
       {rows.map((r) => (
         <View key={r.id} style={styles.row}>
           <Text style={[styles.meta, { color: theme.ink2 }]}>
-            {[r.carrier, r.pieces > 1 ? t.parcels.pieces.replace('{n}', String(r.pieces)) : null, arrived(r)].filter(Boolean).join(' · ')}
+            {parcelLine(r)}
           </Text>
         </View>
       ))}

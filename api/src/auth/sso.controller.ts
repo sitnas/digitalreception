@@ -253,7 +253,7 @@ export class SsoController {
       if (changed) await em.update(User, { tenantId: r.tenantId }, { ssoSubject: null });
       await em.update(Tenant, { id: r.tenantId }, { ssoProvider: r.provider, ssoOrgId: r.orgId, ssoOrgLabel: r.orgLabel, ssoLinkedAt: new Date(), ...(changed ? { ssoEnforced: false } : {}) });
     });
-    req.user = { id: admin.id, tenantId: admin.tenantId, email: admin.email, displayName: admin.displayName, role: admin.role, siteIds: [], mustChangePassword: false, mfaEnabled: !!admin.mfaEnabledAt, mfaSetupRequired: false, sso: false };
+    req.user = { id: admin.id, tenantId: admin.tenantId, email: admin.email, displayName: admin.displayName, role: admin.role, siteIds: [], mustChangePassword: false, mfaEnabled: !!admin.mfaEnabledAt, mfaSetupRequired: false, sso: false, apps: [] };
     await this.audit.fromRequest(req, { action: 'SSO_LINKED', entityType: 'tenant', entityId: r.tenantId, details: { provider: r.provider, org: r.orgLabel } });
     return this.back(res, '/admin/organisation?sso=linked');
   }

@@ -1,5 +1,7 @@
 import { MiddlewareConsumer, Module, NestModule, RequestMethod } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
+import { AppsGuard } from './common/apps';
+import { AppsController } from './admin/apps.controller';
 import { JwtModule } from '@nestjs/jwt';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
@@ -65,11 +67,12 @@ const JWT = { algorithm: 'HS256' as const, issuer: 'reception-api', audience: 'r
     }),
     ScheduleModule.forRoot(),
   ],
-  controllers: [HealthController, TenantController, AuthController, SsoController, KioskController, VisitsController, ManagementController, StatsController, InvitationsController, IntegrationController, ReaderController, BadgeController, AccessAdminController, EmployeeAppController, WebhooksController, PushSettingsController, EvacuationsController, DocumentsController, GuestController, ParcelsController],
+  controllers: [HealthController, TenantController, AuthController, SsoController, KioskController, VisitsController, ManagementController, StatsController, InvitationsController, IntegrationController, ReaderController, BadgeController, AccessAdminController, EmployeeAppController, WebhooksController, PushSettingsController, EvacuationsController, DocumentsController, GuestController, ParcelsController, AppsController],
   providers: [
     { provide: APP_CONFIG, useValue: config as AppConfig },
     { provide: STORAGE, useFactory: () => createStorage(config) },
     { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_GUARD, useClass: AppsGuard },
     CryptoService, TenantKeysService, InvitationsService, AccessService, ApiKeyGuard, ReaderGuard, EmployeeAppGuard, AuditService, FilesService, MailService, VisitLifecycleService,
     SessionService, AdminAuthGuard, DeviceGuard, KioskService, VisitsService, RetentionService, MailOutboxService, WebhooksService, WebhookOutboxService, PushService, PushOutboxService, SiteDocumentsService,
   ],

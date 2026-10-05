@@ -1,3 +1,4 @@
+import { appListTransformer, type AppKey } from '../common/app-keys';
 import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
 
 /**
@@ -35,6 +36,8 @@ export class Employee {
   @Column({ type: 'char', length: 64, nullable: true }) badgeIndex: string | null;
   @Column({ type: 'varchar', length: 8, nullable: true }) badgeHint: string | null;
   @Column({ default: true }) active: boolean;
+  /** Apps of the organisation turned off for this person (set in the console; the HR system never touches it). */
+  @Column({ type: 'varchar', length: 200, default: '', transformer: appListTransformer }) appsOff: AppKey[];
   @Column({ type: 'datetime', precision: 3, nullable: true }) validFrom: Date | null;
   @Column({ type: 'datetime', precision: 3, nullable: true }) validUntil: Date | null;
   /** Secret shared with the employee's phone to sign the rotating QR. Null = no phone badge. */

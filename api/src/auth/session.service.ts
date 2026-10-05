@@ -28,7 +28,7 @@ export class SessionService {
       httpOnly: true, secure: this.cfg.auth.cookieSecure, sameSite: 'strict', path: '/api', maxAge: this.cfg.auth.sessionHours * 3_600_000,
     });
     const sso = opts.via === 'sso';
-    req.user = { id: user.id, tenantId: user.tenantId, email: user.email, displayName: user.displayName, role: user.role, siteIds: [], mustChangePassword: !sso && user.mustChangePassword, mfaEnabled: !!user.mfaEnabledAt, mfaSetupRequired: false, sso };
+    req.user = { id: user.id, tenantId: user.tenantId, email: user.email, displayName: user.displayName, role: user.role, siteIds: [], mustChangePassword: !sso && user.mustChangePassword, mfaEnabled: !!user.mfaEnabledAt, mfaSetupRequired: false, sso, apps: [] };
     await this.audit.fromRequest(req, { action: 'LOGIN', entityType: 'user', entityId: user.id, details: opts.details });
     return { ok: true, mustChangePassword: req.user.mustChangePassword };
   }

@@ -1,3 +1,4 @@
+import { RequireApp } from '../common/apps';
 import { BadRequestException, Body, ConflictException, Controller, Delete, Get, HttpCode, NotFoundException, Param, ParseUUIDPipe, Post, Query, Req, Res, StreamableFile, UseGuards } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { Transform, Type } from 'class-transformer';
@@ -46,6 +47,7 @@ const norm = (s: string) => s.normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerC
  * photo); the employee hears it on the phone and by email and collects it, and the staff mark it handed over.
  */
 @Controller('admin/parcels')
+@RequireApp('parcels')
 @UseGuards(AdminAuthGuard)
 export class ParcelsController {
   constructor(
@@ -70,9 +72,10 @@ export class ParcelsController {
   async recipients(@CurrentUser() user: AuthUser, @Query() q: RecipientQuery) {
     const tc = await this.keys.forTenant(user.tenantId);
     const term = norm(q.q);
-    const all = await this.ds.getRepository(Employee).find({ where: { tenantId: user.tenantId, active: true }, select: { id: true, firstNameEnc: true, lastNameEnc: true, departmentEnc: true } });
+    const all = await this.ds.getRepository(Employee).find({ where: { tenantId: user.tenantId, active: true }, select: { id: true, firstNameEnc: true, lastNameEnc: true, departmentEnc: true, appsOff: true } });
     const out: { id: string; firstName: string; lastName: string; department: string | null }[] = [];
     for (const e of all) {
+      if (e.appsOff.includes('parcels')) continue; // parcels turned off for this person
       const firstName = tc.decrypt(e.firstNameEnc, 'employee.firstName') ?? '', lastName = tc.decrypt(e.lastNameEnc, 'employee.lastName') ?? '';
       const full = norm(`${firstName} ${lastName}`), rev = norm(`${lastName} ${firstName}`);
       if (full.includes(term) || rev.includes(term)) out.push({ id: e.id, firstName, lastName, department: tc.decrypt(e.departmentEnc, 'employee.department') });
@@ -111,6 +114,7 @@ export class ParcelsController {
     if (!site) throw new BadRequestException('SITE_NOT_FOUND');
     const employee = await this.ds.getRepository(Employee).findOne({ where: { id: dto.employeeId, tenantId: user.tenantId, active: true } });
     if (!employee) throw new BadRequestException('EMPLOYEE_NOT_FOUND');
+    if (employee.appsOff.includes('parcels')) throw new BadRequestException('EMPLOYEE_APP_DISABLED');
     const photo = dto.photo ? this.files.parseImage(dto.photo, 'photo') : null;
     const tc = await this.keys.forTenant(user.tenantId);
     const now = new Date();
