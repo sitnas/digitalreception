@@ -72,6 +72,14 @@ export const createInvite = (b: Authed, v: NewInvite, locale: string) =>
 export const cancelInvite = (b: Authed, id: string) => authed<{ ok: true }>(b, `/invitations/${id}/cancel`, { method: 'POST', body: '{}' });
 export const inviteQr = (b: Authed, id: string) => authed<{ code: string; payload: string }>(b, `/invitations/${id}/qr`);
 
+/** Parcels waiting for me at reception. */
+export interface Parcel { id: string; siteName: string; timezone: string; carrier: string | null; pieces: number; receivedAt: string }
+export const listParcels = async (b: Authed) => {
+  const rows = await authed<Parcel[]>(b, '/parcels');
+  if (!Array.isArray(rows)) throw new ApiError(200, 'BAD_RESPONSE');
+  return rows;
+};
+
 // ------------------------------------------------------------------ "your guest has arrived" notices
 export const pushRegister = (b: Authed, token: string, locale: string) =>
   authed<{ id: string }>(b, '/push', { method: 'POST', body: JSON.stringify({ kind: 'expo', token, locale }) });

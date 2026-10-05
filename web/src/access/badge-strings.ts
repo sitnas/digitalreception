@@ -34,6 +34,7 @@ const STRINGS = {
     ssoSignIn: 'Accedi con {provider}', ssoOr: 'oppure ricevi un codice via email', ssoHint: 'Usa l’account aziendale con cui entri in Outlook, Teams o Gmail.',
     activated: 'Badge attivo su questo telefono.', loading: 'Caricamento…',
     clock: 'L’ora del telefono sembra sbagliata: attiva data e ora automatiche, altrimenti il lettore rifiuta il QR.',
+    parcels: { one: 'Un pacco ti aspetta in reception', many: '{n} pacchi ti aspettano in reception', today: '{site} · arrivato alle {time}', day: '{site} · arrivato il {date}', pieces: '{n} colli' },
     invites: {
       open: 'I miei inviti', title: 'Inviti', back: 'Indietro', new: 'Nuovo invito', none: 'Nessun ospite atteso. Crea un invito: l’ospite riceve un’email con un QR e alla reception tocca “Ho un invito”.',
       today: 'Oggi', tomorrow: 'Domani', refresh: 'Aggiorna',
@@ -82,6 +83,7 @@ const STRINGS = {
     ssoSignIn: 'Acceder con {provider}', ssoOr: 'o reciba un código por correo', ssoHint: 'Use la cuenta de la empresa con la que entra en Outlook, Teams o Gmail.',
     activated: 'Credencial activa en este teléfono.', loading: 'Cargando…',
     clock: 'La hora del teléfono parece incorrecta: active fecha y hora automáticas o el lector rechazará el QR.',
+    parcels: { one: 'Tiene un paquete en recepción', many: 'Tiene {n} paquetes en recepción', today: '{site} · llegó a las {time}', day: '{site} · llegó el {date}', pieces: '{n} bultos' },
     invites: {
       open: 'Mis invitaciones', title: 'Invitaciones', back: 'Atrás', new: 'Nueva invitación', none: 'No espera a nadie. Cree una invitación: el invitado recibe un correo con un QR y en recepción toca «Tengo una invitación».',
       today: 'Hoy', tomorrow: 'Mañana', refresh: 'Actualizar',
@@ -130,6 +132,7 @@ const STRINGS = {
     ssoSignIn: 'Sign in with {provider}', ssoOr: 'or get a code by email', ssoHint: 'Use the work account you sign in to Outlook, Teams or Gmail with.',
     activated: 'Badge active on this phone.', loading: 'Loading…',
     clock: 'The phone clock looks wrong: turn on automatic date and time, or the reader will refuse the QR.',
+    parcels: { one: 'A parcel is waiting for you at reception', many: '{n} parcels are waiting for you at reception', today: '{site} · arrived at {time}', day: '{site} · arrived on {date}', pieces: '{n} pieces' },
     invites: {
       open: 'My invitations', title: 'Invitations', back: 'Back', new: 'New invitation', none: 'No guests expected. Create an invitation: the guest receives an email with a QR and taps “I have an invitation” at reception.',
       today: 'Today', tomorrow: 'Tomorrow', refresh: 'Refresh',

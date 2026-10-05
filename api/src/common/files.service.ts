@@ -24,9 +24,10 @@ export class FilesService {
     return { mime: m[1], data };
   }
 
-  /** Stores an image of a visit, or of a pre-registration (`{ invitationId }`) until the guest arrives. */
-  async store(em: EntityManager, tc: TenantCrypto, owner: string | { invitationId: string }, kind: FileKind, image: { mime: string; data: Buffer }, purgeAfter: Date): Promise<StoredFile> {
-    const link = typeof owner === 'string' ? { visitId: owner, invitationId: null } : { visitId: null, invitationId: owner.invitationId };
+  /** Stores an image of a visit, of a pre-registration (`{ invitationId }`) until the guest arrives, or of a parcel. */
+  async store(em: EntityManager, tc: TenantCrypto, owner: string | { invitationId: string } | { parcelId: string }, kind: FileKind, image: { mime: string; data: Buffer }, purgeAfter: Date): Promise<StoredFile> {
+    const link = typeof owner === 'string' ? { visitId: owner, invitationId: null, parcelId: null }
+      : 'invitationId' in owner ? { visitId: null, invitationId: owner.invitationId, parcelId: null } : { visitId: null, invitationId: null, parcelId: owner.parcelId };
     const saved = await em.save(em.create(StoredFile, { tenantId: tc.tenantId, ...link, kind, mime: image.mime, size: image.data.length, purgeAfter, purgedAt: null, keyId: '', storagePath: '' }));
     const now = new Date();
     const key = `${tc.tenantId}/${now.getUTCFullYear()}/${String(now.getUTCMonth() + 1).padStart(2, '0')}/${saved.id}.bin`;

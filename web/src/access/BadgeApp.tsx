@@ -2,7 +2,7 @@ import QRCode from 'qrcode';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ApiError } from '../lib/api';
 import { applyBrand } from '../lib/theme';
-import { lang, t } from './badge-strings';
+import { intlLocale, lang, t } from './badge-strings';
 import { Button, Field, QrRing, Screen, SquaresBand, SuccessCheck } from './badge-ui';
 import { InviteDetail, InvitesList, NewInvite, me, type Profile } from './BadgeInvites';
 import { forgetWebPush } from './BadgePush';
@@ -193,6 +193,37 @@ function Setup({ tenant, onDone }: { tenant: Tenant | null; onDone: (b: Badge) =
   );
 }
 
+interface Parcel { id: string; siteName: string; timezone: string; carrier: string | null; pieces: number; receivedAt: string }
+
+/** When it arrived, in the site's time zone: the time if today, otherwise the day. */
+function arrived(r: Parcel) {
+  const day = (ms: number) => new Intl.DateTimeFormat('en-CA', { timeZone: r.timezone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(ms));
+  const at = Date.parse(r.receivedAt);
+  return day(at) === day(Date.now())
+    ? t.parcels.today.replace('{site}', r.siteName).replace('{time}', new Intl.DateTimeFormat(intlLocale, { timeZone: r.timezone, hour: '2-digit', minute: '2-digit' }).format(new Date(at)))
+    : t.parcels.day.replace('{site}', r.siteName).replace('{date}', new Intl.DateTimeFormat(intlLocale, { timeZone: r.timezone, day: 'numeric', month: 'long' }).format(new Date(at)));
+}
+
+/** Parcels waiting at reception, under the badge card (as in the app): refreshed on return and once a minute. */
+function ParcelsCard({ token }: { token: string }) {
+  const [rows, setRows] = useState<Parcel[]>([]);
+  useEffect(() => {
+    const load = () => { if (!document.hidden) me<Parcel[]>(token, '/parcels').then((r) => setRows(Array.isArray(r) ? r : []), () => undefined); };
+    load();
+    const h = setInterval(load, 60_000);
+    document.addEventListener('visibilitychange', load);
+    return () => { clearInterval(h); document.removeEventListener('visibilitychange', load); };
+  }, [token]);
+  if (!rows.length) return null;
+  const total = rows.reduce((n, r) => n + r.pieces, 0);
+  return (
+    <section className="mb-parcels" aria-live="polite">
+      <strong>{total > 1 ? t.parcels.many.replace('{n}', String(total)) : t.parcels.one}</strong>
+      {rows.map((r) => <span key={r.id}>{[r.carrier, r.pieces > 1 ? t.parcels.pieces.replace('{n}', String(r.pieces)) : null, arrived(r)].filter(Boolean).join(' · ')}</span>)}
+    </section>
+  );
+}
+
 /** Right after activation: a tick and a line that fade away by themselves. */
 function Activated() {
   const [gone, setGone] = useState(false);
@@ -256,6 +287,7 @@ function BadgeScreen({ badge, justActivated, canInvite, onInvites, onRemove }: {
         <p className="mb-hint-strong">{t.hint}</p>
         {clockOff && <p className="mb-warn" role="alert">{t.clock}</p>}
       </section>
+      {badge.appToken && <ParcelsCard token={badge.appToken} />}
       {canInvite && <Button label={t.invites.open} onClick={onInvites} />}
       {!badge.appToken && <p className="mb-small mb-centered">{t.invites.reactivate}</p>}
       <Button label={t.remove} kind="ghost" onClick={() => { if (window.confirm(`${t.removeTitle}\n${t.removeText}`)) onRemove(); }} />

@@ -1,4 +1,5 @@
 import { Evacuation, EvacuationCheck } from './evacuation.entity';
+import { Parcel } from './parcel.entity';
 import { SiteDocument, SiteDocumentVersion, VisitDocument } from './site-document.entity';
 import { PlatformSecret, PushDevice, PushDelivery } from './push.entity';
 import { AccessEvent, AccessMethod, AccessResult, AccessRule, ApiKey, Door, DoorReader, Employee } from './access.entity';
@@ -17,10 +18,11 @@ import { Webhook, WebhookDelivery, WEBHOOK_EVENTS, type WebhookEvent, type Webho
 import { Visit } from './visit.entity';
 
 export * from './enums';
-export { SiteDocument, SiteDocumentVersion, VisitDocument, Evacuation, EvacuationCheck, PlatformSecret, PushDevice, PushDelivery };
+export { Parcel, SiteDocument, SiteDocumentVersion, VisitDocument, Evacuation, EvacuationCheck, PlatformSecret, PushDevice, PushDelivery };
 export { AccessEvent, AccessMethod, AccessResult, AccessRule, ApiKey, Door, DoorReader, Employee };
 export { Tenant, TenantStatus, AuditLog, CountryPolicy, Device, Host, Invitation, InvitationStatus, PairingCode, PrivacyNotice, Site, SsoRequest, StoredFile, User, Visit, Webhook, WebhookDelivery, WEBHOOK_EVENTS };
 export type { EmployeeSource } from './access.entity';
 export type { PushKind } from './push.entity';
 export type { WebhookEvent, WebhookKind };
-export const ENTITIES = [SiteDocument, SiteDocumentVersion, VisitDocument, Evacuation, EvacuationCheck, PlatformSecret, PushDevice, PushDelivery, AccessEvent, AccessRule, ApiKey, Door, DoorReader, Employee, Tenant, AuditLog, CountryPolicy, Device, Host, Invitation, PairingCode, PrivacyNotice, Site, SsoRequest, StoredFile, User, Visit, Webhook, WebhookDelivery];
+export const ENTITIES = [Parcel, SiteDocument, SiteDocumentVersion, VisitDocument, Evacuation, EvacuationCheck, PlatformSecret, PushDevice, PushDelivery, AccessEvent, AccessRule, ApiKey, Door, DoorReader, Employee, Tenant, AuditLog, CountryPolicy, Device, Host, Invitation, PairingCode, PrivacyNotice, Site, SsoRequest, StoredFile, User, Visit, Webhook, WebhookDelivery];
+export { CARRIERS, CARRIER_NAMES, type Carrier, type ParcelStatus } from './parcel.entity';

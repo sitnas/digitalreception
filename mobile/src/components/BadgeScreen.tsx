@@ -13,6 +13,7 @@ import { useBadge } from '../lib/badge-context';
 import { t } from '../lib/i18n';
 import { useTheme } from '../lib/theme';
 import { QrRing, SquaresBand, SuccessCheck } from './motion';
+import { ParcelsCard } from './Parcels';
 import { Button } from './ui';
 
 /** Seconds of clock difference with the server beyond which the reader may refuse the QR. */
@@ -140,6 +141,7 @@ export function BadgeScreen({ badge, justActivated = false }: { badge: Badge; ju
           {nfc === 'dev-build' ? <Text style={[styles.small, { color: theme.ink2, textAlign: 'center' }]}>{t.nfcDevBuild}</Text> : null}
           {clockOff ? <Text accessibilityRole="alert" style={[styles.warn, { color: theme.danger }]}>{t.clock}</Text> : null}
         </View>
+        <ParcelsCard badge={badge} theme={theme} />
         {canInvite ? <Button label={t.invites.open} theme={theme} onPress={() => router.push('/invites')} /> : null}
         {!badge.appToken ? <Text style={[styles.small, { color: theme.ink2, textAlign: 'center' }]}>{t.invites.reactivate}</Text> : null}
         {nfc === 'off' ? (
