@@ -89,11 +89,14 @@ export class EmployeeAppController {
 
   /**
    * "Remove the badge from this phone": the phone forgets its secrets, and so does the server, so
-   * nothing issued to this phone keeps working (QR, NFC, app token, arrival notices).
+   * nothing issued to this phone keeps working (QR, NFC, app token, arrival notices). The organisation
+   * can turn this off: then only the console revokes the badge.
    */
   @Post('revoke')
   @HttpCode(200)
   async revoke(@CurrentEmployee() me: AuthEmployee, @Req() req: AppRequest) {
+    const t = await this.tenants.findOneOrFail({ where: { id: me.tenantId }, select: { id: true, badgeSelfRemove: true } });
+    if (!t.badgeSelfRemove) throw new ForbiddenException('SELF_REMOVE_DISABLED');
     await this.employees.manager.transaction(async (em) => {
       await em.update(Employee, { id: me.id, tenantId: me.tenantId }, { credentialSecretEnc: null, credentialIssuedAt: null, appTokenHash: null });
       await em.delete(PushDevice, { tenantId: me.tenantId, employeeId: me.id });
@@ -106,11 +109,12 @@ export class EmployeeAppController {
   async profile(@CurrentEmployee() me: AuthEmployee) {
     const e = await this.employees.findOneOrFail({ where: { id: me.id, tenantId: me.tenantId } });
     const tc = await this.keys.forTenant(me.tenantId);
-    const t = await this.tenants.findOneOrFail({ where: { id: me.tenantId }, select: { id: true, name: true } });
+    const t = await this.tenants.findOneOrFail({ where: { id: me.tenantId }, select: { id: true, name: true, badgeSelfRemove: true } });
     const h = await this.host(me);
     return {
       firstName: tc.decrypt(e.firstNameEnc, 'employee.firstName'), lastName: tc.decrypt(e.lastNameEnc, 'employee.lastName'), organisation: t.name,
       canInvite: !!h,
+      canRemove: t.badgeSelfRemove,
       sites: h ? h.sites.map((s) => ({ id: s.id, name: s.name, timezone: s.timezone })) : [],
       purposes: Object.values(VisitPurpose),
     };

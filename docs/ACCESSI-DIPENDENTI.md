@@ -218,6 +218,7 @@ Lo stesso pulsante c'è sulla pagina web `/badge`: dopo Microsoft o Google il br
 - **Generazione del QR**: il telefono calcola ogni 30 secondi `DRE1:<id>.<passo>.<firma>`, dove la firma è un HMAC-SHA256 del passo temporale. Il QR si genera anche senza connessione.
 - **Verifica**: il server accetta il passo corrente e quelli vicini (±30 secondi). I codici più vecchi vengono rifiutati come `QR_EXPIRED`, quindi una foto passata a un collega smette di funzionare entro un minuto.
 - **Telefono perso o cambiato**: in **Dipendenti** si usa "Disattiva badge telefono". Il dipendente lo riattiva con un nuovo codice, e attivarlo su un nuovo telefono disattiva quello vecchio.
+- **Togliere il badge dal telefono**: il dipendente lo fa da sé in **Impostazioni**, il link sotto il badge nell'app e su `/badge`. Il badge smette di funzionare anche sul server. In **Dipendenti** l'interruttore "I dipendenti possono togliere il badge dal proprio telefono" (lo cambia solo il ruolo Amministratore) toglie questa possibilità: il tasto sparisce e la richiesta viene rifiutata (`SELF_REMOVE_DISABLED`), quindi il badge lo disattiva solo la console. Un badge già disattivato dalla console si può sempre togliere dal telefono, per poterlo attivare di nuovo. Disinstallare l'app resta comunque possibile.
 - **Protezioni del codice email**: vale 10 minuti, ha al massimo 5 tentativi e ci sono limiti di richieste al minuto. La richiesta del codice risponde sempre allo stesso modo, così non si può scoprire quali email sono registrate.
 
 ## Tessere NFC

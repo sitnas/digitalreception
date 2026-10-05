@@ -41,5 +41,7 @@ export class Tenant {
   @Column({ default: false }) ssoEnforced: boolean;
   /** Push to the visited employee: show the guest's name on the lock screen too (off by default). */
   @Column({ default: false }) pushIncludeNames: boolean;
+  /** Employees may remove the phone badge themselves (app, /badge). Off: only the console revokes it. */
+  @Column({ default: true }) badgeSelfRemove: boolean;
   @CreateDateColumn({ type: 'datetime', precision: 3, default: () => 'CURRENT_TIMESTAMP(3)' }) createdAt: Date;
 }

@@ -799,6 +799,17 @@ describe('end-to-end', { skip: !enabled && 'E2E_DB_HOST not set' }, () => {
       assert.equal(await devices(), 0);
       token = await activate();
       assert.equal((await me('POST', '/push', { kind: 'expo', token: expoToken, locale: 'es' })).status, 200);
+      // The organisation can keep the removal for the console: the phone is told and the request refused.
+      assert.deepEqual((await admin.get('/admin/access/settings')).data, { selfRemove: true }, 'on by default');
+      assert.equal((await me('GET', '')).data.canRemove, true);
+      assert.equal((await ctx.aud.patch('/admin/access/settings', { selfRemove: false })).status, 403, 'auditor reads only');
+      assert.equal((await admin.patch('/admin/access/settings', { selfRemove: 'no' })).status, 400);
+      assert.deepEqual((await admin.patch('/admin/access/settings', { selfRemove: false })).data, { selfRemove: false });
+      assert.equal((await me('GET', '')).data.canRemove, false);
+      const refused = await me('POST', '/revoke', {});
+      assert.equal(refused.status, 403); assert.equal(refused.data.message, 'SELF_REMOVE_DISABLED');
+      assert.equal((await me('GET', '')).status, 200, 'the badge keeps working');
+      assert.equal((await admin.patch('/admin/access/settings', { selfRemove: true })).status, 200);
       // "Remove the badge from this phone": the server forgets the phone too.
       assert.equal((await me('POST', '/revoke', {})).status, 200);
       assert.equal(await devices(), 0);

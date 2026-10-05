@@ -146,6 +146,7 @@ export const en: AdminStrings = {
   access: {
     project: 'Project', noProject: 'No project', allProjects: 'All projects',
     employeesTitle: 'Employees', employeesIntro: 'The people who can open doors, with each one’s permissions. They come from the external system through the API, or you add them here by hand.',
+    selfRemove: 'Employees can remove the badge from their own phone', selfRemoveOn: 'They find it in the settings of the app and of the /badge page. The badge stops working on the server too.', selfRemoveOff: 'The button disappears from the app and from /badge. If an employee changes or loses their phone, use “Turn off phone badge” on their row below.', selfRemoveSaved: 'Setting saved.',
     badgePage: '“My badge” page to share with employees', search: 'Search', noEmployees: 'No employees yet. Add one here, or connect the external system from API integration.',
     person: 'Person', externalId: 'External ID', externalIdHint: 'The same ID the external system uses.', credentials: 'Credentials', doors: 'Doors', validity: 'Valid', always: 'Always',
     noEmail: 'No email: can’t activate the phone badge', inactive: 'Inactive', card: 'Card', phone: 'Phone', noDoors: 'No doors', everyDay: 'Every day', weekdays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
