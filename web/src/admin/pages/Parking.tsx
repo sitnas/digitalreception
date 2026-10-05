@@ -99,7 +99,7 @@ export function ParkingPage() {
           {w.spots.length > 0 && (
             <ul className="parking-spots" role="list">
               {w.spots.map((s) => (
-                <li key={s.id} style={s.active ? undefined : { opacity: 0.6 }}>
+                <li key={s.id} className={s.active ? undefined : 'row-off'}>
                   <span><strong>{s.code}</strong>{s.note && <span className="muted"> · {s.note}</span>}{!s.active && <> <span className="pill">{P.off}</span></>}</span>
                   {canManage && (
                     <span className="inline">
@@ -133,7 +133,7 @@ export function ParkingPage() {
           {people.data.length === 0 ? <p className="muted" style={{ margin: 0 }}>{P.nobody}</p> : (
             <ul className="parking-spots" role="list">
               {people.data.map((p) => (
-                <li key={p.id} style={p.active ? undefined : { opacity: 0.6 }}>
+                <li key={p.id} className={p.active ? undefined : 'row-off'}>
                   <span><strong>{p.lastName} {p.firstName}</strong> <span className="muted">{p.externalId}</span></span>
                   <span><span className="pill">{P.role[p.role]}</span>{p.spot && <> <strong>{p.spot.code}</strong></>}</span>
                 </li>

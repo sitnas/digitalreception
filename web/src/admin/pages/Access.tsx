@@ -143,7 +143,7 @@ export function EmployeesPage() {
             <thead><tr><th>{t.access.person}</th><th>{t.access.externalId}</th><th>{t.access.credentials}</th><th>{t.access.doors}</th><th>{t.access.validity}</th><th></th></tr></thead>
             <tbody>
               {rows.map((e) => (
-                <tr key={e.id} style={e.active ? undefined : { opacity: 0.55 }}>
+                <tr key={e.id} className={e.active ? undefined : 'row-off'}>
                   <td><strong>{e.lastName} {e.firstName}</strong>{!e.active && <> <span className="pill">{t.access.inactive}</span></>}
                     {e.department && <><br /><span className="muted">{e.department}</span></>}
                     {e.project && <div className="host-tags"><span className="tag" title={e.project.name}>{e.project.code} · {e.project.name}</span></div>}
@@ -372,7 +372,7 @@ export function DoorsPage() {
             <thead><tr><th>{t.access.door}</th><th>{t.access.externalId}</th><th>{t.invites.site}</th><th>{t.access.readers}</th><th></th></tr></thead>
             <tbody>
               {(doors.data ?? []).map((d) => (
-                <tr key={d.id} style={d.active ? undefined : { opacity: 0.55 }}>
+                <tr key={d.id} className={d.active ? undefined : 'row-off'}>
                   <td><strong>{d.name}</strong>{!d.active && <> <span className="pill">{t.access.inactive}</span></>}</td>
                   <td className="num">{d.externalId}</td>
                   <td>{d.siteName}</td>
@@ -493,7 +493,7 @@ export function IntegrationPage() {
             <thead><tr><th>{t.access.keyName}</th><th>{t.access.keyPrefix}</th><th>{t.access.created}</th><th>{t.access.lastUsed}</th><th></th></tr></thead>
             <tbody>
               {(keys.data ?? []).map((k) => (
-                <tr key={k.id} style={k.revokedAt ? { opacity: 0.55 } : undefined}>
+                <tr key={k.id} className={k.revokedAt ? 'row-off' : undefined}>
                   <td><strong>{k.name}</strong>{k.revokedAt && <> <span className="pill">{t.access.revokedKey}</span></>}</td>
                   <td><code translate="no">{k.prefix}…</code></td>
                   <td className="num">{fmtDateTime(k.createdAt, intl)}</td>

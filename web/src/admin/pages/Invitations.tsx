@@ -72,7 +72,7 @@ export function InvitationsPage() {
             <thead><tr><th>{t.invites.when}</th><th>{t.invites.guest}</th><th>{t.invites.host}</th>{multiSite && <th>{t.invites.site}</th>}<th>{t.invites.status}</th><th>{t.invites.emailCol}</th><th></th></tr></thead>
             <tbody>
               {(list.data ?? []).map((r) => (
-                <tr key={r.id} style={r.status === 'CANCELLED' || r.status === 'EXPIRED' ? { opacity: 0.6 } : undefined}>
+                <tr key={r.id} className={r.status === 'CANCELLED' || r.status === 'EXPIRED' ? 'row-off' : undefined}>
                   <td className="num">{fmtDateTime(r.expectedAt, intl, r.timezone)}</td>
                   <td><strong>{r.lastName} {r.firstName}</strong>{r.company && <><br /><span className="muted">{r.company}</span></>}</td>
                   <td>{r.hostName}{r.fromApp && <div className="host-tags"><span className="tag">{t.invites.fromApp}</span></div>}</td>
