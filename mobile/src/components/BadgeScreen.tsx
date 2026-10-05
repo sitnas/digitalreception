@@ -7,7 +7,7 @@ import { Animated, AppState, Platform, Pressable, ScrollView, StyleSheet, Text, 
 import QRCode from 'react-native-qrcode-svg';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BadgeNfc } from '../../modules/badge-nfc';
-import { getProfile, serverClockOffsetMs } from '../lib/api';
+import { ApiError, getProfile, serverClockOffsetMs } from '../lib/api';
 import { qrPayload, stepAt, type Badge } from '../lib/badge';
 import { useBadge } from '../lib/badge-context';
 import { t } from '../lib/i18n';
@@ -101,7 +101,21 @@ export function BadgeScreen({ badge, justActivated = false }: { badge: Badge; ju
   useBadgeInFront();
   // People who can be visited also invite their guests from here.
   const [canInvite, setCanInvite] = useState(false);
-  useEffect(() => { if (badge.appToken) getProfile(badge).then((p) => setCanInvite(p.canInvite), () => {}); }, [badge]);
+  // What the server says about this badge: 'stale' when another activation or the console replaced it
+  // (the reader refuses the QR too), 'offline' when it cannot be reached (the QR still works).
+  const [server, setServer] = useState<'ok' | 'stale' | 'offline' | null>(null);
+  const { remove } = useBadge();
+  const checkServer = useCallback(() => {
+    if (!badge.appToken) return;
+    getProfile(badge).then((p) => { setCanInvite(p.canInvite); setServer('ok'); },
+      (e) => { const stale = e instanceof ApiError && e.status === 401; if (stale) setCanInvite(false); setServer(stale ? 'stale' : 'offline'); });
+  }, [badge]);
+  useFocusEffect(useCallback(() => {
+    checkServer();
+    const sub = AppState.addEventListener('change', (st) => { if (st === 'active') checkServer(); });
+    return () => sub.remove();
+  }, [checkServer]));
+  const stale = server === 'stale';
 
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => { const h = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(h); }, []);
@@ -125,6 +139,15 @@ export function BadgeScreen({ badge, justActivated = false }: { badge: Badge; ju
           <Text style={[styles.name, { color: theme.ink }]}>{badge.firstName} {badge.lastName}</Text>
           {/* Always black on white with a quiet zone: the reader camera needs contrast, also in dark mode. */}
           {/* The ring drains during the 30 seconds: it stays outside the QR's white quiet zone. */}
+          {stale ? (
+            <View accessibilityRole="alert" style={[styles.stale, { borderColor: theme.danger }]}>
+              <Text style={[styles.staleTitle, { color: theme.danger }]}>{t.stale.title}</Text>
+              <Text style={[styles.hint, { color: theme.ink }]}>{t.stale.text}</Text>
+              <Button label={t.stale.action} theme={theme} onPress={() => { remove(); }} />
+            </View>
+          ) : null}
+          {/* Faded when the server refuses it: the reader would refuse it as well. */}
+          <View style={[styles.qrBlock, stale && styles.faded]} importantForAccessibility={stale ? 'no-hide-descendants' : 'auto'}>
           <QrRing codeStep={step} left={left} step={badge.step} theme={theme}>
             <View style={styles.qrBox} accessible accessibilityLabel={t.hint}>
               <QRCode value={value} size={qrSize} color="#000000" backgroundColor="#FFFFFF" quietZone={12} ecl="M" />
@@ -132,13 +155,20 @@ export function BadgeScreen({ badge, justActivated = false }: { badge: Badge; ju
           </QrRing>
           <Text style={[styles.small, { color: theme.ink2 }]}>{t.next.replace('{n}', String(left))}</Text>
           <Text style={[styles.hint, { color: theme.ink }]}>{t.hint}</Text>
+          </View>
           {nfc === 'ready' ? <Text style={[styles.nfc, { color: theme.ink }]}>{t.nfcReady}</Text> : null}
           {nfc === 'dev-build' ? <Text style={[styles.small, { color: theme.ink2, textAlign: 'center' }]}>{t.nfcDevBuild}</Text> : null}
           {clockOff ? <Text accessibilityRole="alert" style={[styles.warn, { color: theme.danger }]}>{t.clock}</Text> : null}
         </View>
         <ParcelsCard badge={badge} theme={theme} />
         {canInvite ? <Button label={t.invites.open} theme={theme} onPress={() => router.push('/invites')} /> : null}
-        {!badge.appToken ? <Text style={[styles.small, { color: theme.ink2, textAlign: 'center' }]}>{t.invites.reactivate}</Text> : null}
+        {!badge.appToken ? (
+          <View style={styles.nfcOff}>
+            <Text style={[styles.small, { color: theme.ink2, textAlign: 'center' }]}>{t.stale.old}</Text>
+            <Button label={t.stale.action} kind="ghost" theme={theme} onPress={() => { remove(); }} />
+          </View>
+        ) : null}
+        {server === 'offline' ? <Text accessibilityRole="alert" style={[styles.small, { color: theme.ink2, textAlign: 'center' }]}>{t.stale.offline}</Text> : null}
         {nfc === 'off' ? (
           <View style={styles.nfcOff}>
             <Text style={[styles.small, { color: theme.ink2, textAlign: 'center' }]}>{t.nfcOff}</Text>
@@ -168,6 +198,10 @@ const styles = StyleSheet.create({
   warn: { fontSize: 14, fontWeight: '700', textAlign: 'center' },
   nfc: { fontSize: 15, textAlign: 'center', fontWeight: '700' },
   nfcOff: { gap: 8 },
+  stale: { alignSelf: 'stretch', borderWidth: 1.5, borderRadius: 14, padding: 14, gap: 10 },
+  staleTitle: { fontSize: 17, fontWeight: '800', textAlign: 'center' },
+  qrBlock: { alignItems: 'center', gap: 10 },
+  faded: { opacity: 0.2 },
   settings: { alignSelf: 'center', paddingVertical: 8, paddingHorizontal: 12 },
   settingsText: { fontSize: 15, fontWeight: '600', textDecorationLine: 'underline' },
 });
