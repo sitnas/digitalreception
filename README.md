@@ -42,6 +42,7 @@ Documentazione di dettaglio:
 
 - [docs/ARCHITETTURA.md](docs/ARCHITETTURA.md) — scelte tecniche, multi-tenancy, scalabilità
 - [docs/SICUREZZA-PRIVACY.md](docs/SICUREZZA-PRIVACY.md) — controlli di sicurezza e privacy, per CISO e DPO
+- [docs/AUDIT-CISO.md](docs/AUDIT-CISO.md) — audit di sicurezza di ottobre 2026: cosa è stato verificato, cosa resta aperto e il piano di rientro
 - [docs/OPERAZIONI.md](docs/OPERAZIONI.md) — installazione, nuovi clienti, backup, rotazione chiavi
 
 ## Avvio rapido (un server)
