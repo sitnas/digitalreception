@@ -14,6 +14,7 @@ export type EmployeeSource = 'API' | 'CONSOLE';
 @Index('IDX_employees_external', ['tenantId', 'externalId'], { unique: true })
 @Index('IDX_employees_email', ['tenantId', 'emailIndex'])
 @Index('IDX_employees_badge', ['tenantId', 'badgeIndex'])
+@Index('IDX_employees_project', ['tenantId', 'projectId'])
 export class Employee {
   @PrimaryGeneratedColumn('uuid') id: string;
   @Column({ type: 'uuid' }) tenantId: string;
@@ -28,6 +29,8 @@ export class Employee {
   /** Optional, sent by the external system: shown when the employee is also a person who can be visited. */
   @Column({ type: 'text', nullable: true }) departmentEnc: string | null;
   @Column({ type: 'text', nullable: true }) jobTitleEnc: string | null;
+  /** The job / contract ("commessa") the employee works on, if any. */
+  @Column({ type: 'uuid', nullable: true }) projectId: string | null;
   /** Blind index of the NFC badge UID (lookup only) and its last 4 characters (to recognise it). */
   @Column({ type: 'char', length: 64, nullable: true }) badgeIndex: string | null;
   @Column({ type: 'varchar', length: 8, nullable: true }) badgeHint: string | null;

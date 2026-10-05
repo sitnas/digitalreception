@@ -1,37 +1,40 @@
 import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { dayEnd, dayStart, fmtDateTime, todayIso } from '../../lib/format';
 import { useMe } from '../AdminApp';
 import { errorText, useI18n } from '../i18n';
 import type { Site } from '../types';
 import { ErrorBox, PageHead, SiteSelect, useAsync } from '../ui';
+import type { ProjectRow } from './Projects';
 import { CopyButton } from './Users';
 
 interface Permission { doorExternalId: string; door: string; site: string; days: number[] | null; from: string | null; to: string | null }
 interface EmployeeRow {
   id: string; externalId: string; source: 'API' | 'CONSOLE'; firstName: string; lastName: string; email: string | null; department: string | null; jobTitle: string | null; active: boolean;
   validFrom: string | null; validUntil: string | null; badgeHint: string | null; phoneBadge: boolean; phoneBadgeIssuedAt: string | null; permissions: Permission[];
+  project: { id: string; code: string; name: string } | null;
 }
 interface ReaderRow { id: string; name: string; lastSeenAt: string | null; createdAt: string }
 interface DoorRow { id: string; externalId: string; name: string; active: boolean; siteId: string; siteName: string; readers: ReaderRow[] }
-interface EventRow { id: string; at: string; method: 'QR' | 'NFC'; result: 'GRANTED' | 'DENIED'; reason: string; door: string; site: string; timezone: string; employee: string | null; externalId: string | null }
+interface EventRow { id: string; at: string; method: 'QR' | 'NFC'; result: 'GRANTED' | 'DENIED'; reason: string; door: string; site: string; timezone: string; employee: string | null; externalId: string | null; project: string | null }
 interface KeyRow { id: string; name: string; prefix: string; createdAt: string; lastUsedAt: string | null; revokedAt: string | null }
 
 const origin = () => window.location.origin;
 
 interface PermissionForm { door: string; days: number[]; from: string; to: string }
 interface EmployeeForm {
-  id: string | null; source: 'API' | 'CONSOLE'; externalId: string; firstName: string; lastName: string; email: string; department: string; jobTitle: string;
+  id: string | null; source: 'API' | 'CONSOLE'; externalId: string; firstName: string; lastName: string; email: string; department: string; jobTitle: string; project: string;
   badgeHint: string | null; badgeUid: string; removeBadge: boolean; active: boolean; validFrom: string; validUntil: string; permissions: PermissionForm[];
 }
 const NAME_PATTERN = "[\\p{L}\\p{M}' .\\-]+";
 const localDate = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const emptyEmployee = (): EmployeeForm => ({
-  id: null, source: 'CONSOLE', externalId: '', firstName: '', lastName: '', email: '', department: '', jobTitle: '',
+  id: null, source: 'CONSOLE', externalId: '', firstName: '', lastName: '', email: '', department: '', jobTitle: '', project: '',
   badgeHint: null, badgeUid: '', removeBadge: false, active: true, validFrom: '', validUntil: '', permissions: [],
 });
 const toForm = (e: EmployeeRow): EmployeeForm => ({
-  id: e.id, source: e.source, externalId: e.externalId, firstName: e.firstName, lastName: e.lastName, email: e.email ?? '', department: e.department ?? '', jobTitle: e.jobTitle ?? '',
+  id: e.id, source: e.source, externalId: e.externalId, firstName: e.firstName, lastName: e.lastName, email: e.email ?? '', department: e.department ?? '', jobTitle: e.jobTitle ?? '', project: e.project?.code ?? '',
   badgeHint: e.badgeHint, badgeUid: '', removeBadge: false, active: e.active,
   // The end of validity is exclusive (midnight after the last day): show the last day included.
   validFrom: e.validFrom ? localDate(new Date(e.validFrom)) : '', validUntil: e.validUntil ? localDate(new Date(new Date(e.validUntil).getTime() - 1)) : '',
@@ -45,12 +48,17 @@ export function EmployeesPage() {
   const canEdit = me.role === 'SUPER_ADMIN';
   const list = useAsync(() => api.get<EmployeeRow[]>('/admin/access/employees'), []);
   const doors = useAsync(() => (canEdit ? api.get<DoorRow[]>('/admin/access/doors') : Promise.resolve([] as DoorRow[])), [canEdit]);
+  const projects = useAsync(() => api.get<ProjectRow[]>('/admin/access/projects'), []);
+  // ?project=… from the Projects page: the people of that job.
+  const [params, setParams] = useSearchParams();
+  const projectFilter = params.get('project') ?? '';
   const [q, setQ] = useState('');
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [form, setForm] = useState<EmployeeForm | null>(null);
   const [busy, setBusy] = useState(false);
   const term = q.trim().toLowerCase();
-  const rows = (list.data ?? []).filter((e) => !term || [e.firstName, e.lastName, e.externalId, e.email, e.department].some((x) => x?.toLowerCase().includes(term)));
+  const rows = (list.data ?? []).filter((e) => (!term || [e.firstName, e.lastName, e.externalId, e.email, e.department, e.project?.code, e.project?.name].some((x) => x?.toLowerCase().includes(term)))
+    && (!projectFilter || (projectFilter === 'none' ? !e.project : e.project?.id === projectFilter)));
   const dayNames = t.access.weekdays;
   const rule = (p: Permission) => `${p.days ? p.days.map((d) => dayNames[d - 1]).join(' ') : t.access.everyDay}${p.from ? ` ${p.from}–${p.to}` : ''}`;
   const revoke = async (e: EmployeeRow) => {
@@ -64,7 +72,7 @@ export function EmployeesPage() {
     if (!form) return;
     const body = {
       firstName: form.firstName.trim(), lastName: form.lastName.trim(), email: form.email.trim() || null,
-      department: form.department.trim() || null, jobTitle: form.jobTitle.trim() || null, active: form.active,
+      department: form.department.trim() || null, jobTitle: form.jobTitle.trim() || null, active: form.active, project: form.project || null,
       validFrom: form.validFrom ? dayStart(form.validFrom) : null, validUntil: form.validUntil ? dayEnd(form.validUntil) : null,
       permissions: form.permissions.filter((p) => p.door).map((p) => ({ door: p.door, ...(p.days.length ? { days: [...p.days].sort() } : {}), ...(p.from ? { from: p.from } : {}), ...(p.to ? { to: p.to } : {}) })),
       // On edit an empty field keeps the current card; null removes it.
@@ -90,13 +98,23 @@ export function EmployeesPage() {
         actions={canEdit && !form && <button type="button" className="btn btn-primary" onClick={() => open(emptyEmployee())}>{t.access.addEmployee}</button>} />
       <ErrorBox error={list.error ?? doors.error} />
       <div role="status" aria-live="polite">{msg && <p className={msg.ok ? 'alert alert-info' : 'alert'}>{msg.text}</p>}</div>
-      {form && <EmployeeEditor form={form} setForm={setForm} doors={doors.data ?? []} busy={busy} onSubmit={save} onDelete={remove} />}
+      {form && <EmployeeEditor form={form} setForm={setForm} doors={doors.data ?? []} projects={projects.data ?? []} busy={busy} onSubmit={save} onDelete={remove} />}
       <div className="a-card inline" style={{ justifyContent: 'space-between', marginBottom: 16 }}>
         <span>{t.access.badgePage}: <code translate="no">{origin()}/badge</code></span>
         <CopyButton text={`${origin()}/badge`} />
       </div>
       {list.data && list.data.length > 0 && (
-        <div className="a-filters"><div className="field" style={{ flex: '1 1 260px' }}><label htmlFor="es">{t.access.search}</label><input id="es" className="input" value={q} onChange={(e) => setQ(e.target.value)} /></div></div>
+        <div className="a-filters">
+          <div className="field" style={{ flex: '1 1 260px' }}><label htmlFor="es">{t.access.search}</label><input id="es" className="input" value={q} onChange={(e) => setQ(e.target.value)} /></div>
+          {(projects.data?.length ?? 0) > 0 && (
+            <div className="field"><label htmlFor="ep-f">{t.access.project}</label>
+              <select id="ep-f" className="input" value={projectFilter} onChange={(e) => setParams(e.target.value ? { project: e.target.value } : {}, { replace: true })}>
+                <option value="">{t.access.allProjects}</option>
+                <option value="none">{t.access.noProject}</option>
+                {projects.data!.map((p) => <option key={p.id} value={p.id}>{p.code} · {p.name}</option>)}
+              </select></div>
+          )}
+        </div>
       )}
       <div className="table-wrap" style={{ marginTop: 16 }}>
         {list.data && list.data.length === 0 ? <p className="empty">{t.access.noEmployees}</p> : (
@@ -107,6 +125,7 @@ export function EmployeesPage() {
                 <tr key={e.id} style={e.active ? undefined : { opacity: 0.55 }}>
                   <td><strong>{e.lastName} {e.firstName}</strong>{!e.active && <> <span className="pill">{t.access.inactive}</span></>}
                     {e.department && <><br /><span className="muted">{e.department}</span></>}
+                    {e.project && <div className="host-tags"><span className="tag" title={e.project.name}>{e.project.code} · {e.project.name}</span></div>}
                     {e.email ? <><br /><span className="muted">{e.email}</span></> : <><br /><span className="error">{t.access.noEmail}</span></>}</td>
                   <td className="num">{e.externalId}{e.source === 'CONSOLE' && <div className="host-tags"><span className="tag">{t.access.manual}</span></div>}</td>
                   <td>{e.badgeHint ? <>{t.access.card} ···{e.badgeHint}</> : null}{e.badgeHint && e.phoneBadge ? <br /> : null}{e.phoneBadge ? t.access.phone : null}{!e.badgeHint && !e.phoneBadge && <span className="muted">—</span>}</td>
@@ -126,8 +145,8 @@ export function EmployeesPage() {
   );
 }
 
-function EmployeeEditor({ form, setForm, doors, busy, onSubmit, onDelete }: {
-  form: EmployeeForm; setForm: (f: EmployeeForm | null) => void; doors: DoorRow[]; busy: boolean; onSubmit: (e: React.FormEvent) => void; onDelete: () => void;
+function EmployeeEditor({ form, setForm, doors, projects, busy, onSubmit, onDelete }: {
+  form: EmployeeForm; setForm: (f: EmployeeForm | null) => void; doors: DoorRow[]; projects: ProjectRow[]; busy: boolean; onSubmit: (e: React.FormEvent) => void; onDelete: () => void;
 }) {
   const { t } = useI18n();
   const A = t.access;
@@ -148,6 +167,12 @@ function EmployeeEditor({ form, setForm, doors, busy, onSubmit, onDelete }: {
         <div className="field"><label htmlFor="ee">{A.email}</label><input id="ee" className="input" type="email" value={form.email} onChange={field('email')} maxLength={190} autoComplete="off" spellCheck={false} aria-describedby="ee-h" /><span id="ee-h" className="hint">{A.emailHint}</span></div>
         <div className="field"><label htmlFor="ed">{A.department}</label><input id="ed" className="input" value={form.department} onChange={field('department')} maxLength={120} /></div>
         <div className="field"><label htmlFor="ej">{A.jobTitle}</label><input id="ej" className="input" value={form.jobTitle} onChange={field('jobTitle')} maxLength={120} /></div>
+        <div className="field"><label htmlFor="ep">{A.project}</label>
+          <select id="ep" className="input" value={form.project} onChange={(e) => setForm({ ...form, project: e.target.value })}>
+            <option value="">{A.noProject}</option>
+            {/* Closed jobs stay selectable for whoever is already on one. */}
+            {projects.filter((p) => p.active || p.code === form.project).map((p) => <option key={p.id} value={p.code}>{p.code} · {p.name}{p.client ? ` (${p.client})` : ''}</option>)}
+          </select></div>
         {form.id
           ? <div className="field"><span className="label">{A.externalId}</span><code translate="no" style={{ alignSelf: 'flex-start' }}>{form.externalId}</code></div>
           : <div className="field"><label htmlFor="ex">{A.externalId}</label><input id="ex" className="input" value={form.externalId} onChange={(e) => setForm({ ...form, externalId: e.target.value.replace(/[^A-Za-z0-9._:@-]/g, '') })} maxLength={100} spellCheck={false} aria-describedby="ex-h" /><span id="ex-h" className="hint">{A.externalIdAuto}</span></div>}
@@ -296,7 +321,9 @@ export function AccessLogPage() {
   const [siteId, setSiteId] = useState('');
   const [day, setDay] = useState(todayIso());
   const [result, setResult] = useState<'' | 'GRANTED' | 'DENIED'>('');
-  const events = useAsync(() => api.get<EventRow[]>(`/admin/access/events?from=${encodeURIComponent(dayStart(day))}&to=${encodeURIComponent(dayEnd(day))}${siteId ? `&siteId=${siteId}` : ''}${result ? `&result=${result}` : ''}`), [day, siteId, result]);
+  const [projectId, setProjectId] = useState('');
+  const projects = useAsync(() => api.get<ProjectRow[]>('/admin/access/projects'), []);
+  const events = useAsync(() => api.get<EventRow[]>(`/admin/access/events?from=${encodeURIComponent(dayStart(day))}&to=${encodeURIComponent(dayEnd(day))}${siteId ? `&siteId=${siteId}` : ''}${result ? `&result=${result}` : ''}${projectId ? `&projectId=${projectId}` : ''}`), [day, siteId, result, projectId]);
   const reasons = t.access.reasons as Record<string, string>;
 
   return (
@@ -305,6 +332,13 @@ export function AccessLogPage() {
       <div className="a-filters">
         <div className="field"><label htmlFor="ld">{t.access.day}</label><input id="ld" type="date" className="input" value={day} max={todayIso()} onChange={(e) => setDay(e.target.value)} /></div>
         {sites.data && sites.data.length > 1 && <SiteSelect sites={sites.data} value={siteId} onChange={setSiteId} allowAll />}
+        {(projects.data?.length ?? 0) > 0 && (
+          <div className="field"><label htmlFor="lp">{t.access.project}</label>
+            <select id="lp" className="input" value={projectId} onChange={(e) => setProjectId(e.target.value)}>
+              <option value="">{t.access.allProjects}</option>
+              {projects.data!.map((p) => <option key={p.id} value={p.id}>{p.code} · {p.name}</option>)}
+            </select></div>
+        )}
         <div className="field">
           <span className="label">{t.access.result}</span>
           <div className="segmented" role="group" aria-label={t.access.result}>
@@ -321,7 +355,7 @@ export function AccessLogPage() {
               {(events.data ?? []).map((e) => (
                 <tr key={e.id}>
                   <td className="num">{fmtDateTime(e.at, intl, e.timezone)}</td>
-                  <td>{e.employee ? <strong>{e.employee}</strong> : <span className="muted">{t.access.unknown}</span>}{e.externalId && <span className="muted"> · {e.externalId}</span>}</td>
+                  <td>{e.employee ? <strong>{e.employee}</strong> : <span className="muted">{t.access.unknown}</span>}{e.externalId && <span className="muted"> · {e.externalId}</span>}{e.project && <span className="tag" style={{ marginLeft: 6 }}>{e.project}</span>}</td>
                   <td>{e.door} <span className="muted">· {e.site}</span></td>
                   <td><span className={`pill ${e.result === 'GRANTED' ? 'OPEN' : 'ERASED'}`}>{t.access.results[e.result]}</span>{e.result === 'DENIED' && <><br /><span className="muted">{reasons[e.reason] ?? e.reason}</span></>}</td>
                   <td>{e.method === 'QR' ? t.access.phone : t.access.card}</td>
@@ -395,6 +429,7 @@ export function IntegrationPage() {
         <table className="api-table">
           <tbody>
             <tr><td><code translate="no">PUT</code></td><td><code translate="no">/doors/&#123;id&#125;</code></td><td>{t.access.docDoor}</td></tr>
+            <tr><td><code translate="no">PUT</code></td><td><code translate="no">/projects/&#123;code&#125;</code></td><td>{t.access.docProject}</td></tr>
             <tr><td><code translate="no">PUT</code></td><td><code translate="no">/employees/&#123;id&#125;</code></td><td>{t.access.docPut}</td></tr>
             <tr><td><code translate="no">DELETE</code></td><td><code translate="no">/employees/&#123;id&#125;</code></td><td>{t.access.docDelete}</td></tr>
           </tbody>

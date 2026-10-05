@@ -376,6 +376,32 @@ describe('end-to-end', { skip: !enabled && 'E2E_DB_HOST not set' }, () => {
     assert.equal(r.status, 200);
     assert.equal((await find()).source, 'API');
 
+    // Jobs / contracts ("commesse"): one per employee, from the console or the HR system.
+    {
+      const hr = (path, body) => fetch(`${BASE}/integration/v1${path}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` }, body: JSON.stringify(body) });
+      assert.equal((await ctx.aud.post('/admin/access/projects', { code: 'C-1', name: 'No' })).status, 403);
+      const c1 = (await admin.post('/admin/access/projects', { code: 'C24-017', name: 'Ospedale Niguarda', client: 'ASST Niguarda' })).data;
+      assert.equal((await admin.post('/admin/access/projects', { code: 'C24-017', name: 'Doppia' })).data.message, 'PROJECT_CODE_EXISTS');
+      assert.equal((await admin.post('/admin/access/projects', { code: 'con spazi', name: 'X' })).status, 400);
+      assert.equal((await hr('/projects/C24-020', { name: 'Metro M4', client: 'Comune di Milano' })).status, 200, 'the HR system can send jobs too');
+      // Assigned by hand, then the HR system syncs without the field: the job stays.
+      const body = { firstName: 'Lucia', lastName: 'Ferri', permissions: [] };
+      assert.equal((await admin.put(`/admin/access/employees/${e.id}`, { ...body, project: 'NOPE' })).data.message, 'UNKNOWN_PROJECT');
+      assert.equal((await admin.put(`/admin/access/employees/${e.id}`, { ...body, project: 'C24-017' })).status, 200);
+      assert.equal((await find()).project.name, 'Ospedale Niguarda');
+      await hr(`/employees/${created.data.externalId}`, body);
+      assert.equal((await find()).project.code, 'C24-017', 'a sync that does not know about jobs keeps the one set');
+      await hr(`/employees/${created.data.externalId}`, { ...body, project: 'C24-020' });
+      assert.equal((await find()).project.code, 'C24-020');
+      const projects = (await ctx.aud.get('/admin/access/projects')).data;
+      assert.equal(projects.find((p) => p.code === 'C24-020').employees, 1); assert.equal(projects.find((p) => p.code === 'C24-017').employees, 0);
+      assert.equal((await admin.del(`/admin/access/projects/${projects.find((p) => p.code === 'C24-020').id}`)).data.message, 'PROJECT_IN_USE');
+      assert.equal((await admin.patch(`/admin/access/projects/${c1.id}`, { active: false })).data.active, false);
+      assert.equal((await admin.del(`/admin/access/projects/${c1.id}`)).status, 200);
+      await hr(`/employees/${created.data.externalId}`, { ...body, project: null });
+      assert.equal((await find()).project, null, 'null takes the employee off the job');
+    }
+
     assert.equal((await ctx.aud.del(`/admin/access/employees/${e.id}`)).status, 403);
     assert.equal((await admin.del(`/admin/access/employees/${e.id}`)).status, 200);
     assert.equal(await find(), undefined);

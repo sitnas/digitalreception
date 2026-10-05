@@ -5,7 +5,7 @@ import { DataSource, In, MoreThan, Repository } from 'typeorm';
 import { CryptoService } from '../common/crypto.service';
 import { MailService } from '../common/mail.service';
 import { TenantKeysService } from '../common/tenant-keys.service';
-import { AccessEvent, AccessMethod, AccessResult, AccessRule, CountryPolicy, Door, Employee, EmployeeSource, Host, PushDevice, Site, Tenant } from '../entities';
+import { AccessEvent, AccessMethod, AccessResult, AccessRule, CountryPolicy, Door, Employee, EmployeeSource, Host, Project, PushDevice, Site, Tenant } from '../entities';
 import { WebhooksService } from '../common/webhooks.service';
 
 /** Phone badge QR: DRE1:<employeeId>.<time step>.<signature>; a new code every QR_STEP_S seconds. */
@@ -20,6 +20,8 @@ const LOGIN_CODE_MAX_ATTEMPTS = 5;
 export interface PermissionInput { door: string; days?: number[]; from?: string; to?: string }
 export interface EmployeeInput {
   firstName: string; lastName: string; email?: string | null; department?: string | null; jobTitle?: string | null; badgeUid?: string | null; active?: boolean;
+  /** Code of the job / contract: undefined keeps the current one, null removes it. */
+  project?: string | null;
   validFrom?: string | null; validUntil?: string | null; permissions: PermissionInput[];
 }
 export interface ReaderContext { id: string; tenantId: string; siteId: string; doorId: string }
@@ -75,6 +77,15 @@ export class AccessService {
     return { created: !existing, door: saved };
   }
 
+  /** Creates or updates a job / contract by its code (from the HR system or the console). */
+  async upsertProject(tenantId: string, code: string, dto: { name: string; client?: string | null; active?: boolean }) {
+    const repo = this.ds.getRepository(Project);
+    const existing = await repo.findOne({ where: { tenantId, code } });
+    const p = existing ?? repo.create({ tenantId, code });
+    Object.assign(p, { name: dto.name, client: dto.client || null, active: dto.active ?? true });
+    return { created: !existing, project: await repo.save(p) };
+  }
+
   /**
    * Creates or replaces an employee and all their permissions in one transaction (idempotent).
    * Whoever writes last owns the record: a sync from the external system turns a hand-made employee into an API one.
@@ -90,6 +101,8 @@ export class AccessService {
     if (dto.badgeUid && (!badge || badge.length < 4)) throw new BadRequestException('INVALID_BADGE_UID');
 
     const badgeIndex = badge ? tc.blindIndex(badge, 'employee.badgeUid')! : null;
+    const project = dto.project ? await this.ds.getRepository(Project).findOne({ where: { tenantId, code: dto.project } }) : null;
+    if (dto.project && !project) throw new BadRequestException({ message: 'UNKNOWN_PROJECT', project: dto.project });
     return this.ds.transaction(async (em) => {
       const existing = await em.findOne(Employee, { where: { tenantId, externalId } });
       // One card, one person: otherwise the reader could not tell who is at the door.
@@ -108,6 +121,9 @@ export class AccessService {
       });
       // undefined leaves the badge as is, null removes it
       if (dto.badgeUid !== undefined) Object.assign(e, { badgeIndex, badgeHint: badge ? badge.slice(-4) : null });
+      // Same for the job / contract: an HR system that does not know about it does not wipe it.
+      if (dto.project !== undefined) e.projectId = project?.id ?? null;
+      else if (!existing) e.projectId = null;
       const saved = await em.save(e);
       // The same person in the directory of people to visit follows the external system.
       await em.update(Host, { tenantId, employeeId: saved.id }, {

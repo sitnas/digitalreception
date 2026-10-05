@@ -1,16 +1,16 @@
 import { BadRequestException, Body, ConflictException, Controller, Delete, Get, HttpCode, NotFoundException, Param, ParseUUIDPipe, Patch, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Transform, Type } from 'class-transformer';
-import { IsBoolean, IsIn, IsInt, IsISO8601, IsOptional, IsString, IsUUID, Length, Matches, Max, Min } from 'class-validator';
+import { IsBoolean, IsIn, IsInt, IsISO8601, IsOptional, IsString, IsUUID, Length, Matches, Max, MaxLength, Min } from 'class-validator';
 import { Between, In, IsNull, Repository } from 'typeorm';
 import { AuditService } from '../common/audit.service';
 import { CryptoService } from '../common/crypto.service';
 import { AdminAuthGuard, CurrentUser, Roles, assertSiteAccess, visibleSiteIds } from '../common/guards';
 import { AppRequest, AuthUser } from '../common/request-context';
 import { TenantKeysService } from '../common/tenant-keys.service';
-import { AccessEvent, AccessRule, ApiKey, Door, DoorReader, Employee, PairingCode, PushDevice, Role, Site } from '../entities';
+import { AccessEvent, AccessRule, ApiKey, Door, DoorReader, Employee, PairingCode, Project, PushDevice, Role, Site } from '../entities';
 import { AccessService } from './access.service';
-import { EXTERNAL_ID, PutEmployeeDto } from './integration.controller';
+import { EXTERNAL_ID, PROJECT_CODE, PutEmployeeDto } from './integration.controller';
 
 const trim = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim().replace(/\s+/g, ' ') : value);
 const PAIRING_TTL_MIN = 15;
@@ -35,11 +35,23 @@ export class ReaderCodeDto {
 export class ApiKeyDto {
   @Transform(trim) @IsString() @Length(2, 80) name: string;
 }
+export class CreateProjectDto {
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value)) @IsString() @Matches(PROJECT_CODE) code: string;
+  @Transform(trim) @IsString() @Length(1, 120) name: string;
+  @IsOptional() @Transform(trim) @IsString() @MaxLength(120) client?: string | null;
+}
+export class UpdateProjectDto {
+  @IsOptional() @Transform(trim) @IsString() @Length(1, 120) name?: string;
+  @IsOptional() @Transform(trim) @IsString() @MaxLength(120) client?: string | null;
+  @IsOptional() @IsBoolean() active?: boolean;
+}
 export class AccessEventsQuery {
   @IsISO8601() from: string;
   @IsISO8601() to: string;
   @IsOptional() @IsUUID() siteId?: string;
   @IsOptional() @IsIn(['GRANTED', 'DENIED']) result?: 'GRANTED' | 'DENIED';
+  /** Only people of this job / contract. */
+  @IsOptional() @IsUUID() projectId?: string;
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(2000) limit?: number;
 }
 
@@ -131,6 +143,53 @@ export class AccessAdminController {
     return { ok: true };
   }
 
+  // ------------------------------------------------------------------ jobs / contracts ("commesse")
+  @Get('projects')
+  @Roles(...READ)
+  async listProjects(@CurrentUser() user: AuthUser) {
+    const projects = await this.projects().find({ where: { tenantId: user.tenantId }, order: { active: 'DESC', code: 'ASC' } });
+    const counts = await this.employees.createQueryBuilder('e').select('e.projectId', 'projectId').addSelect('COUNT(*)', 'n')
+      .where('e.tenantId = :t AND e.projectId IS NOT NULL', { t: user.tenantId }).groupBy('e.projectId').getRawMany<{ projectId: string; n: string }>();
+    return projects.map((p) => ({ id: p.id, code: p.code, name: p.name, client: p.client, active: p.active, employees: Number(counts.find((c) => c.projectId === p.id)?.n ?? 0) }));
+  }
+
+  @Post('projects')
+  @Roles(Role.SUPER_ADMIN)
+  async createProject(@CurrentUser() user: AuthUser, @Body() dto: CreateProjectDto, @Req() req: AppRequest) {
+    if (await this.projects().exist({ where: { tenantId: user.tenantId, code: dto.code } })) throw new ConflictException('PROJECT_CODE_EXISTS');
+    const { project } = await this.access.upsertProject(user.tenantId, dto.code, dto);
+    await this.audit.fromRequest(req, { action: 'PROJECT_CREATED', entityType: 'project', entityId: project.id, details: { code: project.code } });
+    return project;
+  }
+
+  @Patch('projects/:id')
+  @Roles(Role.SUPER_ADMIN)
+  async updateProject(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateProjectDto, @Req() req: AppRequest) {
+    const p = await this.projects().findOne({ where: { id, tenantId: user.tenantId } });
+    if (!p) throw new NotFoundException();
+    if (dto.name !== undefined) p.name = dto.name;
+    if (dto.client !== undefined) p.client = dto.client || null;
+    if (dto.active !== undefined) p.active = dto.active;
+    await this.projects().save(p);
+    await this.audit.fromRequest(req, { action: 'PROJECT_UPDATED', entityType: 'project', entityId: p.id, details: { code: p.code, ...dto } });
+    return p;
+  }
+
+  /** Only a job nobody is on; otherwise close it (active: false) and the history stays readable. */
+  @Delete('projects/:id')
+  @HttpCode(200)
+  @Roles(Role.SUPER_ADMIN)
+  async deleteProject(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Req() req: AppRequest) {
+    const p = await this.projects().findOne({ where: { id, tenantId: user.tenantId } });
+    if (!p) throw new NotFoundException();
+    if (await this.employees.exist({ where: { tenantId: user.tenantId, projectId: p.id } })) throw new ConflictException('PROJECT_IN_USE');
+    await this.projects().delete({ id: p.id });
+    await this.audit.fromRequest(req, { action: 'PROJECT_DELETED', entityType: 'project', entityId: p.id, details: { code: p.code } });
+    return { ok: true };
+  }
+
+  private projects() { return this.employees.manager.getRepository(Project); }
+
   // ------------------------------------------------------------------ employees
   @Get('employees')
   @Roles(...READ)
@@ -142,6 +201,7 @@ export class AccessAdminController {
     const rules = all.length ? await this.rules.find({ where: { tenantId: user.tenantId, employeeId: In(all.map((e) => e.id)) } }) : [];
     // A site manager sees the employees who can open at least one door of their sites.
     const visible = visibleSiteIds(user) ? all.filter((e) => rules.some((r) => r.employeeId === e.id && doorById.has(r.doorId))) : all;
+    const projects = new Map((await this.projects().find({ where: { tenantId: user.tenantId } })).map((p) => [p.id, p]));
     const tc = await this.keys.forTenant(user.tenantId);
     await this.audit.fromRequest(req, { action: 'EMPLOYEES_VIEW', details: { count: visible.length } });
     return visible.map((e) => ({
@@ -149,6 +209,7 @@ export class AccessAdminController {
       firstName: tc.decrypt(e.firstNameEnc, 'employee.firstName'), lastName: tc.decrypt(e.lastNameEnc, 'employee.lastName'),
       email: tc.decrypt(e.emailEnc, 'employee.email'), department: tc.decrypt(e.departmentEnc, 'employee.department'), jobTitle: tc.decrypt(e.jobTitleEnc, 'employee.jobTitle'),
       source: e.source, active: e.active, validFrom: e.validFrom, validUntil: e.validUntil,
+      project: e.projectId && projects.has(e.projectId) ? { id: e.projectId, code: projects.get(e.projectId)!.code, name: projects.get(e.projectId)!.name } : null,
       badgeHint: e.badgeHint, phoneBadge: !!e.credentialSecretEnc, phoneBadgeIssuedAt: e.credentialIssuedAt, updatedAt: e.updatedAt,
       permissions: rules.filter((r) => r.employeeId === e.id && doorById.has(r.doorId)).map((r) => {
         const d = doorById.get(r.doorId)!;
@@ -232,14 +293,18 @@ export class AccessAdminController {
     if (!(from < to)) throw new BadRequestException('INVALID_RANGE');
     if (q.siteId) assertSiteAccess(user, q.siteId);
     const ids = q.siteId ? [q.siteId] : visibleSiteIds(user);
+    // People of a job / contract: their ids now (whoever moved to it later counts, as the list is about people).
+    const onProject = q.projectId ? (await this.employees.find({ where: { tenantId: user.tenantId, projectId: q.projectId }, select: { id: true } })).map((e) => e.id) : null;
     const rows = await this.events.find({
-      where: { tenantId: user.tenantId, at: Between(from, to), ...(ids ? { siteId: In(ids.length ? ids : NONE) } : {}), ...(q.result ? { result: q.result as AccessEvent['result'] } : {}) },
+      where: { tenantId: user.tenantId, at: Between(from, to), ...(ids ? { siteId: In(ids.length ? ids : NONE) } : {}), ...(q.result ? { result: q.result as AccessEvent['result'] } : {}),
+        ...(onProject ? { employeeId: In(onProject.length ? onProject : NONE) } : {}) },
       order: { at: 'DESC' }, take: q.limit ?? 500,
     });
     const tc = await this.keys.forTenant(user.tenantId);
     const emps = new Map((rows.length ? await this.employees.find({ where: { tenantId: user.tenantId, id: In([...new Set(rows.map((r) => r.employeeId).filter(Boolean))] as string[]) } }) : []).map((e) => [e.id, e]));
     const doors = new Map((rows.length ? await this.doors.find({ where: { tenantId: user.tenantId, id: In([...new Set(rows.map((r) => r.doorId))]) } }) : []).map((d) => [d.id, d]));
     const sites = new Map((await this.sites.find({ where: { tenantId: user.tenantId } })).map((s) => [s.id, s]));
+    const projects = new Map((await this.projects().find({ where: { tenantId: user.tenantId } })).map((p) => [p.id, p]));
     await this.audit.fromRequest(req, { action: 'ACCESS_LOG_VIEW', siteId: q.siteId ?? null, details: { from: q.from, to: q.to, rows: rows.length } });
     return rows.map((r) => {
       const e = r.employeeId ? emps.get(r.employeeId) : undefined;
@@ -248,6 +313,7 @@ export class AccessAdminController {
         door: doors.get(r.doorId)?.name ?? '—', site: sites.get(r.siteId)?.name ?? '—', timezone: sites.get(r.siteId)?.timezone ?? 'UTC',
         employee: e ? `${tc.decrypt(e.lastNameEnc, 'employee.lastName')} ${tc.decrypt(e.firstNameEnc, 'employee.firstName')}` : null,
         externalId: e?.externalId ?? null,
+        project: e?.projectId ? projects.get(e.projectId)?.code ?? null : null,
       };
     });
   }
