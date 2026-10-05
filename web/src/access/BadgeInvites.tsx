@@ -1,61 +1,19 @@
 import QRCode from 'qrcode';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ApiError } from '../lib/api';
+import { intlLocale, lang, t } from './badge-strings';
+import { Button, Chip, Field, ScreenHeader, Screen, SkeletonRows, SuccessCheck } from './badge-ui';
 import { ArrivalNotices } from './BadgePush';
+import { byDay, dateIn, dayOptions, isEmail, isName, normaliseTime, PURPOSES, shareText, timeIn, type Invite, type Profile, type Purpose } from './invites';
+
+export type { Profile } from './invites';
 
 /**
- * Invitations on the "My badge" page, for employees who are also people to visit: the same
- * screens as the phone app (list, new invitation, QR and code to forward, cancel).
+ * Invitations on the "My badge" page, for employees who are also people to visit: the same three
+ * screens as the phone app (list by day, new invitation, QR and code to forward).
  */
 
-type Lang = 'it' | 'es' | 'en';
-const PURPOSES = ['MEETING', 'INTERVIEW', 'SUPPLIER', 'MAINTENANCE', 'DELIVERY', 'OTHER'] as const;
-type Purpose = (typeof PURPOSES)[number];
-type Status = 'PENDING' | 'USED' | 'CANCELLED' | 'EXPIRED';
-interface Site { id: string; name: string; timezone: string }
-export interface Profile { canInvite: boolean; sites: Site[]; organisation: string; firstName: string }
-interface Invite { id: string; siteName: string; timezone: string; expectedAt: string; purpose: Purpose; firstName: string; lastName: string; company: string | null; email: string; status: Status; emailStatus: string }
-
-const STRINGS = {
-  it: {
-    open: 'I miei inviti', title: 'I miei inviti', back: 'Torna al badge', list: 'Torna agli inviti', new: 'Nuovo invito',
-    none: 'Nessun ospite atteso. Crea un invito: l’ospite riceve un’email con un QR e alla reception tocca “Ho un invito”.',
-    firstName: 'Nome', lastName: 'Cognome', company: 'Azienda (facoltativo)', email: 'Email dell’ospite', site: 'Sede', day: 'Giorno', time: 'Ora', purpose: 'Motivo',
-    create: 'Crea invito', created: 'Invito creato.', emailSent: 'L’ospite riceve un’email con il QR. Puoi anche mandargli tu il codice.', emailOff: 'L’invio email non è attivo: manda tu il codice all’ospite.',
-    code: 'Codice', share: 'Condividi con l’ospite', copied: 'Testo copiato: incollalo in un messaggio.', cancel: 'Annulla invito', cancelConfirm: 'Annullare l’invito? Il codice smette di funzionare.',
-    reactivate: 'Per invitare ospiti da qui rimuovi il badge e attivalo di nuovo: serve una sola volta.',
-    status: { PENDING: 'Atteso', USED: 'Arrivato', CANCELLED: 'Annullato', EXPIRED: 'Non arrivato' },
-    purposes: { MEETING: 'Riunione', INTERVIEW: 'Colloquio', SUPPLIER: 'Fornitore', MAINTENANCE: 'Manutenzione', DELIVERY: 'Consegna', OTHER: 'Altro' },
-    shareText: 'Ciao {firstName}, ti aspetto {when} da {organisation}, sede di {site}. All’arrivo tocca “Ho un invito” sul tablet della reception e mostra il QR dell’email, oppure scrivi il codice {code}. A presto, {host}',
-    errors: { INVITATION_IN_PAST: 'Quel giorno è già passato.', INVITATION_TOO_FAR: 'Puoi invitare fino a 90 giorni in anticipo.', NOT_A_HOST: 'Non sei più tra le persone da visitare: chiedi alla reception.', NOT_A_HOST_HERE: 'In questa sede non ricevi visite.', generic: 'Operazione non riuscita. Controlla i dati e riprova.', offline: 'Connessione non disponibile.' },
-  },
-  es: {
-    open: 'Mis invitaciones', title: 'Mis invitaciones', back: 'Volver a la credencial', list: 'Volver a las invitaciones', new: 'Nueva invitación',
-    none: 'No espera a nadie. Cree una invitación: el invitado recibe un correo con un QR y en recepción toca «Tengo una invitación».',
-    firstName: 'Nombre', lastName: 'Apellidos', company: 'Empresa (opcional)', email: 'Correo del invitado', site: 'Sede', day: 'Día', time: 'Hora', purpose: 'Motivo',
-    create: 'Crear invitación', created: 'Invitación creada.', emailSent: 'El invitado recibe un correo con el QR. También puede enviarle usted el código.', emailOff: 'El envío de correo no está activo: envíe usted el código al invitado.',
-    code: 'Código', share: 'Compartir con el invitado', copied: 'Texto copiado: péguelo en un mensaje.', cancel: 'Cancelar invitación', cancelConfirm: '¿Cancelar la invitación? El código deja de funcionar.',
-    reactivate: 'Para invitar desde aquí, quite la credencial y actívela de nuevo: solo una vez.',
-    status: { PENDING: 'Esperado', USED: 'Llegó', CANCELLED: 'Cancelada', EXPIRED: 'No llegó' },
-    purposes: { MEETING: 'Reunión', INTERVIEW: 'Entrevista', SUPPLIER: 'Proveedor', MAINTENANCE: 'Mantenimiento', DELIVERY: 'Entrega', OTHER: 'Otro' },
-    shareText: 'Hola {firstName}, le espero {when} en {organisation}, sede de {site}. Al llegar toque «Tengo una invitación» en la tableta de recepción y muestre el QR del correo, o escriba el código {code}. Hasta pronto, {host}',
-    errors: { INVITATION_IN_PAST: 'Ese día ya ha pasado.', INVITATION_TOO_FAR: 'Puede invitar hasta 90 días antes.', NOT_A_HOST: 'Ya no está entre las personas a visitar: pregunte en recepción.', NOT_A_HOST_HERE: 'En esta sede no recibe visitas.', generic: 'No se pudo completar. Revise los datos e inténtelo de nuevo.', offline: 'Sin conexión.' },
-  },
-  en: {
-    open: 'My invitations', title: 'My invitations', back: 'Back to the badge', list: 'Back to invitations', new: 'New invitation',
-    none: 'No guests expected. Create an invitation: the guest receives an email with a QR and taps “I have an invitation” at reception.',
-    firstName: 'First name', lastName: 'Last name', company: 'Company (optional)', email: 'Guest’s email', site: 'Site', day: 'Day', time: 'Time', purpose: 'Reason',
-    create: 'Create invitation', created: 'Invitation created.', emailSent: 'The guest receives an email with the QR. You can also send them the code yourself.', emailOff: 'Email is not enabled: send the code to your guest yourself.',
-    code: 'Code', share: 'Share with the guest', copied: 'Text copied: paste it into a message.', cancel: 'Cancel invitation', cancelConfirm: 'Cancel the invitation? The code stops working.',
-    reactivate: 'To invite guests from here, remove the badge and activate it again: only once.',
-    status: { PENDING: 'Expected', USED: 'Arrived', CANCELLED: 'Cancelled', EXPIRED: 'Did not come' },
-    purposes: { MEETING: 'Meeting', INTERVIEW: 'Interview', SUPPLIER: 'Supplier', MAINTENANCE: 'Maintenance', DELIVERY: 'Delivery', OTHER: 'Other' },
-    shareText: 'Hi {firstName}, I’m expecting you {when} at {organisation}, {site} site. When you arrive, tap “I have an invitation” on the reception tablet and show the QR from the email, or type the code {code}. See you soon, {host}',
-    errors: { INVITATION_IN_PAST: 'That day has already passed.', INVITATION_TOO_FAR: 'You can invite up to 90 days ahead.', NOT_A_HOST: 'You are no longer among the people to visit: ask reception.', NOT_A_HOST_HERE: 'You do not receive visits at this site.', generic: 'Something went wrong. Check the details and try again.', offline: 'No connection.' },
-  },
-};
-
-export const inviteStrings = (lang: Lang) => STRINGS[lang];
+const QUICK_TIMES = ['09:00', '10:00', '11:00', '14:00', '15:00', '16:00'];
 
 /** Calls /api/me… with the token issued at activation. */
 export async function me<R>(token: string, path = '', init?: RequestInit): Promise<R> {
@@ -65,169 +23,204 @@ export async function me<R>(token: string, path = '', init?: RequestInit): Promi
   return data as R;
 }
 
-const dateIn = (ms: number, timeZone: string) => {
-  const p = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(ms)).map((x) => [x.type, x.value]));
-  return `${p.year}-${p.month}-${p.day}`;
-};
+const explain = (e: unknown) => (e instanceof ApiError ? (t.invites.errors as Record<string, string>)[e.code] ?? t.errors.generic : t.errors.offline);
 
-type View = { kind: 'list' } | { kind: 'new' } | { kind: 'detail'; id: string; created?: string };
-
-export function BadgeInvites({ token, profile, lang, onBack }: { token: string; profile: Profile; lang: Lang; onBack: () => void }) {
-  const T = STRINGS[lang];
-  const locale = lang === 'en' ? 'en-GB' : lang;
-  const [view, setView] = useState<View>({ kind: 'list' });
+/** Upcoming guests of the signed-in employee, by day. */
+export function InvitesList({ token, onBack, onNew, onOpen }: { token: string; onBack: () => void; onNew: () => void; onOpen: (id: string) => void }) {
   const [rows, setRows] = useState<Invite[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const explain = (e: unknown) => setError(e instanceof ApiError ? (T.errors as Record<string, string>)[e.code] ?? T.errors.generic : T.errors.offline);
   const load = useCallback(async () => {
-    try {
-      const [up, past] = await Promise.all([me<Invite[]>(token, '/invitations'), me<Invite[]>(token, '/invitations?scope=past')]);
-      setRows([...up, ...past.slice(0, 10)]); setError(null);
-    } catch (e) { explain(e); }
+    try { setRows(await me<Invite[]>(token, '/invitations')); setError(null); } catch (e) { setError(explain(e)); }
   }, [token]);
   useEffect(() => { load(); }, [load]);
-  useEffect(() => { window.scrollTo(0, 0); }, [view]);
+  // Back in front (a guest may have arrived meanwhile): refresh.
+  useEffect(() => {
+    const on = () => { if (!document.hidden) load(); };
+    document.addEventListener('visibilitychange', on);
+    return () => document.removeEventListener('visibilitychange', on);
+  }, [load]);
 
-  const when = (r: Invite) => new Intl.DateTimeFormat(locale, { timeZone: r.timezone, weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(r.expectedAt));
+  const now = Date.now();
+  const dayLabel = (date: string, tz: string) =>
+    date === dateIn(now, tz) ? t.invites.today : date === dateIn(now + 86_400_000, tz) ? t.invites.tomorrow
+      : new Intl.DateTimeFormat(intlLocale, { timeZone: tz, weekday: 'long', day: 'numeric', month: 'long' }).format(new Date(`${date}T12:00:00Z`));
 
-  if (view.kind === 'new') return (
-    <NewInvite token={token} profile={profile} T={T} onCancel={() => setView({ kind: 'list' })}
-      onCreated={async (id, emailStatus) => { await load(); setView({ kind: 'detail', id, created: emailStatus }); }} />
-  );
-  if (view.kind === 'detail') {
-    const row = rows?.find((r) => r.id === view.id);
-    return <InviteDetail token={token} row={row} created={view.created} when={row ? when(row) : ''} profile={profile} T={T} locale={locale}
-      onBack={() => setView({ kind: 'list' })} onChanged={load} />;
-  }
   return (
-    <main className="badge-card stack badge-invites">
-      <button type="button" className="btn-link" style={{ justifySelf: 'start' }} onClick={onBack}>‹ {T.back}</button>
-      <h1 style={{ margin: 0 }}>{T.title}</h1>
-      <button type="button" className="btn btn-primary" onClick={() => setView({ kind: 'new' })}>{T.new}</button>
-      <ArrivalNotices token={token} lang={lang} />
-      {error && <p className="alert" role="alert" style={{ margin: 0 }}>{error}</p>}
-      {rows && rows.length === 0 && <p className="muted" style={{ margin: 0 }}>{T.none}</p>}
-      {rows && rows.length > 0 && (
-        <ul className="invite-list">
-          {rows.map((r) => (
-            <li key={r.id}>
-              <button type="button" onClick={() => setView({ kind: 'detail', id: r.id })}>
-                <span><strong style={r.status === 'CANCELLED' ? { textDecoration: 'line-through' } : undefined}>{r.firstName} {r.lastName}</strong><small>{when(r)} · {r.siteName}</small></span>
-                <span className={`pill ${r.status === 'PENDING' ? 'OPEN' : ''}`}>{T.status[r.status]}</span>
+    <>
+      <ScreenHeader title={t.invites.title} backLabel={t.invites.back} onBack={onBack} />
+      <Screen>
+        <Button label={t.invites.new} onClick={onNew} />
+        <ArrivalNotices token={token} />
+        {error && <p className="mb-error-block" role="alert">{error}</p>}
+        {rows === null && !error && <SkeletonRows label={t.loading} />}
+        {rows && rows.length === 0 && <p className="mb-empty">{t.invites.none}</p>}
+        {rows && byDay(rows).map((g) => (
+          <section key={g.date} className="mb-group" aria-label={dayLabel(g.date, g.rows[0].timezone)}>
+            <h2 className="mb-day">{dayLabel(g.date, g.rows[0].timezone)}</h2>
+            {g.rows.map((r) => (
+              <button key={r.id} type="button" className="mb-row mb-row-btn" onClick={() => onOpen(r.id)}>
+                <span className="mb-time">{timeIn(Date.parse(r.expectedAt), r.timezone)}</span>
+                <span className="mb-row-main">
+                  <strong className={r.status === 'CANCELLED' ? 'mb-struck' : undefined}>{r.firstName} {r.lastName}</strong>
+                  <small>{[r.company, r.siteName].filter(Boolean).join(' · ')}</small>
+                </span>
+                <span className={`mb-status${r.status === 'PENDING' ? ' is-on' : ''}`}>{t.invites.status[r.status]}</span>
               </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </main>
+            ))}
+          </section>
+        ))}
+      </Screen>
+    </>
   );
 }
 
-function NewInvite({ token, profile, T, onCancel, onCreated }: { token: string; profile: Profile; T: (typeof STRINGS)['it']; onCancel: () => void; onCreated: (id: string, emailStatus: string) => void }) {
-  const first = profile.sites[0];
-  const [f, setF] = useState({ siteId: first?.id ?? '', date: first ? dateIn(Date.now(), first.timezone) : '', time: '10:00', firstName: '', lastName: '', company: '', email: '', purpose: 'MEETING' as Purpose });
+/** New invitation: the guest, when and where. The host is always the signed-in employee. */
+export function NewInvite({ token, profile, onBack, onCreated }: { token: string; profile: Profile; onBack: () => void; onCreated: (id: string, emailStatus: string) => void }) {
+  const [f, setF] = useState({ firstName: '', lastName: '', company: '', email: '', siteId: profile.sites[0]?.id ?? '', date: '', time: '10:00', purpose: 'MEETING' as Purpose });
+  const [errors, setErrors] = useState<Partial<Record<'name' | 'email' | 'time' | 'form', string>>>({});
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const site = profile.sites.find((s) => s.id === f.siteId) ?? first;
-  const today = site ? dateIn(Date.now(), site.timezone) : '';
-  const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF({ ...f, [k]: e.target.value });
+  const site = profile.sites.find((s) => s.id === f.siteId) ?? profile.sites[0];
+  const days = useMemo(() => (site ? dayOptions(Date.now(), site.timezone, intlLocale) : []), [site]);
+  useEffect(() => { if (days.length && !days.some((d) => d.date === f.date)) setF((x) => ({ ...x, date: days[0].date })); }, [days, f.date]);
+  const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => setF({ ...f, [k]: e.target.value });
 
   const submit = async (e: React.FormEvent) => {
-    e.preventDefault(); setBusy(true); setError(null);
+    e.preventDefault();
+    const time = normaliseTime(f.time);
+    const errs: typeof errors = {};
+    if (!isName(f.firstName) || !isName(f.lastName)) errs.name = t.invites.errors.name;
+    if (!isEmail(f.email)) errs.email = t.invites.errors.email;
+    if (!time) errs.time = t.invites.errors.time;
+    // No site left means this person is no longer someone who can be visited: say so instead of doing nothing.
+    if (!site) errs.form = t.invites.errors.NOT_A_HOST;
+    setErrors(errs);
+    if (Object.keys(errs).length || !site) return;
+    setBusy(true);
     try {
       const r = await me<{ id: string; emailStatus: string }>(token, '/invitations', {
-        method: 'POST', body: JSON.stringify({ ...f, siteId: site!.id, company: f.company.trim() || undefined, email: f.email.trim(), locale: navigator.language.slice(0, 2) === 'es' ? 'es' : navigator.language.slice(0, 2) === 'en' ? 'en' : 'it' }),
+        method: 'POST',
+        body: JSON.stringify({ siteId: site.id, date: f.date, time, firstName: f.firstName.trim(), lastName: f.lastName.trim(), company: f.company.trim() || null, email: f.email.trim().toLowerCase(), purpose: f.purpose, locale: lang }),
       });
       onCreated(r.id, r.emailStatus);
-    } catch (err) {
-      setError(err instanceof ApiError ? (T.errors as Record<string, string>)[err.code] ?? T.errors.generic : T.errors.offline);
-    } finally { setBusy(false); }
+    } catch (err) { setErrors({ form: explain(err) }); } finally { setBusy(false); }
   };
 
   return (
-    <main className="badge-card">
-      <form className="stack" onSubmit={submit}>
-        <button type="button" className="btn-link" style={{ justifySelf: 'start' }} onClick={onCancel}>‹ {T.list}</button>
-        <h1 style={{ margin: 0 }}>{T.new}</h1>
-        <div className="field"><label htmlFor="if">{T.firstName}</label><input id="if" className="input" value={f.firstName} onChange={set('firstName')} maxLength={80} required autoComplete="off" /></div>
-        <div className="field"><label htmlFor="il">{T.lastName}</label><input id="il" className="input" value={f.lastName} onChange={set('lastName')} maxLength={80} required autoComplete="off" /></div>
-        <div className="field"><label htmlFor="ic">{T.company}</label><input id="ic" className="input" value={f.company} onChange={set('company')} maxLength={120} autoComplete="off" /></div>
-        <div className="field"><label htmlFor="ie">{T.email}</label><input id="ie" className="input" type="email" value={f.email} onChange={set('email')} maxLength={190} required autoComplete="off" spellCheck={false} /></div>
-        {profile.sites.length > 1 && (
-          <div className="field"><label htmlFor="is">{T.site}</label>
-            <select id="is" className="input" value={f.siteId} onChange={set('siteId')}>{profile.sites.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
-        )}
-        <div className="inline" style={{ gap: 12 }}>
-          <div className="field" style={{ flex: '1 1 150px' }}><label htmlFor="id">{T.day}</label><input id="id" className="input" type="date" min={today} value={f.date} onChange={set('date')} required /></div>
-          <div className="field" style={{ flex: '1 1 110px' }}><label htmlFor="it">{T.time}</label><input id="it" className="input" type="time" step={300} value={f.time} onChange={set('time')} required /></div>
-        </div>
-        <div className="field"><label htmlFor="ip">{T.purpose}</label>
-          <select id="ip" className="input" value={f.purpose} onChange={set('purpose')}>{PURPOSES.map((p) => <option key={p} value={p}>{T.purposes[p]}</option>)}</select></div>
-        {error && <p className="alert" role="alert" style={{ margin: 0 }}>{error}</p>}
-        <button className="btn btn-primary" disabled={busy} aria-busy={busy}>{T.create}</button>
-      </form>
-    </main>
+    <>
+      <ScreenHeader title={t.invites.new} backLabel={t.invites.back} onBack={onBack} />
+      <Screen>
+        <form className="mb-form" onSubmit={submit} noValidate>
+          <h2 className="mb-section">{t.invites.guest}</h2>
+          <Field id="if" label={t.invites.firstName} value={f.firstName} onChange={set('firstName')} maxLength={80} autoComplete="off" autoCapitalize="words" enterKeyHint="next" />
+          <Field id="il" label={t.invites.lastName} value={f.lastName} onChange={set('lastName')} maxLength={80} autoComplete="off" autoCapitalize="words" enterKeyHint="next" error={errors.name} />
+          <Field id="ic" label={t.invites.company} value={f.company} onChange={set('company')} maxLength={120} autoComplete="off" autoCapitalize="words" enterKeyHint="next" />
+          <Field id="ie" label={t.invites.email} type="email" inputMode="email" value={f.email} onChange={set('email')} maxLength={190} autoComplete="off" autoCapitalize="none" spellCheck={false} error={errors.email} />
+
+          <h2 className="mb-section">{t.invites.when}</h2>
+          {profile.sites.length > 1 && (
+            <div className="mb-group">
+              <span className="mb-label" id="ns-l">{t.invites.site}</span>
+              <div className="mb-wrap" role="radiogroup" aria-labelledby="ns-l">
+                {profile.sites.map((s) => <Chip key={s.id} label={s.name} selected={s.id === site?.id} onClick={() => setF({ ...f, siteId: s.id })} />)}
+              </div>
+            </div>
+          )}
+          <div className="mb-group">
+            <span className="mb-label" id="nd-l">{t.invites.day}</span>
+            <div className="mb-scroll" role="radiogroup" aria-labelledby="nd-l">
+              {days.map((d, i) => <Chip key={d.date} label={i === 0 ? t.invites.today : i === 1 ? t.invites.tomorrow : d.label} selected={d.date === f.date} onClick={() => setF({ ...f, date: d.date })} />)}
+            </div>
+          </div>
+          <div className="mb-group">
+            <div className="mb-wrap" role="radiogroup" aria-label={t.invites.time}>
+              {QUICK_TIMES.map((q) => <Chip key={q} label={q} selected={normaliseTime(f.time) === q} onClick={() => setF({ ...f, time: q })} />)}
+            </div>
+            <Field id="it" label={t.invites.time} value={f.time} onChange={set('time')} inputMode="numeric" placeholder={t.invites.timeHint} maxLength={5} error={errors.time} />
+          </div>
+          <div className="mb-group">
+            <span className="mb-label" id="np-l">{t.invites.purpose}</span>
+            <div className="mb-wrap" role="radiogroup" aria-labelledby="np-l">
+              {PURPOSES.map((p) => <Chip key={p} label={t.invites.purposes[p]} selected={f.purpose === p} onClick={() => setF({ ...f, purpose: p })} />)}
+            </div>
+          </div>
+          {errors.form && <p className="mb-error-block" role="alert">{errors.form}</p>}
+          <Button type="submit" label={t.invites.create} busy={busy} />
+        </form>
+      </Screen>
+    </>
   );
 }
 
-function InviteDetail({ token, row, created, when, profile, T, onBack, onChanged }: {
-  token: string; row: Invite | undefined; created?: string; when: string; profile: Profile; T: (typeof STRINGS)['it']; locale: string; onBack: () => void; onChanged: () => Promise<void>;
-}) {
+/** One invitation: the QR and code to forward, and the way to cancel it. */
+export function InviteDetail({ token, id, created, organisation, host, onBack }: { token: string; id: string; created?: string; organisation: string; host: string; onBack: () => void }) {
+  const [inv, setInv] = useState<Invite | null | undefined>(undefined);
   const [qr, setQr] = useState<{ code: string; src: string } | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [note, setNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  useEffect(() => {
-    setQr(null);
-    if (row?.status !== 'PENDING') return;
-    let alive = true;
-    me<{ code: string; payload: string }>(token, `/invitations/${row.id}/qr`)
-      .then(async ({ code, payload }) => {
-        const svg = await QRCode.toString(payload, { type: 'svg', margin: 1, errorCorrectionLevel: 'M' });
-        if (alive) setQr({ code, src: `data:image/svg+xml;utf8,${encodeURIComponent(svg)}` });
-      })
-      .catch(() => undefined);
-    return () => { alive = false; };
-  }, [token, row?.id, row?.status]);
+  const [note, setNote] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
-  if (!row) return <main className="badge-card stack"><button type="button" className="btn-link" onClick={onBack}>‹ {T.list}</button></main>;
-  const text = qr ? T.shareText.replace('{firstName}', row.firstName).replace('{when}', when).replace('{organisation}', profile.organisation)
-    .replace('{site}', row.siteName).replace('{code}', qr.code).replace('{host}', profile.firstName) : '';
+  const load = useCallback(async () => {
+    try {
+      const row = (await me<Invite[]>(token, '/invitations')).find((r) => r.id === id) ?? (await me<Invite[]>(token, '/invitations?scope=past')).find((r) => r.id === id) ?? null;
+      setInv(row);
+      if (row?.status === 'PENDING') {
+        const { code, payload } = await me<{ code: string; payload: string }>(token, `/invitations/${row.id}/qr`);
+        const svg = await QRCode.toString(payload, { type: 'svg', margin: 2, errorCorrectionLevel: 'M' });
+        setQr({ code, src: `data:image/svg+xml;utf8,${encodeURIComponent(svg)}` });
+      } else setQr(null);
+    } catch (e) { setError(explain(e)); }
+  }, [token, id]);
+  useEffect(() => { load(); }, [load]);
+
+  const when = inv ? new Intl.DateTimeFormat(intlLocale, { timeZone: inv.timezone, weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }).format(new Date(inv.expectedAt)) : '';
   const share = async () => {
+    if (!inv || !qr) return;
+    const text = shareText(t.invites.shareText, { firstName: inv.firstName, when, site: inv.siteName, organisation, code: qr.code, host });
     setNote(null);
     try {
       if (navigator.share) await navigator.share({ text });
-      else { await navigator.clipboard.writeText(text); setNote(T.copied); }
+      else { await navigator.clipboard.writeText(text); setNote(t.invites.copied); }
     } catch { /* closed by the user */ }
   };
   const cancel = async () => {
-    if (!window.confirm(T.cancelConfirm)) return;
+    if (!inv || !window.confirm(`${t.invites.cancelTitle}\n${t.invites.cancelText}`)) return;
     setBusy(true); setError(null);
-    try { await me(token, `/invitations/${row.id}/cancel`, { method: 'POST', body: '{}' }); await onChanged(); }
-    catch (e) { setError(e instanceof ApiError ? (T.errors as Record<string, string>)[e.code] ?? T.errors.generic : T.errors.offline); }
-    finally { setBusy(false); }
+    try { await me(token, `/invitations/${inv.id}/cancel`, { method: 'POST', body: '{}' }); await load(); } catch (e) { setError(explain(e)); } finally { setBusy(false); }
   };
 
   return (
-    <main className="badge-card stack" style={{ textAlign: 'center' }}>
-      <button type="button" className="btn-link" style={{ justifySelf: 'start' }} onClick={onBack}>‹ {T.list}</button>
-      {created && <p className="alert alert-info" role="status" style={{ margin: 0, textAlign: 'left' }}><strong>{T.created}</strong> {created === 'SKIPPED' ? T.emailOff : T.emailSent}</p>}
-      <span className={`pill ${row.status === 'PENDING' ? 'OPEN' : ''}`} style={{ justifySelf: 'center' }}>{T.status[row.status]}</span>
-      <div className="badge-name">{row.firstName} {row.lastName}</div>
-      {row.company && <p className="muted" style={{ margin: 0 }}>{row.company}</p>}
-      <p style={{ margin: 0, fontWeight: 700 }}>{when}</p>
-      <p className="muted" style={{ margin: 0 }}>{row.siteName} · {T.purposes[row.purpose]} · {row.email}</p>
-      {qr && (
-        <>
-          <div className="badge-qr-box" style={{ maxWidth: 220, justifySelf: 'center' }}><img src={qr.src} alt={`${T.code} ${qr.code}`} /></div>
-          <p className="muted" style={{ margin: 0 }}>{T.code}</p>
-          <p className="invite-code" translate="no">{qr.code}</p>
-          <button type="button" className="btn btn-primary" onClick={share}>{T.share}</button>
-          <p role="status" className="hint" style={{ margin: 0 }}>{note ?? ''}</p>
-        </>
-      )}
-      {error && <p className="alert" role="alert" style={{ margin: 0 }}>{error}</p>}
-      {row.status === 'PENDING' && <button type="button" className="btn btn-ghost is-danger" onClick={cancel} disabled={busy} aria-busy={busy}>{T.cancel}</button>}
-    </main>
+    <>
+      <ScreenHeader title={t.invites.title} backLabel={t.invites.back} onBack={onBack} />
+      <Screen>
+        {created && (
+          <div className="mb-notice" role="alert">
+            <SuccessCheck size={44} />
+            <div><strong>{t.invites.created}</strong><span>{created === 'SKIPPED' ? t.invites.emailOff : t.invites.emailSent}</span></div>
+          </div>
+        )}
+        {error && <p className="mb-error-block" role="alert">{error}</p>}
+        {inv === undefined && !error && <span className="mb-spinner mb-spinner-page" role="progressbar" aria-label={t.loading} />}
+        {inv && (
+          <section className="mb-card mb-invite" aria-label={`${inv.firstName} ${inv.lastName}`}>
+            <span className="mb-status-big">{t.invites.status[inv.status]}</span>
+            <p className="mb-invite-name">{inv.firstName} {inv.lastName}</p>
+            {inv.company && <p className="mb-meta">{inv.company}</p>}
+            <p className="mb-when">{when}</p>
+            <p className="mb-meta">{inv.siteName} · {t.invites.purposes[inv.purpose]}</p>
+            <p className="mb-meta">{inv.email}</p>
+            {qr && (
+              <>
+                <div className="mb-qr mb-qr-small"><img src={qr.src} alt={`${t.invites.code} ${qr.code.split('').join(' ')}`} /></div>
+                <p className="mb-meta">{t.invites.code}</p>
+                <p className="mb-code" translate="no">{qr.code}</p>
+              </>
+            )}
+          </section>
+        )}
+        {inv && qr && <Button label={t.invites.share} onClick={share} />}
+        {note && <p className="mb-small mb-centered" role="status">{note}</p>}
+        {inv?.status === 'PENDING' && <Button label={t.invites.cancel} kind="danger" busy={busy} onClick={cancel} />}
+      </Screen>
+    </>
   );
 }

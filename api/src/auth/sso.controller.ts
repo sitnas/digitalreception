@@ -27,8 +27,11 @@ export class SsoStartQuery {
 export class SsoFinishQuery {
   @IsString() @MaxLength(200) code: string;
 }
-/** The app's own address; only app schemes, never a web page (it is not an open redirect). */
-const APP_RETURN = /^(drbadge|exps?):\/\/[A-Za-z0-9._~:/?#@!$&'()*+,;=%-]{0,280}$/;
+/**
+ * Where the code goes back: the app's own address (app schemes only), or the "My badge" page of the
+ * same organisation ("/badge"). Never an arbitrary web page: it is not an open redirect.
+ */
+const APP_RETURN = /^(?:(drbadge|exps?):\/\/[A-Za-z0-9._~:/?#@!$&'()*+,;=%-]{0,280}|\/badge)$/;
 export class BadgeSsoStartQuery {
   /** Hex SHA-256 of a random verifier kept by the app (PKCE): only the app that started can redeem. */
   @Matches(/^[0-9a-f]{64}$/) challenge: string;
@@ -83,8 +86,10 @@ export class SsoController {
   }
 
   /** Back into the phone app (system browser → app scheme), with the hand-off code or an error. */
-  private toApp(res: Response, returnTo: string, params: Record<string, string>) {
-    res.redirect(302, `${returnTo}${returnTo.includes('?') ? '&' : '?'}${new URLSearchParams(params)}`);
+  private toApp(res: Response, returnTo: string, params: Record<string, string>, slug?: string) {
+    // "/badge" is a page of the organisation: from the shared callback address, go back to its own host.
+    const target = returnTo.startsWith('/') && slug ? `${this.origin(slug)}${returnTo}` : returnTo;
+    res.redirect(302, `${target}${target.includes('?') ? '&' : '?'}${new URLSearchParams(params)}`);
   }
 
   private back(res: Response, path: string, error?: string) {
@@ -141,9 +146,9 @@ export class SsoController {
   }
 
   /**
-   * The phone app activates the badge with the company account. It opens this address in the system
-   * browser with the hash of a secret verifier; after the provider, the browser is sent back into the
-   * app with a one-time code, which the app redeems together with the verifier.
+   * The phone app (or the "My badge" page) activates the badge with the company account. It opens this
+   * address with the hash of a secret verifier; after the provider, the browser is sent back into the
+   * app (or to /badge) with a one-time code, which is redeemed together with the verifier.
    */
   @Get('badge')
   @Throttle({ default: { limit: 20, ttl: 60_000 } })
@@ -208,7 +213,7 @@ export class SsoController {
     // Conditional on "not yet handed off": a replayed callback cannot overwrite the first outcome.
     const upd = await this.requests.update({ id: r.id, handoffHash: IsNull() }, { ...outcome, handoffHash: this.crypto.sha256(handoff) });
     if (!upd.affected) { res.status(400).type('text/plain').send('Accesso già completato.'); return; }
-    if (r.mode === 'badge') return this.toApp(res, r.returnTo!, { code: handoff });
+    if (r.mode === 'badge') return this.toApp(res, r.returnTo!, { code: handoff }, t.slug);
     res.redirect(302, `${this.origin(t.slug)}/api/auth/sso/finish?code=${handoff}`);
   }
 
