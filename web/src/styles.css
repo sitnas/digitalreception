@@ -735,6 +735,10 @@ code.mfa-secret { font-size: 14px; overflow-wrap: anywhere; max-width: 100%; }
 .mb-qr-small img { width: min(220px, calc(100vw - 120px)); }
 .mb-small { margin: 0; font-size: 14px; color: var(--mb-ink2); font-variant-numeric: tabular-nums; }
 .mb-centered { text-align: center; }
+.mb-stale { justify-self: stretch; display: grid; gap: 10px; border: 1.5px solid var(--mb-danger); border-radius: 14px; padding: 14px; }
+.mb-stale-title { margin: 0; font-size: 17px; font-weight: 800; color: var(--mb-danger); }
+.mb-qr-block { display: grid; justify-items: center; gap: 10px; }
+.mb-faded { opacity: .2; }
 .mb-link { align-self: center; background: none; border: 0; padding: 8px 12px; font: inherit; font-size: 15px; font-weight: 600; color: var(--mb-ink2); text-decoration: underline; cursor: pointer; }
 .mb-link:hover { color: var(--mb-ink); }
 .mb-text { margin: 0; font-size: 15px; line-height: 1.45; color: var(--mb-ink2); }

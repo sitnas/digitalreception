@@ -94,11 +94,25 @@ export function BadgeApp() {
   const [view, setViewState] = useState<View>({ name: 'badge' });
   // People who can be visited also invite their guests from here.
   const [profile, setProfile] = useState<Profile | null>(null);
+  // What the server says about this badge: 'stale' when another activation or the console replaced it
+  // (the reader refuses the QR too), 'offline' when it cannot be reached (the QR still works).
+  const [server, setServer] = useState<'ok' | 'stale' | 'offline' | null>(null);
 
   useEffect(() => {
-    setProfile(null);
-    if (badge?.appToken) me<Profile>(badge.appToken).then(setProfile).catch(() => undefined);
+    setProfile(null); setServer(null);
+    const token = badge?.appToken;
+    if (!token) return;
+    const check = () => {
+      if (document.hidden) return;
+      me<Profile>(token).then((p) => { setProfile(p); setServer('ok'); })
+        .catch((e) => { const stale = e instanceof ApiError && e.status === 401; if (stale) setProfile(null); setServer(stale ? 'stale' : 'offline'); });
+    };
+    check();
+    document.addEventListener('visibilitychange', check);
+    return () => document.removeEventListener('visibilitychange', check);
   }, [badge]);
+  // Back to the first screen: the old badge is useless (the server already forgot it or never gave it a token).
+  const reactivate = () => { removeBadge(badge?.appToken).catch(() => undefined); save(null); setBadge(null); setJustActivated(false); };
   useEffect(() => {
     // Installs as its own "My badge" app (needed on iPhone for notifications).
     const link = document.querySelector<HTMLLinkElement>('link[rel="manifest"]');
@@ -132,8 +146,8 @@ export function BadgeApp() {
         : view.name === 'detail' && token ? <InviteDetail token={token} id={view.id} created={view.created} organisation={badge.organisation} host={badge.firstName} onBack={back} />
         : view.name === 'settings' ? <SettingsScreen badge={badge} onBack={back}
             onRemoved={() => { save(null); setBadge(null); setJustActivated(false); window.history.replaceState(null, ''); setViewState({ name: 'badge' }); }} />
-        : <BadgeScreen badge={badge} justActivated={justActivated} canInvite={!!profile?.canInvite} onInvites={() => setView({ name: 'invites' })}
-            onSettings={() => setView({ name: 'settings' })} />}
+        : <BadgeScreen badge={badge} justActivated={justActivated} canInvite={!!profile?.canInvite} server={server} onInvites={() => setView({ name: 'invites' })}
+            onSettings={() => setView({ name: 'settings' })} onReactivate={reactivate} />}
     </div>
   );
 }
@@ -245,7 +259,10 @@ function Activated() {
   );
 }
 
-function BadgeScreen({ badge, justActivated, canInvite, onInvites, onSettings }: { badge: Badge; justActivated: boolean; canInvite: boolean; onInvites: () => void; onSettings: () => void }) {
+function BadgeScreen({ badge, justActivated, canInvite, server, onInvites, onSettings, onReactivate }: {
+  badge: Badge; justActivated: boolean; canInvite: boolean; server: 'ok' | 'stale' | 'offline' | null; onInvites: () => void; onSettings: () => void; onReactivate: () => void;
+}) {
+  const stale = server === 'stale';
   const [now, setNow] = useState(() => Date.now());
   const [svg, setSvg] = useState('');
   const step = Math.floor(now / 1000 / badge.step);
@@ -288,16 +305,27 @@ function BadgeScreen({ badge, justActivated, canInvite, onInvites, onSettings }:
         <h1 className="mb-org">{badge.organisation}</h1>
         <p className="mb-name">{badge.firstName} {badge.lastName}</p>
         {/* Always black on white with a quiet zone: the reader camera needs contrast, also in dark mode. */}
-        <QrRing codeStep={step} left={left} step={badge.step}>
-          <div className="mb-qr">{src ? <img src={src} alt={t.hint} /> : <span className="mb-qr-empty" />}</div>
-        </QrRing>
-        <p className="mb-small" aria-live="off">{t.next.replace('{n}', String(left))}</p>
-        <p className="mb-hint-strong">{t.hint}</p>
+        {stale && (
+          <div className="mb-stale" role="alert">
+            <p className="mb-stale-title">{t.stale.title}</p>
+            <p className="mb-hint-strong">{t.stale.text}</p>
+            <Button label={t.stale.action} onClick={onReactivate} />
+          </div>
+        )}
+        {/* Faded when the server refuses it: the reader would refuse it as well. */}
+        <div className={`mb-qr-block${stale ? ' mb-faded' : ''}`} aria-hidden={stale || undefined}>
+          <QrRing codeStep={step} left={left} step={badge.step}>
+            <div className="mb-qr">{src ? <img src={src} alt={t.hint} /> : <span className="mb-qr-empty" />}</div>
+          </QrRing>
+          <p className="mb-small" aria-live="off">{t.next.replace('{n}', String(left))}</p>
+          <p className="mb-hint-strong">{t.hint}</p>
+        </div>
         {clockOff && <p className="mb-warn" role="alert">{t.clock}</p>}
       </section>
       {badge.appToken && <ParcelsCard token={badge.appToken} />}
       {canInvite && <Button label={t.invites.open} onClick={onInvites} />}
-      {!badge.appToken && <p className="mb-small mb-centered">{t.invites.reactivate}</p>}
+      {!badge.appToken && <><p className="mb-small mb-centered">{t.stale.old}</p><Button label={t.stale.action} kind="ghost" onClick={onReactivate} /></>}
+      {server === 'offline' && <p className="mb-small mb-centered" role="status">{t.stale.offline}</p>}
       {/* Removing the badge lives in the settings, away from the buttons used every day. */}
       <button type="button" className="mb-link" onClick={onSettings}>{t.settings.open}</button>
     </Screen>
