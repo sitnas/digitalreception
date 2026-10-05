@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ApiError } from '../lib/api';
 import { applyBrand } from '../lib/theme';
 import { intlLocale, lang, t } from './badge-strings';
-import { Button, Field, QrRing, Screen, SquaresBand, SuccessCheck } from './badge-ui';
+import { Button, Field, QrRing, Screen, ScreenHeader, SquaresBand, SuccessCheck } from './badge-ui';
 import { InviteDetail, InvitesList, NewInvite, me, type Profile } from './BadgeInvites';
 import { forgetWebPush } from './BadgePush';
 
@@ -63,10 +63,16 @@ function readSsoReturn(): { code: string; verifier: string | null } | { error: s
   return code ? { code, verifier } : { error: error! };
 }
 
-/** The page forgets the badge at once; the server is told too (best effort), so nothing issued here keeps working. */
+/**
+ * The server is told first, so nothing issued here keeps working (offline: the page forgets the badge
+ * anyway and the administrator can still revoke it). Only a refusal by the organisation keeps it.
+ */
 async function removeBadge(token: string | undefined) {
+  if (token) {
+    try { await me(token, '/revoke', { method: 'POST', body: '{}' }); }
+    catch (e) { if (e instanceof ApiError && e.code === 'SELF_REMOVE_DISABLED') throw e; }
+  }
   await forgetWebPush(token);
-  if (token) await me(token, '/revoke', { method: 'POST', body: '{}' }).catch(() => undefined);
 }
 
 /** A known reason in plain words; otherwise the generic message with status and code for whoever helps. */
@@ -79,7 +85,7 @@ function explain(e: unknown): string {
   return `${t.errors.generic}\n${t.errors.detail}: ${e.status} ${e.code}`;
 }
 
-type View = { name: 'badge' } | { name: 'invites' } | { name: 'new' } | { name: 'detail'; id: string; created?: string };
+type View = { name: 'badge' } | { name: 'settings' } | { name: 'invites' } | { name: 'new' } | { name: 'detail'; id: string; created?: string };
 
 export function BadgeApp() {
   const [badge, setBadge] = useState<Badge | null>(load);
@@ -124,8 +130,10 @@ export function BadgeApp() {
         : view.name === 'new' && token && profile ? <NewInvite token={token} profile={profile} onBack={back}
             onCreated={(id, emailStatus) => { window.history.replaceState({ name: 'detail', id, created: emailStatus }, ''); setViewState({ name: 'detail', id, created: emailStatus }); }} />
         : view.name === 'detail' && token ? <InviteDetail token={token} id={view.id} created={view.created} organisation={badge.organisation} host={badge.firstName} onBack={back} />
+        : view.name === 'settings' ? <SettingsScreen badge={badge} onBack={back}
+            onRemoved={() => { save(null); setBadge(null); setJustActivated(false); window.history.replaceState(null, ''); setViewState({ name: 'badge' }); }} />
         : <BadgeScreen badge={badge} justActivated={justActivated} canInvite={!!profile?.canInvite} onInvites={() => setView({ name: 'invites' })}
-            onRemove={() => { removeBadge(token); save(null); setBadge(null); setJustActivated(false); }} />}
+            onSettings={() => setView({ name: 'settings' })} />}
     </div>
   );
 }
@@ -237,7 +245,7 @@ function Activated() {
   );
 }
 
-function BadgeScreen({ badge, justActivated, canInvite, onInvites, onRemove }: { badge: Badge; justActivated: boolean; canInvite: boolean; onInvites: () => void; onRemove: () => void }) {
+function BadgeScreen({ badge, justActivated, canInvite, onInvites, onSettings }: { badge: Badge; justActivated: boolean; canInvite: boolean; onInvites: () => void; onSettings: () => void }) {
   const [now, setNow] = useState(() => Date.now());
   const [svg, setSvg] = useState('');
   const step = Math.floor(now / 1000 / badge.step);
@@ -290,7 +298,54 @@ function BadgeScreen({ badge, justActivated, canInvite, onInvites, onRemove }: {
       {badge.appToken && <ParcelsCard token={badge.appToken} />}
       {canInvite && <Button label={t.invites.open} onClick={onInvites} />}
       {!badge.appToken && <p className="mb-small mb-centered">{t.invites.reactivate}</p>}
-      <Button label={t.remove} kind="ghost" onClick={() => { if (window.confirm(`${t.removeTitle}\n${t.removeText}`)) onRemove(); }} />
+      {/* Removing the badge lives in the settings, away from the buttons used every day. */}
+      <button type="button" className="mb-link" onClick={onSettings}>{t.settings.open}</button>
     </Screen>
+  );
+}
+
+type Removal = 'loading' | 'allowed' | 'locked' | 'revoked' | 'offline';
+
+/** What this phone holds, and the way to remove the badge; the organisation can leave that to the console. */
+function SettingsScreen({ badge, onBack, onRemoved }: { badge: Badge; onBack: () => void; onRemoved: () => void }) {
+  const S = t.settings;
+  const [removal, setRemoval] = useState<Removal>('loading');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const check = useCallback(async () => {
+    // Badges activated before the app token existed: nothing to ask, the page just forgets it.
+    if (!badge.appToken) { setRemoval('allowed'); return; }
+    setRemoval('loading');
+    try { setRemoval((await me<Profile>(badge.appToken)).canRemove === false ? 'locked' : 'allowed'); }
+    // Turned off from the console (or the person left): a dead badge can always be cleared.
+    catch (e) { setRemoval(e instanceof ApiError && e.status === 401 ? 'revoked' : 'offline'); }
+  }, [badge]);
+  useEffect(() => { check(); }, [check]);
+  const remove = async () => {
+    if (!window.confirm(`${t.removeTitle}\n${t.removeText}`)) return;
+    setBusy(true); setError(null);
+    try { await removeBadge(badge.appToken); onRemoved(); }
+    catch { setError(S.SELF_REMOVE_DISABLED); setRemoval('locked'); }
+    finally { setBusy(false); }
+  };
+  return (
+    <>
+      <ScreenHeader title={S.title} backLabel={S.back} onBack={onBack} />
+      <Screen>
+        <dl className="mb-card mb-facts">
+          <div><dt>{S.org}</dt><dd>{badge.organisation}</dd></div>
+          <div><dt>{S.person}</dt><dd>{badge.firstName} {badge.lastName}</dd></div>
+          <div><dt>{S.address}</dt><dd>{window.location.host}</dd></div>
+        </dl>
+        {removal === 'loading' && <p className="mb-small">{t.loading}</p>}
+        {removal === 'locked' && <p className="mb-text">{S.locked}</p>}
+        {removal === 'offline' && <><p className="mb-text">{S.offline}</p><Button label={S.retry} kind="ghost" onClick={check} /></>}
+        {(removal === 'allowed' || removal === 'revoked') && <>
+          <p className="mb-text">{removal === 'revoked' ? S.revoked : S.removeIntro}</p>
+          <Button label={t.remove} kind="danger" busy={busy} onClick={remove} />
+        </>}
+        {error && <p className="mb-error-block" role="alert">{error}</p>}
+      </Screen>
+    </>
   );
 }

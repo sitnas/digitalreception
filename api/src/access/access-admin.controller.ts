@@ -8,7 +8,7 @@ import { CryptoService } from '../common/crypto.service';
 import { AdminAuthGuard, CurrentUser, Roles, assertSiteAccess, visibleSiteIds } from '../common/guards';
 import { AppRequest, AuthUser } from '../common/request-context';
 import { TenantKeysService } from '../common/tenant-keys.service';
-import { AccessEvent, AccessRule, ApiKey, Door, DoorReader, Employee, PairingCode, Project, PushDevice, Role, Site } from '../entities';
+import { AccessEvent, AccessRule, ApiKey, Door, DoorReader, Employee, PairingCode, Project, PushDevice, Role, Site, Tenant } from '../entities';
 import { AccessService } from './access.service';
 import { EXTERNAL_ID, PROJECT_CODE, PutEmployeeDto } from './integration.controller';
 
@@ -55,6 +55,10 @@ export class AccessEventsQuery {
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(2000) limit?: number;
 }
 
+export class AccessSettingsDto {
+  @IsBoolean() selfRemove: boolean;
+}
+
 const MANAGE = [Role.SUPER_ADMIN, Role.SITE_MANAGER];
 const READ = [Role.SUPER_ADMIN, Role.SITE_MANAGER, Role.AUDITOR];
 
@@ -80,6 +84,23 @@ export class AccessAdminController {
   private async visibleDoors(user: AuthUser) {
     const ids = visibleSiteIds(user);
     return this.doors.find({ where: { tenantId: user.tenantId, ...(ids ? { siteId: In(ids.length ? ids : NONE) } : {}) }, order: { name: 'ASC' } });
+  }
+
+  // ------------------------------------------------------------------ settings
+  /** Whether employees may remove the phone badge themselves. */
+  @Get('settings')
+  @Roles(...READ)
+  async settings(@CurrentUser() user: AuthUser) {
+    const t = await this.employees.manager.findOneOrFail(Tenant, { where: { id: user.tenantId }, select: { id: true, badgeSelfRemove: true } });
+    return { selfRemove: t.badgeSelfRemove };
+  }
+
+  @Patch('settings')
+  @Roles(Role.SUPER_ADMIN)
+  async updateSettings(@CurrentUser() user: AuthUser, @Body() dto: AccessSettingsDto, @Req() req: AppRequest) {
+    await this.employees.manager.update(Tenant, { id: user.tenantId }, { badgeSelfRemove: dto.selfRemove });
+    await this.audit.fromRequest(req, { action: 'ACCESS_SETTINGS_UPDATED', details: { selfRemove: dto.selfRemove } });
+    return { selfRemove: dto.selfRemove };
   }
 
   // ------------------------------------------------------------------ doors and readers

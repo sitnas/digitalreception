@@ -3,7 +3,7 @@ import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { router, useFocusEffect } from 'expo-router';
 import { allowScreenCaptureAsync, preventScreenCaptureAsync } from 'expo-screen-capture';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Animated, AppState, Platform, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Animated, AppState, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BadgeNfc } from '../../modules/badge-nfc';
@@ -97,7 +97,6 @@ function Activated({ theme }: { theme: ReturnType<typeof useTheme> }) {
 
 export function BadgeScreen({ badge, justActivated = false }: { badge: Badge; justActivated?: boolean }) {
   const theme = useTheme(badge.primaryColor, badge.secondaryColor);
-  const { remove } = useBadge();
   const { width } = useWindowDimensions();
   useBadgeInFront();
   // People who can be visited also invite their guests from here.
@@ -115,10 +114,6 @@ export function BadgeScreen({ badge, justActivated = false }: { badge: Badge; ju
   useEffect(() => { serverClockOffsetMs(badge.origin).then((ms) => setClockOff(ms !== null && Math.abs(ms) > CLOCK_TOLERANCE_S * 1000)); }, [badge.origin]);
 
   const qrSize = Math.min(width - 116, 300);
-  const confirmRemove = () => Alert.alert(t.removeTitle, t.removeText, [
-    { text: t.cancel, style: 'cancel' },
-    { text: t.removeConfirm, style: 'destructive', onPress: () => { remove(); } },
-  ]);
 
   return (
     <SafeAreaView style={[styles.screen, { backgroundColor: theme.ground }]}>
@@ -150,7 +145,10 @@ export function BadgeScreen({ badge, justActivated = false }: { badge: Badge; ju
             <Button label={t.nfcOpen} kind="ghost" theme={theme} onPress={openNfcSettings} />
           </View>
         ) : null}
-        <Button label={t.remove} kind="ghost" theme={theme} onPress={confirmRemove} />
+        {/* Removing the badge lives in the settings, away from the buttons used every day. */}
+        <Pressable accessibilityRole="button" onPress={() => router.push('/settings')} hitSlop={12} style={({ pressed }) => [styles.settings, { opacity: pressed ? 0.6 : 1 }]}>
+          <Text style={[styles.settingsText, { color: theme.ink2 }]}>{t.settings.open}</Text>
+        </Pressable>
       </ScrollView>
     </SafeAreaView>
   );
@@ -170,4 +168,6 @@ const styles = StyleSheet.create({
   warn: { fontSize: 14, fontWeight: '700', textAlign: 'center' },
   nfc: { fontSize: 15, textAlign: 'center', fontWeight: '700' },
   nfcOff: { gap: 8 },
+  settings: { alignSelf: 'center', paddingVertical: 8, paddingHorizontal: 12 },
+  settingsText: { fontSize: 15, fontWeight: '600', textDecorationLine: 'underline' },
 });

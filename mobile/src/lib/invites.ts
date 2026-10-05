@@ -7,7 +7,7 @@ export const PURPOSES = ['MEETING', 'INTERVIEW', 'SUPPLIER', 'MAINTENANCE', 'DEL
 export type Purpose = (typeof PURPOSES)[number];
 
 export interface InviteSite { id: string; name: string; timezone: string }
-export interface Profile { firstName: string; lastName: string; organisation: string; canInvite: boolean; sites: InviteSite[]; purposes: Purpose[] }
+export interface Profile { firstName: string; lastName: string; organisation: string; canInvite: boolean; canRemove?: boolean; sites: InviteSite[]; purposes: Purpose[] }
 export type InviteStatus = 'PENDING' | 'USED' | 'CANCELLED' | 'EXPIRED';
 export interface Invite {
   id: string; siteId: string; siteName: string; timezone: string; expectedAt: string; purpose: Purpose;

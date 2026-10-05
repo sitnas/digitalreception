@@ -88,6 +88,7 @@ const it = {
   access: {
     project: 'Commessa', noProject: 'Nessuna commessa', allProjects: 'Tutte le commesse',
     employeesTitle: 'Dipendenti', employeesIntro: 'Le persone che possono aprire le porte, con i permessi di ciascuna. Arrivano dal sistema esterno tramite API oppure le aggiungi qui a mano.',
+    selfRemove: 'I dipendenti possono togliere il badge dal proprio telefono', selfRemoveOn: 'Lo trovano nelle impostazioni dell’app e della pagina /badge. Il badge smette di funzionare anche sul server.', selfRemoveOff: 'Il tasto sparisce dall’app e da /badge. Se un dipendente cambia o perde il telefono, usa “Disattiva badge telefono” nella sua riga qui sotto.', selfRemoveSaved: 'Impostazione salvata.',
     badgePage: 'Pagina “Il mio badge” da dare ai dipendenti', search: 'Cerca', noEmployees: 'Nessun dipendente. Aggiungilo qui oppure collega il sistema esterno da Integrazione API.',
     person: 'Persona', externalId: 'Codice esterno', externalIdHint: 'Lo stesso codice usato dal sistema esterno.', credentials: 'Credenziali', doors: 'Porte', validity: 'Validità', always: 'Sempre',
     noEmail: 'Senza email: non può attivare il badge sul telefono', inactive: 'Non attivo', card: 'Tessera', phone: 'Telefono', noDoors: 'Nessuna porta', everyDay: 'Tutti i giorni', weekdays: ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'],
@@ -200,6 +201,7 @@ const es: Dict = {
   access: {
     project: 'Proyecto', noProject: 'Sin proyecto', allProjects: 'Todos los proyectos',
     employeesTitle: 'Empleados', employeesIntro: 'Las personas que pueden abrir las puertas, con los permisos de cada una. Llegan del sistema externo por API o las añade aquí a mano.',
+    selfRemove: 'Los empleados pueden quitar la credencial de su propio teléfono', selfRemoveOn: 'Lo encuentran en los ajustes de la app y de la página /badge. La credencial deja de funcionar también en el servidor.', selfRemoveOff: 'El botón desaparece de la app y de /badge. Si un empleado cambia o pierde el teléfono, use “Desactivar credencial del teléfono” en su fila aquí abajo.', selfRemoveSaved: 'Ajuste guardado.',
     badgePage: 'Página “Mi credencial” para los empleados', search: 'Buscar', noEmployees: 'No hay empleados. Añádalo aquí o conecte el sistema externo desde Integración API.',
     person: 'Persona', externalId: 'Código externo', externalIdHint: 'El mismo código que usa el sistema externo.', credentials: 'Credenciales', doors: 'Puertas', validity: 'Validez', always: 'Siempre',
     noEmail: 'Sin correo: no puede activar la credencial en el teléfono', inactive: 'Inactivo', card: 'Tarjeta', phone: 'Teléfono', noDoors: 'Ninguna puerta', everyDay: 'Todos los días', weekdays: ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'],

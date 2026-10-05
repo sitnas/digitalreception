@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { Badge } from './badge';
-import { getTenant, revokeBadge } from './api';
+import { ApiError, getTenant, revokeBadge } from './api';
 import { disablePush, forgetPushToken, syncPush } from './push';
 import { clearBadge, loadBadge, saveBadge } from './storage';
 
@@ -18,12 +18,16 @@ export function BadgeProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => { loadBadge().then(setBadge); }, []);
   // A new activation makes the server forget this phone's notices: start again from "off".
   const save = useCallback(async (b: Badge) => { await forgetPushToken(); await saveBadge(b); setBadge(b); }, []);
-  // The phone forgets the badge whatever happens; the server is told too, so nothing issued to this
-  // phone keeps working (offline: the administrator can still revoke it from the console).
+  // The server is told first, so nothing issued to this phone keeps working (offline: the phone forgets
+  // it anyway and the administrator can still revoke it from the console). Only a refusal by the
+  // organisation keeps the badge on the phone.
   const remove = useCallback(async () => {
     if (badge) {
+      if (badge.appToken) {
+        try { await revokeBadge(badge); }
+        catch (e) { if (e instanceof ApiError && e.code === 'SELF_REMOVE_DISABLED') throw e; }
+      }
       await disablePush(badge);
-      if (badge.appToken) await revokeBadge(badge).catch(() => {});
     }
     await clearBadge(); setBadge(null);
   }, [badge]);

@@ -32,6 +32,7 @@ const STRINGS = {
     activated: 'Badge attivo su questo telefono.', loading: 'Caricamento…',
     clock: 'L’ora del telefono sembra sbagliata: attiva data e ora automatiche, altrimenti il lettore rifiuta il QR.',
     parcels: { one: 'Un pacco ti aspetta in reception', many: '{n} pacchi ti aspettano in reception', today: '{site} · arrivato alle {time}', day: '{site} · arrivato il {date}', pieces: '{n} colli' },
+    settings: { open: 'Impostazioni', title: 'Impostazioni', back: 'Indietro', org: 'Organizzazione', person: 'Intestato a', address: 'Indirizzo', removeIntro: 'Togli il badge se cambi telefono o lo restituisci. Smette di funzionare subito, anche sul server.', locked: 'La tua organizzazione gestisce il badge dalla console. Se cambi o perdi il telefono, chiedi all’amministratore di disattivarlo.', revoked: 'Questo badge non è più valido: è stato disattivato dalla console. Toglilo da qui e attivalo di nuovo.', offline: 'Non riesco a contattare il server. Riprova quando sei connesso.', retry: 'Riprova', SELF_REMOVE_DISABLED: 'La tua organizzazione non permette più di togliere il badge da qui: chiedi all’amministratore.' },
     invites: {
       open: 'I miei inviti', title: 'Inviti', back: 'Indietro', new: 'Nuovo invito', none: 'Nessun ospite atteso. Crea un invito: l’ospite riceve un’email con un QR e alla reception tocca “Ho un invito”.',
       today: 'Oggi', tomorrow: 'Domani', refresh: 'Aggiorna',
@@ -81,6 +82,7 @@ const STRINGS = {
     activated: 'Credencial activa en este teléfono.', loading: 'Cargando…',
     clock: 'La hora del teléfono parece incorrecta: active fecha y hora automáticas o el lector rechazará el QR.',
     parcels: { one: 'Tiene un paquete en recepción', many: 'Tiene {n} paquetes en recepción', today: '{site} · llegó a las {time}', day: '{site} · llegó el {date}', pieces: '{n} bultos' },
+    settings: { open: 'Ajustes', title: 'Ajustes', back: 'Atrás', org: 'Organización', person: 'A nombre de', address: 'Dirección', removeIntro: 'Quite la credencial si cambia de teléfono o lo devuelve. Deja de funcionar enseguida, también en el servidor.', locked: 'Su organización gestiona la credencial desde la consola. Si cambia o pierde el teléfono, pida al administrador que la desactive.', revoked: 'Esta credencial ya no es válida: se desactivó desde la consola. Quítela de aquí y actívela de nuevo.', offline: 'No consigo contactar con el servidor. Inténtelo de nuevo cuando tenga conexión.', retry: 'Reintentar', SELF_REMOVE_DISABLED: 'Su organización ya no permite quitar la credencial desde aquí: pregunte al administrador.' },
     invites: {
       open: 'Mis invitaciones', title: 'Invitaciones', back: 'Atrás', new: 'Nueva invitación', none: 'No espera a nadie. Cree una invitación: el invitado recibe un correo con un QR y en recepción toca «Tengo una invitación».',
       today: 'Hoy', tomorrow: 'Mañana', refresh: 'Actualizar',
@@ -130,6 +132,7 @@ const STRINGS = {
     activated: 'Badge active on this phone.', loading: 'Loading…',
     clock: 'The phone clock looks wrong: turn on automatic date and time, or the reader will refuse the QR.',
     parcels: { one: 'A parcel is waiting for you at reception', many: '{n} parcels are waiting for you at reception', today: '{site} · arrived at {time}', day: '{site} · arrived on {date}', pieces: '{n} pieces' },
+    settings: { open: 'Settings', title: 'Settings', back: 'Back', org: 'Organisation', person: 'Issued to', address: 'Address', removeIntro: 'Remove the badge if you change phone or hand it back. It stops working at once, on the server too.', locked: 'Your organisation manages the badge from its console. If you change or lose your phone, ask the administrator to turn it off.', revoked: 'This badge is no longer valid: it was turned off from the console. Remove it here and activate it again.', offline: 'Can’t reach the server. Try again when you’re online.', retry: 'Try again', SELF_REMOVE_DISABLED: 'Your organisation no longer lets you remove the badge here: ask the administrator.' },
     invites: {
       open: 'My invitations', title: 'Invitations', back: 'Back', new: 'New invitation', none: 'No guests expected. Create an invitation: the guest receives an email with a QR and taps “I have an invitation” at reception.',
       today: 'Today', tomorrow: 'Tomorrow', refresh: 'Refresh',

@@ -735,6 +735,14 @@ code.mfa-secret { font-size: 14px; overflow-wrap: anywhere; max-width: 100%; }
 .mb-qr-small img { width: min(220px, calc(100vw - 120px)); }
 .mb-small { margin: 0; font-size: 14px; color: var(--mb-ink2); font-variant-numeric: tabular-nums; }
 .mb-centered { text-align: center; }
+.mb-link { align-self: center; background: none; border: 0; padding: 8px 12px; font: inherit; font-size: 15px; font-weight: 600; color: var(--mb-ink2); text-decoration: underline; cursor: pointer; }
+.mb-link:hover { color: var(--mb-ink); }
+.mb-text { margin: 0; font-size: 15px; line-height: 1.45; color: var(--mb-ink2); }
+.mb-facts { margin: 0; padding: 0 16px; gap: 0; justify-items: stretch; text-align: left; }
+.mb-facts > div { padding: 12px 0; display: grid; gap: 2px; }
+.mb-facts > div + div { border-top: 1px solid var(--mb-line); }
+.mb-facts dt { font-size: 13px; font-weight: 600; color: var(--mb-ink2); }
+.mb-facts dd { margin: 0; font-size: 16px; overflow-wrap: anywhere; }
 .mb-hint-strong { margin: 0; font-size: 16px; line-height: 22px; }
 .mb-warn { margin: 0; font-size: 14px; font-weight: 700; color: var(--mb-danger); }
 .mb-activated { display: flex; align-items: center; justify-content: center; gap: 12px; font-size: 17px; font-weight: 700; animation: mb-fade 400ms ease 2200ms forwards; }

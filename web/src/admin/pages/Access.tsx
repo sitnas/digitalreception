@@ -103,6 +103,7 @@ export function EmployeesPage() {
         <span>{t.access.badgePage}: <code translate="no">{origin()}/badge</code></span>
         <CopyButton text={`${origin()}/badge`} />
       </div>
+      <SelfRemoveSetting canEdit={canEdit} />
       {list.data && list.data.length > 0 && (
         <div className="a-filters">
           <div className="field" style={{ flex: '1 1 260px' }}><label htmlFor="es">{t.access.search}</label><input id="es" className="input" value={q} onChange={(e) => setQ(e.target.value)} /></div>
@@ -142,6 +143,32 @@ export function EmployeesPage() {
         )}
       </div>
     </>
+  );
+}
+
+/** Whether employees may remove the phone badge themselves; off, only "Revoke phone" here removes it. */
+function SelfRemoveSetting({ canEdit }: { canEdit: boolean }) {
+  const { t } = useI18n();
+  const A = t.access;
+  const setting = useAsync(() => api.get<{ selfRemove: boolean }>('/admin/access/settings'), []);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  // The box follows the click at once; it goes back if the server refuses.
+  const [on, setOn] = useState<boolean | null>(null);
+  if (!setting.data) return <ErrorBox error={setting.error} />;
+  const value = on ?? setting.data.selfRemove;
+  const toggle = async (selfRemove: boolean) => {
+    setOn(selfRemove); setBusy(true); setMsg(null);
+    try { await api.patch('/admin/access/settings', { selfRemove }); setMsg({ ok: true, text: A.selfRemoveSaved }); }
+    catch (e) { setOn(!selfRemove); setMsg({ ok: false, text: errorText(t, e) }); } finally { setBusy(false); }
+  };
+  return (
+    <div className="a-card stack" style={{ marginBottom: 16 }}>
+      <label className="toggle"><input type="checkbox" name="self-remove" aria-describedby="sr-hint" checked={value} disabled={!canEdit || busy}
+        onChange={(e) => toggle(e.target.checked)} />{A.selfRemove}</label>
+      <span id="sr-hint" className="hint" style={{ marginTop: -8 }}>{value ? A.selfRemoveOn : A.selfRemoveOff}</span>
+      <div role="status" aria-live="polite">{msg && <p className={msg.ok ? 'alert alert-info' : 'alert'} style={{ margin: 0 }}>{msg.text}</p>}</div>
+    </div>
   );
 }
 
