@@ -137,7 +137,7 @@ function MfaPolicyCard({ required, onChanged, t }: { required: boolean; onChange
   return (
     <section className="a-card stack" aria-labelledby="mfa-h" aria-busy={busy}>
       <h2 id="mfa-h" style={{ margin: 0 }}>{t.mfa.orgTitle}</h2>
-      <label className="toggle"><input type="checkbox" name="mfa-required" aria-describedby="mfa-hint" checked={value} disabled={busy || (!value && !me.mfaEnabled)} onChange={(e) => toggle(e.target.checked)} />{t.mfa.orgRequire}</label>
+      <label className="toggle"><input type="checkbox" role="switch" name="mfa-required" aria-describedby="mfa-hint" checked={value} disabled={busy || (!value && !me.mfaEnabled)} onChange={(e) => toggle(e.target.checked)} />{t.mfa.orgRequire}</label>
       <p id="mfa-hint" className="muted" style={{ margin: 0, fontSize: 13 }}>{t.mfa.orgHint}</p>
       <p role="status" aria-live="polite" className="hint" style={{ margin: 0 }}>{saved && !busy ? t.org.saved : ''}</p>
       {error && <p className="alert" role="alert" style={{ margin: 0 }}>{error}</p>}
@@ -188,7 +188,7 @@ function SsoCard({ sso, onChanged }: { sso: Org['sso']; onChanged: () => void })
         <>
           <p style={{ margin: 0 }}><span className="sso-mark"><SsoLogo provider={sso.provider} /></span>
             {t.sso.linked.replace('{provider}', name(sso.provider)).replace('{org}', sso.org ?? '—').replace('{date}', fmtDateTime(sso.linkedAt, intl))}</p>
-          <label className="toggle"><input type="checkbox" name="sso-enforced" aria-describedby="sso-enforce-help" checked={enforced}
+          <label className="toggle"><input type="checkbox" role="switch" name="sso-enforced" aria-describedby="sso-enforce-help" checked={enforced}
             disabled={busy || (!enforced && !canEnforce)} onChange={(e) => toggle(e.target.checked)} />{t.sso.enforce}</label>
           <p id="sso-enforce-help" className="muted" style={{ margin: 0, fontSize: 13 }}>
             {!enforced && !sso.signedInWithSso ? t.sso.enforceNeedsSso.replace('{provider}', name(sso.provider))

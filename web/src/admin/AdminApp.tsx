@@ -3,6 +3,9 @@ import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { ApiError, api } from '../lib/api';
 import { MortiseMark, Mo } from '../lib/mortise';
 import { applyBrand } from '../lib/theme';
+import { dateTimeFormat, fmtDay, numberFormat, plural } from '../lib/format';
+import { AreaChart, DataTable, Donut, type Datum } from './charts';
+import { useAsync, useDialog } from './ui';
 import { ADMIN_STRINGS, AdminLocale, I18nContext, useI18n } from './i18n';
 import { AccountPage, MfaEnroll, RecoveryCodes } from './pages/Account';
 import { AuditPage } from './pages/Audit';
@@ -375,76 +378,95 @@ function Shell({ branding, me, onLogout }: { branding: Branding; me: Me; onLogou
   const tabs = current ? items.filter((n) => n.group === current.group) : [];
   const [menuOpen, setMenuOpen] = useState(false);
   useEffect(() => { setMenuOpen(false); }, [pathname]);
+  const closeMenu = useCallback(() => setMenuOpen(false), []);
+  const groups = [...APP_GROUPS, ...DATA_GROUPS].filter((g) => items.some((n) => n.group === g));
+  const initials = me.displayName.trim().split(/\s+/).slice(0, 2).map((w) => w.charAt(0).toUpperCase()).join('');
 
   return (
     <div className="admin">
-      <header className="a-bar">
-        <button type="button" className="a-menu-btn" aria-expanded={menuOpen} aria-controls="a-sidemenu" onClick={() => setMenuOpen(true)}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden><path d="M4 7h16M4 12h16M4 17h16" /></svg>
-          <span className="sr-only">{t.portal.menu}</span>
-        </button>
-        <NavLink to="" end className="a-bar-brand" aria-label={`${t.portal.home} · ${branding.name}`}>
+      {/* Mortise dashboard: dark side bar on the left, white top bar, grey canvas with white cards. */}
+      <aside className="a-side">
+        <NavLink to="" end className="a-side-brand" aria-label={`${t.dash.title} · ${branding.name}`}>
           {branding.logo ? <img src={branding.logo} alt="" className="logo" /> : <MortiseMark size={30} dark />}
           <span>{branding.name}</span>
         </NavLink>
-        <nav className="a-bar-nav" aria-label={t.portal.home}>
-          <NavLink to="" end>{t.portal.home}</NavLink>
+        <nav className="a-side-nav" aria-label={t.portal.menu}>
+          <NavLink to="" end><HomeIcon />{t.dash.title}</NavLink>
+          {groups.map((g, i) => {
+            const first = items.find((n) => n.group === g)!;
+            const sep = i > 0 && APP_GROUPS.includes(groups[i - 1]) && !APP_GROUPS.includes(g);
+            const on = current?.group === g;
+            return (
+              <NavLink key={g} to={first.to} className={() => `${on ? 'active' : ''}${sep ? ' a-side-sep' : ''}`}
+                aria-current={on ? 'page' : undefined}><GroupIcon group={g} />{t.navGroups[g]}</NavLink>
+            );
+          })}
         </nav>
-        <details className="a-user" ref={menu}>
-          <summary aria-label={t.portal.account}><span className="a-avatar" aria-hidden>{me.displayName.trim().charAt(0).toUpperCase()}</span><span className="a-user-name">{me.displayName}</span></summary>
-          <div className="a-user-pop">
-            <strong>{me.displayName}</strong>
-            <span className="muted">{me.email} · {t.roles[me.role]}</span>
-            <LangSwitch />
-            <NavLink to="account" className="btn-link">{t.mfa.nav}</NavLink>
-            <button type="button" className="btn-link" onClick={logout}>{t.logout}</button>
-          </div>
-        </details>
-      </header>
-      {menuOpen && <SideMenu items={items} onClose={() => setMenuOpen(false)} />}
-      {current && (
-        <div className="a-section">
-          <div className="a-section-in">
-            <p className="a-crumb"><NavLink to="">{t.portal.home}</NavLink> <span aria-hidden>›</span> <span className="a-crumb-group"><GroupIcon group={current.group} />{t.navGroups[current.group]}</span></p>
-            {tabs.length > 1 && (
-              <nav className="a-tabs" aria-label={t.navGroups[current.group]}>
-                {tabs.map((n) => <NavLink key={n.to} to={n.to}>{t.nav[n.key]}</NavLink>)}
-              </nav>
-            )}
-          </div>
-        </div>
-      )}
-      <main ref={main} className={`a-main${current ? '' : ' is-home'}`}>
-        <Routes>
-          <Route index element={<PortalHome me={me} items={items} />} />
-          {items.some((i) => i.to === 'today') && <Route path="today" element={<TodayPage />} />}
-          {items.some((i) => i.to === 'invites') && <Route path="invites" element={<InvitationsPage />} />}
-          {items.some((i) => i.to === 'projects') && <Route path="projects" element={<ProjectsPage />} />}
-          {items.some((i) => i.to === 'parcels') && <Route path="parcels" element={<ParcelsPage />} />}
-          {items.some((i) => i.to === 'documents') && <Route path="documents" element={<DocumentsPage />} />}
-          {items.some((i) => i.to === 'evacuation') && <Route path="evacuation" element={<EvacuationPage />} />}
-          {items.some((i) => i.to === 'employees') && <Route path="employees" element={<EmployeesPage />} />}
-          {items.some((i) => i.to === 'doors') && <Route path="doors" element={<DoorsPage />} />}
-          {items.some((i) => i.to === 'access-log') && <Route path="access-log" element={<AccessLogPage />} />}
-          {items.some((i) => i.to === 'integration') && <Route path="integration" element={<IntegrationPage />} />}
-          {items.some((i) => i.to === 'history') && <Route path="history" element={<HistoryPage />} />}
-          {items.some((i) => i.to === 'stats') && <Route path="stats" element={<StatsPage />} />}
-          {items.some((i) => i.to === 'sites') && <Route path="sites" element={<SitesPage />} />}
-          {items.some((i) => i.to === 'devices') && <Route path="devices" element={<DevicesPage />} />}
-          {items.some((i) => i.to === 'hosts') && <Route path="hosts" element={<HostsPage />} />}
-          {items.some((i) => i.to === 'users') && <Route path="users" element={<UsersPage />} />}
-          {items.some((i) => i.to === 'privacy') && <Route path="privacy" element={<PrivacyPage />} />}
-          {items.some((i) => i.to === 'audit') && <Route path="audit" element={<AuditPage />} />}
-          {items.some((i) => i.to === 'notifications') && <Route path="notifications" element={<WebhooksPage />} />}
-          {items.some((i) => i.to === 'organisation') && <Route path="organisation" element={<OrganisationPage />} />}
-          {items.some((i) => i.to === 'apps') && <Route path="apps" element={<AppsPage />} />}
-          {items.some((i) => i.to === 'parking') && <Route path="parking" element={<ParkingPage />} />}
-          <Route path="account" element={<AccountPage />} />
-          <Route path="*" element={<Navigate to="/admin" replace />} />
-        </Routes>
-      </main>
+      </aside>
+      <div className="a-body">
+        <header className="a-top">
+          <button type="button" className="a-menu-btn" aria-expanded={menuOpen} aria-controls="a-sidemenu" onClick={() => setMenuOpen(true)}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden><path d="M4 7h16M4 12h16M4 17h16" /></svg>
+            <span className="sr-only">{t.portal.menu}</span>
+          </button>
+          <p className="a-crumb">
+            {current
+              ? <><NavLink to="">{t.dash.title}</NavLink> <span aria-hidden>›</span> <span className="a-crumb-group"><GroupIcon group={current.group} />{t.navGroups[current.group]}</span></>
+              : <span className="a-crumb-group">{branding.name}</span>}
+          </p>
+          <details className="a-user" ref={menu}>
+            <summary aria-label={t.portal.account}><span className="a-avatar" aria-hidden>{initials}</span><span className="a-user-name">{me.displayName}</span></summary>
+            <div className="a-user-pop">
+              <strong>{me.displayName}</strong>
+              <span className="muted">{me.email} · {t.roles[me.role]}</span>
+              <LangSwitch />
+              <NavLink to="account" className="btn-link">{t.mfa.nav}</NavLink>
+              <button type="button" className="btn-link" onClick={logout}>{t.logout}</button>
+            </div>
+          </details>
+        </header>
+        {current && tabs.length > 1 && (
+          <nav className="a-tabs" aria-label={t.navGroups[current.group]}>
+            {tabs.map((n) => <NavLink key={n.to} to={n.to}>{t.nav[n.key]}</NavLink>)}
+          </nav>
+        )}
+        <main ref={main} className={`a-main${current ? '' : ' is-home'}`}>
+          <Routes>
+            <Route index element={<PortalHome me={me} items={items} />} />
+            {items.some((i) => i.to === 'today') && <Route path="today" element={<TodayPage />} />}
+            {items.some((i) => i.to === 'invites') && <Route path="invites" element={<InvitationsPage />} />}
+            {items.some((i) => i.to === 'projects') && <Route path="projects" element={<ProjectsPage />} />}
+            {items.some((i) => i.to === 'parcels') && <Route path="parcels" element={<ParcelsPage />} />}
+            {items.some((i) => i.to === 'documents') && <Route path="documents" element={<DocumentsPage />} />}
+            {items.some((i) => i.to === 'evacuation') && <Route path="evacuation" element={<EvacuationPage />} />}
+            {items.some((i) => i.to === 'employees') && <Route path="employees" element={<EmployeesPage />} />}
+            {items.some((i) => i.to === 'doors') && <Route path="doors" element={<DoorsPage />} />}
+            {items.some((i) => i.to === 'access-log') && <Route path="access-log" element={<AccessLogPage />} />}
+            {items.some((i) => i.to === 'integration') && <Route path="integration" element={<IntegrationPage />} />}
+            {items.some((i) => i.to === 'history') && <Route path="history" element={<HistoryPage />} />}
+            {items.some((i) => i.to === 'stats') && <Route path="stats" element={<StatsPage />} />}
+            {items.some((i) => i.to === 'sites') && <Route path="sites" element={<SitesPage />} />}
+            {items.some((i) => i.to === 'devices') && <Route path="devices" element={<DevicesPage />} />}
+            {items.some((i) => i.to === 'hosts') && <Route path="hosts" element={<HostsPage />} />}
+            {items.some((i) => i.to === 'users') && <Route path="users" element={<UsersPage />} />}
+            {items.some((i) => i.to === 'privacy') && <Route path="privacy" element={<PrivacyPage />} />}
+            {items.some((i) => i.to === 'audit') && <Route path="audit" element={<AuditPage />} />}
+            {items.some((i) => i.to === 'notifications') && <Route path="notifications" element={<WebhooksPage />} />}
+            {items.some((i) => i.to === 'organisation') && <Route path="organisation" element={<OrganisationPage />} />}
+            {items.some((i) => i.to === 'apps') && <Route path="apps" element={<AppsPage />} />}
+            {items.some((i) => i.to === 'parking') && <Route path="parking" element={<ParkingPage />} />}
+            <Route path="account" element={<AccountPage />} />
+            <Route path="*" element={<Navigate to="/admin" replace />} />
+          </Routes>
+        </main>
+      </div>
+      {menuOpen && <SideMenu items={items} onClose={closeMenu} />}
     </div>
   );
+}
+
+function HomeIcon() {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M4 10.5L12 4l8 6.5V20h-5.5v-5.5h-5V20H4z" /></svg>;
 }
 
 const DATA_GROUPS: NavGroup[] = ['data', 'settings', 'compliance'];
@@ -456,22 +478,15 @@ const DATA_GROUPS: NavGroup[] = ['data', 'settings', 'compliance'];
  */
 function SideMenu({ items, onClose }: { items: typeof NAV; onClose: () => void }) {
   const { t } = useI18n();
-  const close = useRef<HTMLButtonElement>(null);
-  useEffect(() => {
-    const opener = document.activeElement as HTMLElement | null;
-    close.current?.focus();
-    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    document.addEventListener('keydown', key);
-    document.body.style.overflow = 'hidden';
-    return () => { document.removeEventListener('keydown', key); document.body.style.overflow = ''; opener?.focus(); };
-  }, [onClose]);
+  const dlg = useRef<HTMLElement>(null);
+  useDialog(dlg, onClose);
   const groups = [...APP_GROUPS, ...DATA_GROUPS].map((g) => ({ g, pages: items.filter((n) => n.group === g) })).filter((x) => x.pages.length);
   return (
     <div className="a-side-wrap">
       <div className="a-side-scrim" onClick={onClose} aria-hidden />
-      <nav id="a-sidemenu" className="a-sidemenu" aria-label={t.portal.menu}>
+      <nav ref={dlg} id="a-sidemenu" className="a-sidemenu" aria-label={t.portal.menu} role="dialog" aria-modal="true">
         <div className="a-sidemenu-head">
-          <button ref={close} type="button" className="a-sidemenu-close" onClick={onClose}>
+          <button type="button" className="a-sidemenu-close" onClick={onClose} data-autofocus>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden><path d="M6 6l12 12M18 6L6 18" /></svg>
             <span className="sr-only">{t.portal.close}</span>
           </button>
@@ -488,28 +503,116 @@ function SideMenu({ items, onClose }: { items: typeof NAV; onClose: () => void }
   );
 }
 
+interface Dashboard {
+  today: string; days: string[];
+  reception?: { present: number; today: number; sameDayLastWeek: number; week: { date: string; count: number }[]; weekTotal: number; previousWeekTotal: number; purposes: Record<string, number> };
+  access?: { today: number; sameDayLastWeek: number; deniedWeek: number; deniedPreviousWeek: number };
+  parcels?: { waiting: number; arrivedWeek: number; arrivedPreviousWeek: number };
+  parking?: { spots: number; bookedToday: number };
+}
+/** good: up is good; bad: up is bad; neutral: no judgement, only the direction. */
+type Polarity = 'good' | 'bad' | 'neutral';
+interface Kpi { key: string; label: string; value: string; delta?: { now: number; before: number; polarity: Polarity; note: string }; note?: string }
+
 /**
- * The console's home: one card per app the person can open (by role, while the organisation has it
- * on), then the shared data and the settings. Each card opens its section.
+ * A change against the period before, in a capsule: the arrow gives the direction, the colour the
+ * judgement (fewer denied entries is good, so it is green while going down), and the text always
+ * carries the sign.
+ */
+function Delta({ now, before, polarity, note }: { now: number; before: number; polarity: Polarity; note: string }) {
+  const { t, intl } = useI18n();
+  const diff = now - before;
+  if (diff === 0) return <em className="dl neutral" title={note}>{t.dash.same}</em>;
+  const up = diff > 0;
+  const text = before === 0 ? t.dash.newValue : numberFormat(intl, { style: 'percent', maximumFractionDigits: 1, signDisplay: 'always' }).format(diff / before);
+  const tone = polarity === 'neutral' ? 'neutral' : (up === (polarity === 'good')) ? 'good' : 'bad';
+  return (
+    <em className={`dl ${tone}`} title={note}>
+      <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden><path d={up ? 'M5 1L9.5 8H.5z' : 'M5 9L9.5 2H.5z'} fill="currentColor" /></svg>
+      {text}<span className="sr-only"> {note}</span>
+    </em>
+  );
+}
+
+
+/**
+ * The console's home (Mortise dashboard): the period, up to four KPI cards, the check-ins of the week
+ * and the reasons for the visits; then one card per app the person can open and the shared data.
  */
 function PortalHome({ me, items }: { me: Me; items: typeof NAV }) {
-  const { t } = useI18n();
-  const P = t.portal;
-  const first = me.displayName.trim().split(/\s+/)[0];
+  const { t, intl } = useI18n();
+  const P = t.portal, D = t.dash;
   const apps = APP_GROUPS.map((g) => ({ g, pages: items.filter((n) => n.group === g) })).filter((x) => x.pages.length);
   // Apps not in the organisation's service: the last tile of the grid says how to get them.
   const missing = APP_KEYS.filter((a) => !me.apps.includes(a));
   const showAdd = apps.length > 0 && missing.length > 0 && items.some((n) => n.to === 'apps');
+  const dash = useAsync(() => api.get<Dashboard>('/admin/dashboard'), [me.apps.join()]);
+  const d = dash.data;
+  const n = (v: number) => numberFormat(intl).format(v);
+
+  const kpis: Kpi[] = [];
+  if (d?.reception) {
+    kpis.push({ key: 'present', label: D.present, value: n(d.reception.present) });
+    kpis.push({ key: 'today', label: D.today, value: n(d.reception.today), delta: { now: d.reception.today, before: d.reception.sameDayLastWeek, polarity: 'neutral', note: D.todayNote } });
+  }
+  if (d?.parcels) kpis.push({ key: 'parcels', label: D.parcels, value: n(d.parcels.waiting), note: plural(D.parcelsNote, d.parcels.arrivedWeek, intl, n(d.parcels.arrivedWeek)) });
+  if (d?.parking) kpis.push({ key: 'parking', label: D.parking, value: n(d.parking.bookedToday), note: D.parkingOf.replace('{n}', n(d.parking.spots)) });
+  if (d?.access) kpis.push({ key: 'denied', label: D.denied, value: n(d.access.deniedWeek), delta: { now: d.access.deniedWeek, before: d.access.deniedPreviousWeek, polarity: 'bad', note: D.deniedNote } });
+
+  const weekday = dateTimeFormat(intl, { weekday: 'short', timeZone: 'UTC' });
+  const dayLong = dateTimeFormat(intl, { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
+  const week: Datum[] = d?.reception?.week.map((w) => { const dt = new Date(`${w.date}T12:00:00Z`); return { key: w.date, label: weekday.format(dt), tip: dayLong.format(dt), value: w.count }; }) ?? [];
+  const peak = week.reduce<Datum | null>((best, x) => (!best || x.value > best.value ? x : best), null);
+  // At most four series: the three largest reasons, the rest together as "Other".
+  const reasons = d?.reception ? Object.entries(d.reception.purposes).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]) : [];
+  const donut: Datum[] = reasons.length > 4
+    ? [...reasons.slice(0, 3).map(([k, v]) => ({ key: k, label: t.purposes[k as keyof typeof t.purposes] ?? k, value: v })), { key: 'other', label: D.other, value: reasons.slice(3).reduce((a, [, v]) => a + v, 0) }]
+    : reasons.map(([k, v]) => ({ key: k, label: t.purposes[k as keyof typeof t.purposes] ?? k, value: v }));
+
   return (
     <div className="portal">
-      <section className="portal-hero">
+      <div className="a-head">
         <div>
-          <h1>{P.hello.replace('{name}', first)}</h1>
-          <p>{apps.length ? P.intro : P.noApps}</p>
+          <h1>{D.title}</h1>
+          {d && <p>{D.period.replace('{from}', fmtDay(d.days[0], intl, false)).replace('{to}', fmtDay(d.today, intl))}</p>}
         </div>
-        {/* One Mo per screen: when the grid ends with the tile to add an app, Mo lives there. */}
-        {!showAdd && <Mo size={112} mood={apps.length ? 'happy' : 'wink'} />}
-      </section>
+      </div>
+      {dash.error ? <p className="alert" role="alert">{D.loadError}</p> : null}
+      {kpis.length > 0 && (
+        <ul className="kpis" role="list">
+          {kpis.slice(0, 4).map((k) => (
+            <li key={k.key} className="kpi">
+              <span>{k.label}</span>
+              <b>{k.value}</b>
+              {k.delta ? <Delta {...k.delta} /> : k.note ? <small>{k.note}</small> : null}
+            </li>
+          ))}
+        </ul>
+      )}
+      {d?.reception && (
+        <div className="dash-two">
+          <section className="a-card dash-card" aria-labelledby="dc-week">
+            <h2 id="dc-week">{D.perDay}</h2>
+            <p className="sub">{D.perDaySub}</p>
+            {d.reception.weekTotal === 0 ? <p className="empty">{D.emptyWeek}</p> : (
+              <>
+                <AreaChart data={week} format={n}
+                  caption={D.perDayCaption.replace('{total}', n(d.reception.weekTotal)).replace('{day}', peak?.tip ?? '').replace('{n}', n(peak?.value ?? 0))} />
+                <DataTable summary={t.stats.showData} head={[t.stats.day, t.stats.visits]} rows={week.map((w) => [w.tip ?? w.label, n(w.value)])} />
+              </>
+            )}
+          </section>
+          <section className="a-card dash-card" aria-labelledby="dc-why">
+            <h2 id="dc-why">{D.purposes}</h2>
+            <p className="sub">{D.purposesSub}</p>
+            {d.reception.weekTotal === 0 ? <p className="empty">{D.emptyWeek}</p> : (
+              <Donut data={donut} total={d.reception.weekTotal} unit={plural(D.unit, d.reception.weekTotal, intl, '').trim()} format={n}
+                caption={`${D.purposes}: ${donut.map((x) => `${x.label} ${Math.round((x.value / d.reception!.weekTotal) * 100)}%`).join(', ')}`} />
+            )}
+          </section>
+        </div>
+      )}
+      {apps.length === 0 && <p className="empty a-card">{P.noApps}</p>}
       {apps.length > 0 && (
         <section aria-labelledby="pt-apps">
           <h2 id="pt-apps" className="portal-h">{t.navApps}</h2>
@@ -523,7 +626,7 @@ function PortalHome({ me, items }: { me: Me; items: typeof NAV }) {
                 </NavLink>
                 {pages.length > 1 && (
                   <div className="portal-links">
-                    {pages.map((n) => <NavLink key={n.to} to={n.to}>{t.nav[n.key]}</NavLink>)}
+                    {pages.map((x) => <NavLink key={x.to} to={x.to}>{t.nav[x.key]}</NavLink>)}
                   </div>
                 )}
               </li>
@@ -542,16 +645,16 @@ function PortalHome({ me, items }: { me: Me; items: typeof NAV }) {
         </section>
       )}
       {DATA_GROUPS.map((g) => {
-        const pages = items.filter((n) => n.group === g);
+        const pages = items.filter((x) => x.group === g);
         return pages.length > 0 && (
           <section key={g} aria-labelledby={`pt-${g}`}>
             <h2 id={`pt-${g}`} className="portal-h">{t.navGroups[g]}</h2>
             <ul className="portal-pages" role="list">
-              {pages.map((n) => (
-                <li key={n.to}>
-                  <NavLink to={n.to} className="portal-page">
-                    <strong>{t.nav[n.key]}</strong>
-                    <span>{P.pageText[n.key as keyof typeof P.pageText]}</span>
+              {pages.map((x) => (
+                <li key={x.to}>
+                  <NavLink to={x.to} className="portal-page">
+                    <strong>{t.nav[x.key]}</strong>
+                    <span>{P.pageText[x.key as keyof typeof P.pageText]}</span>
                   </NavLink>
                 </li>
               ))}

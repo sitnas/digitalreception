@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from '../../lib/api';
 import { fmtDateTime } from '../../lib/format';
 import { useMe } from '../AdminApp';
 import { errorText, useI18n } from '../i18n';
 import type { VisitDetail } from '../types';
-import { ErrorBox, StatusPill, useAsync } from '../ui';
+import { ErrorBox, StatusPill, useAsync, CloseButton, useDialog } from '../ui';
 
 /** Visit detail. Images are fetched only on explicit request, each fetch is audited server-side. */
 export function VisitDrawer({ id, onClose, onChanged }: { id: string; onClose: () => void; onChanged: () => void }) {
@@ -19,11 +19,9 @@ export function VisitDrawer({ id, onClose, onChanged }: { id: string; onClose: (
   const tz = v?.siteTimezone ?? undefined;
   const canErase = me.role === 'SUPER_ADMIN' || me.role === 'SITE_MANAGER';
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
-    window.addEventListener('keydown', onKey);
-    return () => { window.removeEventListener('keydown', onKey); Object.values(images).forEach(URL.revokeObjectURL); };
-  }, [onClose, images]);
+  const dlg = useRef<HTMLElement>(null);
+  useDialog(dlg, onClose);
+  useEffect(() => () => { Object.values(images).forEach(URL.revokeObjectURL); }, [images]);
 
   const show = async (fileId: string) => {
     const blob = await api.blob(`/admin/visits/${id}/files/${fileId}`);
@@ -37,10 +35,10 @@ export function VisitDrawer({ id, onClose, onChanged }: { id: string; onClose: (
   return (
     <>
       <div className="drawer-back" onClick={onClose} />
-      <aside className="drawer" role="dialog" aria-modal="true" aria-labelledby="drawer-title">
-        <div className="inline" style={{ justifyContent: 'space-between' }}>
+      <aside ref={dlg} className="drawer" role="dialog" aria-modal="true" aria-labelledby="drawer-title">
+        <div className="drawer-head">
           <h2 id="drawer-title">{t.detail.title}</h2>
-          <button type="button" className="btn btn-ghost btn-sm" onClick={onClose}>{t.detail.close}</button>
+          <CloseButton label={t.detail.close} onClick={onClose} />
         </div>
         <ErrorBox error={error} />
         {v && (

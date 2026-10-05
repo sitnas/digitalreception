@@ -1082,6 +1082,15 @@ describe('end-to-end', { skip: !enabled && 'E2E_DB_HOST not set' }, () => {
       assert.equal(week.bookings.find((b) => b.date === '2026-10-12' && b.spotId === p2).name, 'Ugo Utente');
       assert.equal((await admin.get('/admin/parking/people')).data.length, 3);
       assert.equal((await admin.get('/admin/apps')).data.using.parking, 3, 'only who has the benefit');
+      // The console's home: numbers per app, by role and by the sites the person sees.
+      const dash = (await admin.get('/admin/dashboard')).data;
+      assert.equal(dash.days.length, 7); assert.equal(dash.days[6], dash.today);
+      assert.ok(dash.parking.spots >= 2, 'active spots of the organisation');
+      assert.equal(typeof dash.reception.present, 'number'); assert.equal(dash.reception.week.length, 7);
+      assert.equal(typeof dash.access.deniedWeek, 'number'); assert.equal(typeof dash.parcels.waiting, 'number');
+      const recDash = (await ctx.rec.get('/admin/dashboard')).data;
+      assert.equal(recDash.access, undefined, 'the receptionist does not read the door log');
+      assert.ok(recDash.reception && recDash.parking, 'but sees visitors and parking');
 
       // No benefit: no app, no booking. Taking the manager role away drops her future weekly days.
       const k4 = await token('K4');

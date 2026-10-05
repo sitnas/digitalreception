@@ -17,13 +17,28 @@ export function numberFormat(locale: string, options: Intl.NumberFormatOptions =
   return f;
 }
 
+/*
+ * One way to write dates and times in the whole console (Mortise dashboard guidelines): the day as
+ * "5 ott 2026" and the time on 24 hours ("19:30"), in every language, table and tooltip.
+ */
 export function fmtTime(iso: string | null, locale = 'it-IT', timeZone?: string) {
   if (!iso) return '—';
-  return dateTimeFormat(locale, { hour: '2-digit', minute: '2-digit', timeZone }).format(new Date(iso));
+  return dateTimeFormat(locale, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone }).format(new Date(iso));
 }
 export function fmtDateTime(iso: string | null, locale = 'it-IT', timeZone?: string) {
   if (!iso) return '—';
-  return dateTimeFormat(locale, { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone }).format(new Date(iso));
+  return dateTimeFormat(locale, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone }).format(new Date(iso));
+}
+/** A calendar day (YYYY-MM-DD), written like the other dates: "5 ott 2026", or "5 ott" without the year. */
+export function fmtDay(day: string, locale = 'it-IT', withYear = true) {
+  return dateTimeFormat(locale, { day: 'numeric', month: 'short', ...(withYear ? { year: 'numeric' } : {}), timeZone: 'UTC' }).format(new Date(`${day}T12:00:00Z`));
+}
+/** The right form for a count: plural({ one, other }, 4) -> other, with {n} filled in. */
+const pluralRules = new Map<string, Intl.PluralRules>();
+export function plural(forms: { one: string; other: string }, n: number, locale = 'it-IT', shown = String(n)) {
+  let r = pluralRules.get(locale);
+  if (!r) { r = new Intl.PluralRules(locale); pluralRules.set(locale, r); }
+  return (r.select(n) === 'one' ? forms.one : forms.other).replace('{n}', shown);
 }
 export function todayIso() {
   const d = new Date();

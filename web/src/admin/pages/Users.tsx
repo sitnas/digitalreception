@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { api } from '../../lib/api';
 import { fmtDateTime } from '../../lib/format';
 import { useMe } from '../AdminApp';
 import { errorText, useI18n } from '../i18n';
 import type { Role, Site, UserRow } from '../types';
-import { ErrorBox, PageHead, strongPassword, useAsync } from '../ui';
+import { ErrorBox, PageHead, strongPassword, useAsync, CloseButton, useDialog } from '../ui';
 
 const ROLES: Role[] = ['RECEPTIONIST', 'SITE_MANAGER', 'AUDITOR', 'SUPER_ADMIN'];
 const needsSites = (r: Role) => r === 'SITE_MANAGER' || r === 'RECEPTIONIST';
@@ -146,13 +146,16 @@ function UserPanel({ panel, sites, meId, onClose, onChanged }: { panel: Panel; s
     setPending(null);
   };
 
+  const dlg = useRef<HTMLElement>(null);
+  useDialog(dlg, onClose);
+
   return (
     <>
       <div className="drawer-back" onClick={onClose} />
-      <aside className="drawer" role="dialog" aria-modal="true" aria-labelledby="user-panel-title">
+      <aside ref={dlg} className="drawer" role="dialog" aria-modal="true" aria-labelledby="user-panel-title">
         <div className="drawer-head">
           <h2 id="user-panel-title">{editing ? editing.displayName : t.users.add}</h2>
-          <button type="button" className="btn btn-ghost btn-sm" onClick={onClose}>{t.detail.close}</button>
+          <CloseButton label={t.detail.close} onClick={onClose} />
         </div>
         {editing && <p className="muted" style={{ margin: '2px 0 0' }}>{editing.email}</p>}
 
@@ -181,7 +184,7 @@ function UserPanel({ panel, sites, meId, onClose, onChanged }: { panel: Panel; s
               <h3>{t.users.sites}</h3>
               <div className="check-list">
                 {activeSites.map((s) => (
-                  <label key={s.id} className="toggle"><input type="checkbox" checked={f.siteIds.includes(s.id)}
+                  <label key={s.id} className="toggle"><input type="checkbox" role="switch" checked={f.siteIds.includes(s.id)}
                     onChange={(e) => setF({ ...f, siteIds: e.target.checked ? [...f.siteIds, s.id] : f.siteIds.filter((x) => x !== s.id) })} />{s.name} <span className="muted">({s.countryCode})</span></label>
                 ))}
               </div>
@@ -192,7 +195,7 @@ function UserPanel({ panel, sites, meId, onClose, onChanged }: { panel: Panel; s
             <section className="drawer-section">
               <h3>{t.sso.section}</h3>
               {editing.ssoBound && <p className="hint" style={{ margin: 0 }}>{t.sso.bound}</p>}
-              <label className="toggle"><input type="checkbox" name="sso-exempt" aria-describedby="sso-exempt-help" checked={f.ssoExempt} onChange={(e) => setF({ ...f, ssoExempt: e.target.checked })} />{t.sso.exempt}</label>
+              <label className="toggle"><input type="checkbox" role="switch" name="sso-exempt" aria-describedby="sso-exempt-help" checked={f.ssoExempt} onChange={(e) => setF({ ...f, ssoExempt: e.target.checked })} />{t.sso.exempt}</label>
               <span id="sso-exempt-help" className="hint">{t.sso.exemptHelp}</span>
             </section>
           )}

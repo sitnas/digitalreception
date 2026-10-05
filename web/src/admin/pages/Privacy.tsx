@@ -63,13 +63,13 @@ function PolicyEditor({ policy, editable, onSaved }: { policy: Policy; editable:
           <div className="field"><label htmlFor="vr">{t.privacy.retention}</label><input id="vr" type="number" min={1} max={3650} step={1} required className="input" value={p.visitRetentionDays} onChange={num('visitRetentionDays')} /></div>
           <div className="field"><span className="label">{t.privacy.locales}</span>
             <div className="inline">{LOCALES.map((l) => (
-              <label key={l} className="toggle"><input type="checkbox" checked={p.locales.includes(l)} onChange={(e) => setP({ ...p, locales: e.target.checked ? [...p.locales, l] : p.locales.filter((x) => x !== l) })} />{l.toUpperCase()}</label>
+              <label key={l} className="toggle"><input type="checkbox" role="switch" checked={p.locales.includes(l)} onChange={(e) => setP({ ...p, locales: e.target.checked ? [...p.locales, l] : p.locales.filter((x) => x !== l) })} />{l.toUpperCase()}</label>
             ))}</div></div>
           <div className="field"><label htmlFor="dl">{t.privacy.defaultLocale}</label>
             <select id="dl" className="input" value={p.defaultLocale} onChange={(e) => setP({ ...p, defaultLocale: e.target.value })}>{p.locales.map((l) => <option key={l} value={l}>{l.toUpperCase()}</option>)}</select></div>
         </div>
-        <label className="toggle"><input type="checkbox" checked={p.documentDataEnabled} onChange={bool('documentDataEnabled')} />{t.privacy.docData}</label>
-        <label className="toggle"><input type="checkbox" checked={docPhotoOn} disabled={p.documentDataEnabled} onChange={bool('documentPhotoEnabled')} />{t.privacy.docPhoto}</label>
+        <label className="toggle"><input type="checkbox" role="switch" checked={p.documentDataEnabled} onChange={bool('documentDataEnabled')} />{t.privacy.docData}</label>
+        <label className="toggle"><input type="checkbox" role="switch" checked={docPhotoOn} disabled={p.documentDataEnabled} onChange={bool('documentPhotoEnabled')} />{t.privacy.docPhoto}</label>
         {p.documentDataEnabled && <span className="hint" style={{ marginTop: -8 }}>{t.privacy.docPhotoIncluded}</span>}
         {docPhotoOn && (
           <>
@@ -77,7 +77,7 @@ function PolicyEditor({ policy, editable, onSaved }: { policy: Policy; editable:
             <div className="field" style={{ maxWidth: 320 }}><label htmlFor="dr">{t.privacy.docPhotoRet}</label><input id="dr" type="number" min={1} max={365} step={1} required className="input" value={p.documentPhotoRetentionDays} onChange={num('documentPhotoRetentionDays')} /></div>
           </>
         )}
-        <label className="toggle"><input type="checkbox" checked={p.assetPhotosRequired} onChange={bool('assetPhotosRequired')} />{t.privacy.asset}</label>
+        <label className="toggle"><input type="checkbox" role="switch" checked={p.assetPhotosRequired} onChange={bool('assetPhotosRequired')} />{t.privacy.asset}</label>
         {p.assetPhotosRequired && <div className="field" style={{ maxWidth: 320 }}><label htmlFor="ar">{t.privacy.assetRet}</label><input id="ar" type="number" min={1} max={3650} step={1} required className="input" value={p.assetPhotoRetentionDays} onChange={num('assetPhotoRetentionDays')} /></div>}
         {msg && <p className={msg.ok ? 'alert alert-info' : 'alert'} role="status">{msg.text}</p>}
         {editable && <div><button className="btn btn-primary">{t.privacy.save}</button></div>}

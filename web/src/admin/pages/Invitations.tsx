@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { api } from '../../lib/api';
 import { fmtDateTime, todayIso } from '../../lib/format';
 import { useMe } from '../AdminApp';
 import { errorText, useI18n } from '../i18n';
 import type { Site } from '../types';
-import { ErrorBox, PageHead, SiteSelect, useAsync } from '../ui';
+import { ErrorBox, PageHead, SiteSelect, useAsync, CloseButton, useDialog } from '../ui';
 
 const PURPOSES = ['MEETING', 'INTERVIEW', 'SUPPLIER', 'MAINTENANCE', 'DELIVERY', 'OTHER'] as const;
 type Status = 'PENDING' | 'USED' | 'CANCELLED' | 'EXPIRED';
@@ -29,6 +29,7 @@ export function InvitationsPage() {
   const list = useAsync(() => api.get<Row[]>(`/admin/invitations?scope=${scope}${siteId ? `&siteId=${siteId}` : ''}`), [scope, siteId]);
   const [form, setForm] = useState<Form | null>(null);
   const [qr, setQr] = useState<{ row: Row; code: string; qrSvg: string } | null>(null);
+  const closeQr = useCallback(() => setQr(null), []);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const activeSites = (sites.data ?? []).filter((s) => s.active);
   const multiSite = activeSites.length > 1;
@@ -97,11 +98,11 @@ export function InvitationsPage() {
 
       {qr && (
         <>
-          <div className="drawer-back" onClick={() => setQr(null)} />
-          <aside className="drawer" role="dialog" aria-modal="true" aria-labelledby="qr-title">
+          <div className="drawer-back" onClick={closeQr} />
+          <QrDrawer onClose={closeQr}>
             <div className="drawer-head">
               <h2 id="qr-title">{qr.row.firstName} {qr.row.lastName}</h2>
-              <button type="button" className="btn btn-ghost btn-sm" onClick={() => setQr(null)}>{t.detail.close}</button>
+              <CloseButton label={t.detail.close} onClick={closeQr} />
             </div>
             <p className="muted" style={{ margin: '2px 0 0' }}>{fmtDateTime(qr.row.expectedAt, intl, qr.row.timezone)} · {qr.row.hostName}</p>
             <div className="invite-qr">
@@ -109,7 +110,7 @@ export function InvitationsPage() {
               <code translate="no">{qr.code}</code>
             </div>
             <p className="hint">{t.invites.qrHint}</p>
-          </aside>
+          </QrDrawer>
         </>
       )}
     </>
@@ -178,4 +179,11 @@ function InviteForm({ form, setForm, sites, onSaved }: { form: Form; setForm: (f
       </div>
     </form>
   );
+}
+
+/** The invitation's QR, in a drawer that holds the focus and closes with Escape. */
+function QrDrawer({ onClose, children }: { onClose: () => void; children: React.ReactNode }) {
+  const dlg = useRef<HTMLElement>(null);
+  useDialog(dlg, onClose);
+  return <aside ref={dlg} className="drawer" role="dialog" aria-modal="true" aria-labelledby="qr-title">{children}</aside>;
 }

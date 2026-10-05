@@ -71,7 +71,7 @@ export function HostsPage() {
             <legend className="label" style={{ fontWeight: 700, marginBottom: 8 }}>{t.hosts.sites}</legend>
             <div className="inline">
               {mySites.map((s) => (
-                <label key={s.id} className="toggle"><input type="checkbox" checked={form.siteIds.includes(s.id)}
+                <label key={s.id} className="toggle"><input type="checkbox" role="switch" checked={form.siteIds.includes(s.id)}
                   onChange={(e) => setForm({ ...form, siteIds: e.target.checked ? [...form.siteIds, s.id] : form.siteIds.filter((x) => x !== s.id) })} />{s.name}</label>
               ))}
             </div>
