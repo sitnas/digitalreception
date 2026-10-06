@@ -1,11 +1,13 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { ApiError, api } from '../lib/api';
-import { MortiseMark, Mo } from '../lib/mortise';
+import { MortiseMark } from '../lib/mortise';
 import { applyBrand } from '../lib/theme';
 import { dateTimeFormat, fmtDay, numberFormat, plural } from '../lib/format';
 import { AreaChart, DataTable, Donut, type Datum } from './charts';
 import { useAsync, useDialog } from './ui';
+import { ModuleCard } from './ModuleCard';
+import type { PatternId } from '../lib/patterns';
 import { ADMIN_STRINGS, AdminLocale, I18nContext, useI18n } from './i18n';
 import { AccountPage, MfaEnroll, RecoveryCodes } from './pages/Account';
 import { AuditPage } from './pages/Audit';
@@ -70,6 +72,9 @@ const NAV: { to: string; key: keyof typeof ADMIN_STRINGS.it.nav; group: NavGroup
   { to: 'audit', key: 'audit', group: 'compliance', roles: ['SUPER_ADMIN', 'AUDITOR'] },
 ];
 const APP_GROUPS: NavGroup[] = ['reception', 'access', 'parcels', 'parking'];
+type AppGroup = 'reception' | 'access' | 'parcels' | 'parking';
+/** Every app card has the same colours; the pattern in its corner tells the apps apart. */
+const APP_PATTERN: Record<AppGroup, PatternId> = { reception: 'dotCluster', access: 'chevrons', parcels: 'stripeDisc', parking: 'dashes' };
 
 /** Reloads the signed-in user (after turning an app on or off, the menu follows). */
 const ReloadMeContext = createContext<() => Promise<void>>(async () => {});
@@ -549,6 +554,9 @@ function PortalHome({ me, items }: { me: Me; items: typeof NAV }) {
   const dash = useAsync(() => api.get<Dashboard>('/admin/dashboard'), [me.apps.join()]);
   const d = dash.data;
   const n = (v: number) => numberFormat(intl).format(v);
+  // The live number under each app's name, when the dashboard has it for this role.
+  const appCount = (g: AppGroup): number | undefined =>
+    g === 'reception' ? d?.reception?.present : g === 'access' ? d?.access?.today : g === 'parcels' ? d?.parcels?.waiting : d?.parking?.bookedToday;
 
   // At most four cards, and every app the person sees keeps at least one: with all four apps on,
   // reception gives up "check-ins today" (the chart below shows the days anyway).
@@ -620,28 +628,24 @@ function PortalHome({ me, items }: { me: Me; items: typeof NAV }) {
         <section aria-labelledby="pt-apps">
           <h2 id="pt-apps" className="portal-h">{t.navApps}</h2>
           <ul className="portal-apps" role="list">
-            {apps.map(({ g, pages }) => (
-              <li key={g} className="portal-app">
-                <NavLink to={pages[0].to} className="portal-app-main">
-                  <span className="portal-icon" aria-hidden><GroupIcon group={g} /></span>
-                  <h3>{t.navGroups[g]}</h3>
-                  <p>{P.groupText[g as keyof typeof P.groupText]}</p>
-                </NavLink>
-                {pages.length > 1 && (
-                  <div className="portal-links">
-                    {pages.map((x) => <NavLink key={x.to} to={x.to}>{t.nav[x.key]}</NavLink>)}
-                  </div>
-                )}
-              </li>
-            ))}
+            {apps.map(({ g, pages }) => {
+              // The card opens the first page; the note links the next ones (at most three, the menu has them all).
+              const value = appCount(g as AppGroup);
+              return (
+                <li key={g}>
+                  <ModuleCard id={g} pattern={APP_PATTERN[g as AppGroup]} to={pages[0].to} icon={<GroupIcon group={g} />}
+                    title={t.navGroups[g]} eyebrow={P.active}
+                    loading={dash.loading && !d}
+                    subtitle={value === undefined ? undefined : plural(P.count[g as AppGroup], value, intl, n(value))}
+                    footnote={pages.length > 1 ? pages.slice(0, 3).map((x) => <NavLink key={x.to} to={x.to}>{t.nav[x.key]}</NavLink>) : undefined} />
+                </li>
+              );
+            })}
             {showAdd && (
-              <li className="portal-app portal-add">
-                <NavLink to="apps" className="portal-app-main">
-                  <span className="portal-add-icon" aria-hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M12 6v12M6 12h12" /></svg></span>
-                  <h3>{P.addApp}</h3>
-                  <p>{P.addAppText.replace('{apps}', missing.map((a) => t.apps.items[a].name).join(', '))}</p>
-                  <Mo size={56} mood="wink" />
-                </NavLink>
+              <li>
+                <ModuleCard id="add" pattern="contour" to="apps" title={P.addApp} eyebrow={P.addEyebrow}
+                  icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M12 6v12M6 12h12" /></svg>}
+                  subtitle={missing.map((a) => t.apps.items[a].name).join(', ')} footnote={<p>{P.addAsk}</p>} />
               </li>
             )}
           </ul>

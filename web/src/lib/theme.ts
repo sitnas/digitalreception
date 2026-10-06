@@ -67,6 +67,8 @@ export function brandVars(colors: BrandColors): Record<string, string> {
     '--on-brand-2': onS,
     '--on-brand-2-muted': mix(onS, s, 0.32),
     '--brand-on-2': brandOn2,
+    // Glyphs on a tile filled with that accent (module cards).
+    '--on-brand-on-2': readableOn(brandOn2),
   };
 }
 

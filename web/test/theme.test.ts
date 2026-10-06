@@ -49,3 +49,10 @@ test('mix goes from one colour to the other', () => {
   assert.equal(mix('#000000', '#FFFFFF', 1), '#FFFFFF');
   assert.equal(mix('#000000', '#FFFFFF', 0.5), '#808080');
 });
+
+test('glyphs on the module card tile stay readable on the accent', () => {
+  for (const p of SAMPLE) for (const s of SAMPLE) {
+    const v = brandVars({ primaryColor: p, secondaryColor: s });
+    assert.ok(contrast(v['--on-brand-on-2'], v['--brand-on-2']) >= 4.5, `${p}/${s}`);
+  }
+});
