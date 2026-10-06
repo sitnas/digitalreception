@@ -1,5 +1,5 @@
 import type { Badge } from './badge';
-import type { Invite, NewInvite, ParkingView, Profile } from './invites';
+import type { Invite, NewInvite, ParkingBookMany, ParkingSpotChoice, ParkingView, Profile } from './invites';
 
 export class ApiError extends Error {
   status: number;
@@ -91,6 +91,10 @@ export const pushTest = (b: Authed, token: string) =>
   authed<{ result: string }>(b, '/push/test', { method: 'POST', body: JSON.stringify({ kind: 'expo', target: token }) });
 
 export const getParking = (b: Authed, siteId?: string) => authed<ParkingView>(b, `/parking${siteId ? `?siteId=${encodeURIComponent(siteId)}` : ''}`);
-export const bookParking = (b: Authed, siteId: string, date: string) =>
-  authed<{ id: string; date: string; spot: string; note: string | null }>(b, '/parking', { method: 'POST', body: JSON.stringify({ siteId, date }) });
+/** The spots of a site for the days picked in the calendar: which are free on all of them. */
+export const getParkingSpots = (b: Authed, siteId: string, dates: string[]) =>
+  authed<ParkingSpotChoice[]>(b, `/parking/spots?siteId=${encodeURIComponent(siteId)}&dates=${dates.join(',')}`);
+/** Several days at once, on a chosen spot or on the first free one each day. */
+export const bookParkingDays = (b: Authed, siteId: string, dates: string[], spotId: string | null) =>
+  authed<ParkingBookMany>(b, '/parking/bookings', { method: 'POST', body: JSON.stringify({ siteId, dates, ...(spotId ? { spotId } : {}) }) });
 export const cancelParking = (b: Authed, id: string) => authed<{ ok: true }>(b, `/parking/${id}`, { method: 'DELETE' });

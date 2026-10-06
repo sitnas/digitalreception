@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, HttpException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, EntityManager, In, MoreThanOrEqual, Not } from 'typeorm';
@@ -11,7 +11,8 @@ const isDuplicate = (e: unknown) => (e as { code?: string })?.code === 'ER_DUP_E
 
 /**
  * Company parking. Managers get their fixed spot booked every week (the job below); standard
- * users book day by day from the app. The rules on dates are in parking-rules.ts.
+ * users book from the app, one or more days at a time, on a spot they pick or on the first free one.
+ * The rules on dates are in parking-rules.ts.
  */
 @Injectable()
 export class ParkingService {
@@ -154,8 +155,54 @@ export class ParkingService {
     };
   }
 
-  /** One day, one spot: the manager's own spot first, otherwise the first free one by code. */
-  async book(tenantId: string, employeeId: string, date: string, siteId: string) {
+  /**
+   * The spots of a site for the days the person picked: free on all of them, or not. Codes and
+   * notes only: who took a spot is never shown.
+   */
+  async spots(tenantId: string, employeeId: string, siteId: string, dates: string[]) {
+    const e = await this.person(tenantId, employeeId);
+    const site = await this.ds.getRepository(Site).findOne({ where: { id: siteId, tenantId, active: true } });
+    if (!site) throw new BadRequestException('SITE_NOT_FOUND');
+    const spots = (await this.ds.getRepository(ParkingSpot).find({ where: { tenantId, siteId, active: true } }))
+      .sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }));
+    const taken = dates.length
+      ? await this.ds.getRepository(ParkingBooking).find({ where: { tenantId, siteId, date: In(dates) }, select: { id: true, spotId: true, date: true } })
+      : [];
+    return spots.map((s) => ({ id: s.id, code: s.code, note: s.note, mine: s.id === e.parkingSpotId, free: !taken.some((b) => b.spotId === s.id) }));
+  }
+
+  /**
+   * Several days at once, on one spot or on the first free one each day. The limit of active
+   * bookings is checked for the whole request; then each day is booked on its own, and the days
+   * that could not be booked come back with the reason.
+   */
+  async bookMany(tenantId: string, employeeId: string, siteId: string, dates: string[], spotId?: string) {
+    const e = await this.person(tenantId, employeeId);
+    const site = await this.ds.getRepository(Site).findOne({ where: { id: siteId, tenantId, active: true } });
+    if (!site) throw new BadRequestException('SITE_NOT_FOUND');
+    const days = [...new Set(dates)].sort();
+    if (e.parkingRole === 'USER') {
+      const active = await this.ds.getRepository(ParkingBooking).count({ where: { tenantId, employeeId, date: MoreThanOrEqual(localDay(this.now(), site.timezone).date) } });
+      if (active + days.length > MAX_ACTIVE) throw new ConflictException('PARKING_LIMIT');
+    }
+    const booked: { id: string; date: string; spot: string; note: string | null }[] = [];
+    const failed: { date: string; code: string }[] = [];
+    for (const date of days) {
+      try { booked.push(await this.book(tenantId, employeeId, date, siteId, spotId)); }
+      catch (err) {
+        if (!(err instanceof HttpException)) throw err;
+        const r = err.getResponse();
+        failed.push({ date, code: typeof r === 'string' ? r : String((r as { message?: unknown }).message ?? 'ERROR') });
+      }
+    }
+    return { booked, failed };
+  }
+
+  /**
+   * One day, one spot. With `spotId` only that spot; otherwise the manager's own spot first, then
+   * the first free one by code.
+   */
+  async book(tenantId: string, employeeId: string, date: string, siteId: string, spotId?: string) {
     const e = await this.person(tenantId, employeeId);
     const site = await this.ds.getRepository(Site).findOne({ where: { id: siteId, tenantId, active: true } });
     if (!site) throw new BadRequestException('SITE_NOT_FOUND');
@@ -170,9 +217,17 @@ export class ParkingService {
     const spots = (await this.ds.getRepository(ParkingSpot).find({ where: { tenantId, siteId, active: true } }))
       .sort((a, b) => Number(b.id === e.parkingSpotId) - Number(a.id === e.parkingSpotId) || a.code.localeCompare(b.code, undefined, { numeric: true }));
     const taken = new Set((await repo.find({ where: { tenantId, siteId, date }, select: { id: true, spotId: true } })).map((b) => b.spotId));
-    // Another manager's fixed spot is offered last: they may have just given the day back.
-    const managers = new Set((await this.ds.getRepository(Employee).find({ where: { tenantId, parkingRole: 'MANAGER', id: Not(employeeId) }, select: { id: true, parkingSpotId: true } })).map((m) => m.parkingSpotId));
-    const order = [...spots.filter((s) => !managers.has(s.id)), ...spots.filter((s) => managers.has(s.id))];
+    let order: ParkingSpot[];
+    if (spotId) {
+      const chosen = spots.find((s) => s.id === spotId);
+      if (!chosen) throw new BadRequestException('PARKING_SPOT_NOT_FOUND');
+      if (taken.has(chosen.id)) throw new ConflictException('PARKING_SPOT_TAKEN');
+      order = [chosen];
+    } else {
+      // Another manager's fixed spot is offered last: they may have just given the day back.
+      const managers = new Set((await this.ds.getRepository(Employee).find({ where: { tenantId, parkingRole: 'MANAGER', id: Not(employeeId) }, select: { id: true, parkingSpotId: true } })).map((m) => m.parkingSpotId));
+      order = [...spots.filter((s) => !managers.has(s.id)), ...spots.filter((s) => managers.has(s.id))];
+    }
     for (const spot of order) {
       if (taken.has(spot.id)) continue;
       try {
@@ -181,6 +236,7 @@ export class ParkingService {
       } catch (err) {
         if (!isDuplicate(err)) throw err;
         if (await repo.exist({ where: { tenantId, employeeId, date } })) throw new ConflictException('PARKING_ALREADY_BOOKED');
+        if (spotId) throw new ConflictException('PARKING_SPOT_TAKEN');
       }
     }
     throw new ConflictException('PARKING_FULL');
