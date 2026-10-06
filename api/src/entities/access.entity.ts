@@ -103,6 +103,7 @@ export class DoorReader {
 @Entity('access_events')
 @Index('IDX_access_events_tenant_at', ['tenantId', 'at'])
 @Index('IDX_access_events_at', ['at'])
+@Index('IDX_access_events_site_at', ['tenantId', 'siteId', 'result', 'at'])
 export class AccessEvent {
   @PrimaryGeneratedColumn('uuid') id: string;
   @Column({ type: 'uuid' }) tenantId: string;

@@ -43,6 +43,7 @@ Documentazione di dettaglio:
 - [docs/ARCHITETTURA.md](docs/ARCHITETTURA.md) — scelte tecniche, multi-tenancy, scalabilità
 - [docs/SICUREZZA-PRIVACY.md](docs/SICUREZZA-PRIVACY.md) — controlli di sicurezza e privacy, per CISO e DPO
 - [docs/AUDIT-CISO.md](docs/AUDIT-CISO.md) — audit di sicurezza di ottobre 2026: cosa è stato verificato, cosa resta aperto e il piano di rientro
+- [docs/CARICO.md](docs/CARICO.md) — test di carico: numeri, problemi trovati, dimensionamento
 - [docs/OPERAZIONI.md](docs/OPERAZIONI.md) — installazione, nuovi clienti, backup, rotazione chiavi
 
 ## Avvio rapido (un server)
@@ -107,4 +108,5 @@ web/
   src/kiosk/         app del tablet (it, es, en)
   src/admin/         console (it, es)
 docs/                documentazione per IT, sicurezza e privacy
+load/                test di carico (dati realistici e scenari, vedi docs/CARICO.md)
 ```

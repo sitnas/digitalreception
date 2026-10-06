@@ -231,9 +231,12 @@ export class KioskService {
 
     let pushQueued = false;
     let movedDocPhoto = false;
+    // Outside the transaction: inside it, this query would wait for a second pool connection while
+    // holding the first, and enough simultaneous check-ins would block every connection for good.
+    const code = await this.uniqueCode(device.tenantId, site.id);
     const visit = await this.ds.transaction(async (em) => {
       const saved = await em.save(em.create(Visit, {
-        tenantId: device.tenantId, siteId: site.id, status: VisitStatus.OPEN, code: await this.uniqueCode(device.tenantId, site.id),
+        tenantId: device.tenantId, siteId: site.id, status: VisitStatus.OPEN, code,
         checkInAt: now, checkOutAt: null, checkInDeviceId: device.id, checkOutBy: null,
         firstNameEnc: tc.encrypt(v.firstName, 'visit.firstName'),
         lastNameEnc: tc.encrypt(v.lastName, 'visit.lastName'),

@@ -59,9 +59,9 @@ MASTER_KEYS (variabili d'ambiente, custodite dall'infrastruttura)
 | Frontend | file statici con cache immutabile; il codice della console non viene scaricato dai tablet |
 | Salute | `/api/health/live` (processo attivo) e `/api/health` (database raggiungibile) per bilanciatori e orchestratori |
 
-Non è ancora stato eseguito un test di carico: va fatto prima di un'offerta SaaS con volumi importanti. Per un'installazione tipo (10 sedi, centinaia di visite al giorno) un singolo nodo è ampiamente sufficiente; al crescere dei volumi il primo collo di bottiglia atteso è il database, non l'API.
+Test di carico in [CARICO.md](CARICO.md): una replica regge circa 400 verifiche al secondo ai lettori e 700 richieste al secondo dalle app, contro un picco reale di pochi al secondo per migliaia di dipendenti. Il primo limite è la CPU dell'API (un core per replica), il secondo il database; si scala aggiungendo repliche.
 
-Limite noto: il rate limiting è per singola replica. Con molte repliche conviene spostarlo sul bilanciatore o su uno store condiviso.
+Con più repliche i limiti di tentativi vanno contati nel database (`THROTTLE_STORE=database`), altrimenti ogni replica conta per conto suo.
 
 ## Scelte scartate
 

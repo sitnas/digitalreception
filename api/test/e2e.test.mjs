@@ -1107,6 +1107,23 @@ describe('end-to-end', { skip: !enabled && 'E2E_DB_HOST not set' }, () => {
     } finally { await db.end(); }
   });
 
+  test('more simultaneous check-ins than database connections all go through (no pool deadlock)', async () => {
+    // DB_POOL_SIZE is 10: each check-in holds one connection for its transaction, and must not ask
+    // for a second one while it does. 40 check-ins at once, each with its own address.
+    // A pool deadlock never answers: give up after 30 seconds instead of hanging the suite.
+    const hung = new Promise((_, no) => setTimeout(() => no(new Error('check-ins still waiting after 30 s: database pool deadlock')), 30_000).unref());
+    const all = await Promise.race([hung, Promise.all(Array.from({ length: 40 }, (_, i) => new Client(`10.77.${i >> 4}.${(i & 15) + 1}`).post('/kiosk/visits', {
+      locale: 'it', firstName: 'Carico', lastName: 'Parallelo', sendNoticeEmail: false, purpose: 'MEETING', hostId: ctx.mario.id,
+      travelDistance: 'UNDER_10_KM', documentType: 'ID_CARD', documentNumber: 'CA12345XY', documentPhoto: PNG, privacyNoticeId: ctx.notice, privacyAccepted: true, signature: PNG,
+    }, { bearer: ctx.token })))]);
+    assert.deepEqual([...new Set(all.map((r) => r.status))], [201]);
+    assert.equal((await fetch(`${BASE}/health/live`)).status, 200, 'the API still answers');
+    // Out again, so the other tests find the site as they expect it.
+    const present = (await admin.get(`/admin/visits/present?siteId=${ctx.milano.id}`)).data.filter((x) => x.lastName === 'Parallelo');
+    assert.equal(present.length, 40);
+    for (const x of present) assert.equal((await admin.post(`/admin/visits/${x.id}/checkout`)).status, 200);
+  });
+
   test('retention deletes audit entries older than AUDIT_LOG_RETENTION_DAYS, keeps recent ones', async () => {
     const mysql = require('mysql2/promise');
     const db = await mysql.createConnection({ host: env.DB_HOST, port: Number(env.DB_PORT), user: env.DB_USER, password: env.DB_PASSWORD, database: env.DB_NAME });

@@ -1,0 +1,8 @@
+{
+  "name": "@mortise/load",
+  "private": true,
+  "description": "Load tests of the API (see docs/CARICO.md)",
+  "type": "module",
+  "scripts": { "seed": "node seed.mjs", "run": "node run.mjs" },
+  "dependencies": { "autocannon": "^8.0.0", "mysql2": "^3.11.0" }
+}
