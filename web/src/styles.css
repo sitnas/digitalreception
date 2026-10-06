@@ -818,12 +818,35 @@ code.mfa-secret { font-size: 14px; overflow-wrap: anywhere; max-width: 100%; }
 .mb-row-card span { font-size: 14px; color: var(--mb-ink2); }
 .mb-chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .mb-notice { margin: 0; font-size: 15px; font-weight: 700; }
-.mb-park-day { display: flex; align-items: center; gap: 12px; border: 1px solid var(--mb-line); border-radius: 14px; padding: 10px 14px; background: var(--mb-surface); }
-.mb-park-day.is-booked { border-color: var(--brand); border-left-width: 4px; }
-.mb-park-day > div { flex: 1; display: grid; gap: 2px; min-width: 0; }
-.mb-park-day strong { font-size: 16px; }
-.mb-park-day span { font-size: 14px; color: var(--mb-ink2); }
-.mb-park-day .mb-btn { width: auto; min-width: 104px; flex: none; }
+/* Parking: two weeks as a calendar (pick one or more days), then the spot. */
+.mb-cal { display: grid; gap: 8px; }
+.mb-cal h3 { margin: 0; font-size: 15px; font-weight: 800; }
+.mb-cal-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.mb-cal-day { display: grid; justify-items: center; align-content: center; gap: 2px; min-height: 76px; padding: 8px 2px; border: 1px solid var(--mb-line); border-radius: 14px; background: var(--mb-surface); color: var(--mb-ink); font: inherit; cursor: pointer; transition: background-color .15s, border-color .15s, transform .1s; }
+.mb-cal-day small { font-size: 12px; color: var(--mb-ink2); text-transform: capitalize; }
+.mb-cal-day b { font-size: 20px; font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.mb-cal-day span { font-size: 11px; color: var(--mb-ink2); text-align: center; line-height: 1.2; overflow-wrap: anywhere; }
+.mb-cal-day:active:not(:disabled) { transform: scale(.96); }
+.mb-cal-day.is-on { border: 2px solid var(--brand-strong); background: var(--brand-soft); }
+.mb-cal-day.is-on span, .mb-cal-day.is-on small { color: var(--mb-ink); }
+.mb-cal-day.is-booked { background: var(--brand); border-color: var(--brand); color: var(--on-brand); }
+.mb-cal-day.is-booked small, .mb-cal-day.is-booked span { color: var(--on-brand); font-weight: 800; }
+.mb-cal-day.is-off, .mb-cal-day.is-past { cursor: default; opacity: .5; }
+.mb-cal-day.is-past { background: transparent; border-style: dashed; }
+.mb-cal-day:focus-visible, .mb-spot:focus-visible { outline: 3px solid var(--brand-strong); outline-offset: 2px; }
+.mb-spots { display: grid; gap: 8px; }
+.mb-spot { display: grid; gap: 2px; text-align: left; min-height: 56px; padding: 12px 14px; border: 1px solid var(--mb-line); border-radius: 14px; background: var(--mb-surface); color: var(--mb-ink); font: inherit; cursor: pointer; }
+.mb-spot strong { font-size: 16px; }
+.mb-spot span { font-size: 14px; color: var(--mb-ink2); }
+.mb-spot[aria-checked='true'] { border: 2px solid var(--brand-strong); background: var(--brand-soft); }
+.mb-spot-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 6px; }
+.mb-spot-tile { position: relative; min-height: 48px; border: 1px solid var(--mb-line); border-radius: 12px; background: var(--mb-surface); color: var(--mb-ink); font: inherit; font-size: 15px; font-weight: 800; cursor: pointer; font-variant-numeric: tabular-nums; }
+/* a dot marks the spots with a note (charger, covered...): the note shows once the spot is chosen */
+.mb-spot-tile i { position: absolute; top: 6px; right: 6px; width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: .6; }
+.mb-spot-tile[aria-checked='true'] { background: var(--brand); border-color: var(--brand); color: var(--on-brand); }
+.mb-spot-tile:focus-visible { outline: 3px solid var(--brand-strong); outline-offset: 2px; }
+@media (prefers-color-scheme: dark) { .mb-cal-day.is-on, .mb-spot[aria-checked='true'] { background: var(--brand-soft-dark); border-color: var(--brand-strong-dark); } }
+@media (prefers-reduced-motion: reduce) { .mb-cal-day { transition: none; } .mb-cal-day:active:not(:disabled) { transform: none; } }
 @keyframes mb-rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
 .mb-invite { gap: 6px; padding: 22px; }
 .mb-status-big { font-size: 13px; font-weight: 800; color: var(--mb-ink2); text-transform: uppercase; letter-spacing: .6px; }
@@ -1164,7 +1187,7 @@ code { border-radius: 6px; }
 @media (prefers-color-scheme: dark) { .mb { --mb-ground: #0A0A0A; --mb-surface: #1F1F1F; --mb-ink: #FFFFFF; --mb-ink2: #A3A3A3; --mb-line: #2E2E2E; } }
 .mb-btn { border-radius: 999px; font-weight: 600; }
 .mb-input { border-radius: 14px; border-width: 1.5px; }
-.mb-card, .mb-row-card, .mb-park-day { border-radius: 22px; }
+.mb-card, .mb-row-card { border-radius: 22px; }
 .mb-btn:focus-visible, .mb-chip:focus-visible, .mb-back:focus-visible, .mb-tab:focus-visible, .mb-link:focus-visible { outline: 3px solid var(--mb-ink); outline-offset: 3px; }
 .kiosk h1, .kiosk h2, .kiosk h3, .k-choice strong, .k-invite-btn strong, .k-done h1 { font-family: var(--disp); font-weight: 600; }
 

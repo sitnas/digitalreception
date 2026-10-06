@@ -112,7 +112,10 @@ Cosa porta ciascuna:
 - **Posti**: in *Parcheggi* si inseriscono i posti di ogni sede (codice, per esempio `P12`, e una nota facoltativa). Spegnere un posto cancella le sue prenotazioni da oggi in poi; si può eliminare solo un posto mai usato.
 - **Benefit**: nella scheda del dipendente, *Parcheggio aziendale*: Nessuno, Standard o Manager. Solo chi ha il benefit vede l'app sul telefono.
 - **Manager**: hanno un posto fisso, uno per manager. Ogni lunedì (ora della sede) un job, che gira ogni 10 minuti, prenota il posto da lunedì a venerdì della settimana dopo. La settimana viene segnata, quindi il job non la rifà: un giorno che il manager libera resta libero per gli altri. Quando assegni il ruolo, il posto viene prenotato subito per i giorni rimasti della settimana e per quelle già assegnate. Il tasto `POST /api/admin/parking/weekly` fa lo stesso passaggio a mano.
-- **Standard**: dall'app prenotano un giorno alla volta. I giorni sono quelli rimasti della settimana; dal giovedì si aggiunge la settimana dopo. Al massimo 4 prenotazioni attive. Il posto lo sceglie il sistema tra quelli liberi, e quelli fissi dei manager vengono offerti per ultimi.
+- **Standard**: nell'app e su `/badge` vedono due settimane come calendario. Toccano uno o più giorni, poi scelgono il posto tra quelli liberi in tutti quei giorni oppure lasciano *Il primo libero*, e prenotano con un tasto solo. Un giorno prenotato si tocca per liberarlo. I giorni prenotabili sono quelli rimasti della settimana; dal giovedì si aggiunge la settimana dopo. Al massimo 4 prenotazioni attive, contate su tutta la richiesta.
+  - Con *Il primo libero* il sistema prende il primo posto libero per codice, e i posti fissi dei manager vengono offerti per ultimi.
+  - Un posto scelto non viene mai cambiato di nascosto: se nel frattempo un collega l'ha preso, quel giorno non viene prenotato e l'app dice perché. Gli altri giorni passano.
+  - L'app mostra solo codice e nota dei posti, mai chi li ha prenotati.
 - La reception e i responsabili vedono la settimana posto per posto e possono annullare una prenotazione.
 
 ## Notifiche push ai dipendenti

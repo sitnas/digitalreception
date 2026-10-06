@@ -1068,6 +1068,19 @@ describe('end-to-end', { skip: !enabled && 'E2E_DB_HOST not set' }, () => {
 
       // Full day: P1 (manager), P2 (Ugo); P3 turned off, which also drops its bookings.
       const k3 = await token('K3');
+      // The calendar of the app: the spots free on all the days picked, then several days at once on a chosen spot.
+      const spotsFor = async (dates) => Object.fromEntries((await k3('GET', `/parking/spots?siteId=${ctx.milano.id}&dates=${dates}`)).data.map((s) => [s.code, s.free]));
+      assert.deepEqual(await spotsFor('2026-10-15,2026-10-16'), { P1: false, P2: true, P3: true }, 'P1 is the manager’s');
+      assert.deepEqual(await spotsFor('2026-10-12'), { P1: true, P2: false, P3: true }, 'Monday given back by the manager, P2 taken by Ugo');
+      const many = (body) => k3('POST', '/parking/bookings', { siteId: ctx.milano.id, ...body });
+      const two = (await many({ dates: ['2026-10-16', '2026-10-15'], spotId: p3 })).data;
+      assert.deepEqual(two.booked.map((b) => `${b.date} ${b.spot}`), ['2026-10-15 P3', '2026-10-16 P3']); assert.deepEqual(two.failed, []);
+      const taken = (await many({ dates: ['2026-10-12', '2026-10-13'], spotId: p2 })).data;
+      assert.deepEqual(taken.booked, []); assert.deepEqual(taken.failed.map((f) => f.code), ['PARKING_SPOT_TAKEN', 'PARKING_SPOT_TAKEN'], 'a chosen spot is never swapped silently');
+      const over = await many({ dates: ['2026-10-12', '2026-10-13', '2026-10-14'] });
+      assert.equal(over.status, 409); assert.equal(over.data.message, 'PARKING_LIMIT', 'the limit counts the whole request');
+      assert.equal((await many({ dates: ['2026-10-14'], spotId: people.K1.id })).data.failed[0].code, 'PARKING_SPOT_NOT_FOUND');
+      for (const b of two.booked) assert.equal((await k3('DELETE', `/parking/${b.id}`)).status, 200);
       assert.equal((await k3('POST', '/parking', { siteId: ctx.milano.id, date: '2026-10-13' })).data.spot, 'P3');
       assert.equal((await admin.patch(`/admin/parking/spots/${p3}`, { active: false })).status, 200);
       assert.equal((await k3('GET', '/parking')).data.days.find((d) => d.date === '2026-10-13').booking, null, 'its booking went with it');

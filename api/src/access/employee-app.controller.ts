@@ -3,7 +3,7 @@ import { Body, Controller, Delete, ForbiddenException, Get, HttpCode, NotFoundEx
 import { Throttle } from '@nestjs/throttler';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Transform, Type } from 'class-transformer';
-import { IsEmail, IsEnum, IsIn, IsNumber, IsOptional, IsString, IsUUID, Length, Matches, MaxLength, ValidateIf, ValidateNested } from 'class-validator';
+import { ArrayMaxSize, ArrayMinSize, IsArray, IsEmail, IsEnum, IsIn, IsNumber, IsOptional, IsString, IsUUID, Length, Matches, MaxLength, ValidateIf, ValidateNested } from 'class-validator';
 import { In, Repository } from 'typeorm';
 import { AuditService } from '../common/audit.service';
 import { inviteQrPayload } from '../common/exit-qr';
@@ -36,6 +36,18 @@ export class ParkingQuery {
 export class ParkingBookDto {
   @IsUUID() siteId: string;
   @Matches(/^\d{4}-\d{2}-\d{2}$/) date: string;
+  @IsOptional() @IsUUID() spotId?: string;
+}
+/** Several days at once (the calendar of the app), on a chosen spot or on the first free one. */
+export class ParkingBookManyDto {
+  @IsUUID() siteId: string;
+  @IsArray() @ArrayMinSize(1) @ArrayMaxSize(10) @Matches(/^\d{4}-\d{2}-\d{2}$/, { each: true }) dates: string[];
+  @IsOptional() @IsUUID() spotId?: string;
+}
+export class ParkingSpotsQuery {
+  @IsUUID() siteId: string;
+  /** Comma-separated days, at most ten. */
+  @IsOptional() @Matches(/^(\d{4}-\d{2}-\d{2})(,\d{4}-\d{2}-\d{2}){0,9}$/) dates?: string;
 }
 export class AppInvitationsQuery {
   @IsOptional() @IsIn(['upcoming', 'past']) scope?: 'upcoming' | 'past';
@@ -153,9 +165,27 @@ export class EmployeeAppController {
   @Post('parking')
   @RequireApp('parking')
   async parkingBook(@CurrentEmployee() me: AuthEmployee, @Body() dto: ParkingBookDto, @Req() req: AppRequest) {
-    const b = await this.parking.book(me.tenantId, me.id, dto.date, dto.siteId);
+    const b = await this.parking.book(me.tenantId, me.id, dto.date, dto.siteId, dto.spotId);
     await this.audit.fromRequest(req, { action: 'PARKING_BOOKED', entityType: 'parking_booking', entityId: b.id, siteId: dto.siteId, details: { date: b.date, spot: b.spot } });
     return b;
+  }
+
+  /** The spots of a site for the days picked in the calendar: which are free on all of them. */
+  @Get('parking/spots')
+  @RequireApp('parking')
+  async parkingSpots(@CurrentEmployee() me: AuthEmployee, @Query() q: ParkingSpotsQuery) {
+    return this.parking.spots(me.tenantId, me.id, q.siteId, q.dates ? q.dates.split(',') : []);
+  }
+
+  /** Books the days picked in the calendar; the days that could not be booked come back with the reason. */
+  @Post('parking/bookings')
+  @RequireApp('parking')
+  async parkingBookMany(@CurrentEmployee() me: AuthEmployee, @Body() dto: ParkingBookManyDto, @Req() req: AppRequest) {
+    const r = await this.parking.bookMany(me.tenantId, me.id, dto.siteId, dto.dates, dto.spotId);
+    for (const b of r.booked) {
+      await this.audit.fromRequest(req, { action: 'PARKING_BOOKED', entityType: 'parking_booking', entityId: b.id, siteId: dto.siteId, details: { date: b.date, spot: b.spot } });
+    }
+    return r;
   }
 
   @Delete('parking/:id')

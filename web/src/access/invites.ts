@@ -81,3 +81,28 @@ export interface ParkingView {
   fixedSpot: { code: string; note: string | null; site: string | null } | null;
   sites: { id: string; name: string }[]; site: { id: string; name: string } | null; days: ParkingDay[];
 }
+
+/** A spot of the site for the days picked in the calendar. */
+export interface ParkingSpotChoice { id: string; code: string; note: string | null; mine: boolean; free: boolean }
+/** Several days booked at once: what went through, and the days that did not, with the reason. */
+export interface ParkingBookMany { booked: { id: string; date: string; spot: string; note: string | null }[]; failed: { date: string; code: string }[] }
+
+const addDays = (date: string, n: number) => {
+  const [y, m, d] = date.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
+};
+const mondayOf = (date: string) => {
+  const [y, m, d] = date.split('-').map(Number);
+  return addDays(date, -((new Date(Date.UTC(y, m - 1, d)).getUTCDay() + 6) % 7));
+};
+/**
+ * The days of the parking view as a calendar: one row per week, Monday to Friday. Days already
+ * past this week have no `day` and are shown empty.
+ */
+export function parkingWeeks(days: ParkingDay[]): { monday: string; cells: { date: string; day?: ParkingDay }[] }[] {
+  const mondays = [...new Set(days.map((d) => mondayOf(d.date)))].sort();
+  return mondays.map((monday) => ({
+    monday,
+    cells: [0, 1, 2, 3, 4].map((i) => { const date = addDays(monday, i); return { date, day: days.find((d) => d.date === date) }; }),
+  }));
+}
