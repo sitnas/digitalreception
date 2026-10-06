@@ -82,8 +82,9 @@ export default function ParkingScreen() {
     finally { await load(); setBusy(null); }
   };
   const release = (day: ParkingDay) => Alert.alert(P.releaseTitle, P.releaseText, [
-    { text: t.cancel, style: 'cancel' },
-    { text: day.booking?.source === 'AUTO' ? P.release : P.cancel, style: 'destructive', onPress: async () => {
+    // Two different words: "Annulla" on both buttons left people guessing which one keeps the spot.
+    { text: P.keep, style: 'cancel' },
+    { text: P.releaseConfirm, style: 'destructive', onPress: async () => {
       setBusy(day.date); setError(null); setNotice(null);
       try { await cancelParking(badge, day.booking!.id); await load(); } catch (e) { setError(explain(e)); } finally { setBusy(null); }
     } },
