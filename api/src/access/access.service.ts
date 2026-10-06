@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { createHmac, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
+import { retryOnDeadlock } from '../common/db-retry';
 import { DataSource, In, MoreThan, Repository } from 'typeorm';
 import { CryptoService } from '../common/crypto.service';
 import { MailService } from '../common/mail.service';
@@ -103,7 +104,8 @@ export class AccessService {
     const badgeIndex = badge ? tc.blindIndex(badge, 'employee.badgeUid')! : null;
     const project = dto.project ? await this.ds.getRepository(Project).findOne({ where: { tenantId, code: dto.project } }) : null;
     if (dto.project && !project) throw new BadRequestException({ message: 'UNKNOWN_PROJECT', project: dto.project });
-    return this.ds.transaction(async (em) => {
+    // HR systems send people in parallel: a transaction the database cancels for a deadlock runs again.
+    return retryOnDeadlock(() => this.ds.transaction(async (em) => {
       const existing = await em.findOne(Employee, { where: { tenantId, externalId } });
       // One card, one person: otherwise the reader could not tell who is at the door.
       if (badgeIndex) {
@@ -130,15 +132,17 @@ export class AccessService {
         firstName: dto.firstName, lastName: dto.lastName, email,
         ...(dto.department ? { department: dto.department } : {}), ...(dto.jobTitle ? { jobTitle: dto.jobTitle } : {}),
       });
-      await em.delete(AccessRule, { tenantId, employeeId: saved.id });
-      for (const p of dto.permissions) {
-        await em.save(em.create(AccessRule, {
+      // A new person has no rules yet: deleting nothing would still lock a range of the index and
+      // make parallel syncs deadlock. Rules go in with one insert.
+      if (existing) await em.delete(AccessRule, { tenantId, employeeId: saved.id });
+      if (dto.permissions.length) {
+        await em.insert(AccessRule, dto.permissions.map((p) => ({
           tenantId, employeeId: saved.id, doorId: doors.find((d) => d.externalId === p.door)!.id,
           days: p.days?.length ? [...new Set(p.days)].sort().join(',') : null, fromTime: p.from ?? null, toTime: p.to ?? null,
-        }));
+        })));
       }
       return { created: !existing, employee: saved };
-    });
+    }));
   }
 
   /** Removes the employee and their permissions; past access events lose the link to the person. */

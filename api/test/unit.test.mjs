@@ -219,3 +219,18 @@ test('dashboard days: local midnight across daylight saving, days between calend
   assert.equal(D.between('2026-10-05', '2026-10-05'), 0);
   assert.equal(D.shift('2026-10-05', -7), '2026-09-28');
 });
+
+test('lock errors: deadlocks and lock timeouts run again, other errors do not', async () => {
+  const { retryOnDeadlock, isRetryableLockError } = require('../dist/common/db-retry.js');
+  const deadlock = Object.assign(new Error('Deadlock found'), { driverError: { errno: 1213 } });
+  let calls = 0;
+  assert.equal(await retryOnDeadlock(async () => { if (++calls < 3) throw deadlock; return 'ok'; }), 'ok');
+  assert.equal(calls, 3);
+  calls = 0;
+  await assert.rejects(retryOnDeadlock(async () => { calls++; throw deadlock; }), /Deadlock/);
+  assert.equal(calls, 3, 'gives up after three attempts');
+  calls = 0;
+  await assert.rejects(retryOnDeadlock(async () => { calls++; throw Object.assign(new Error('dup'), { errno: 1062 }); }), /dup/);
+  assert.equal(calls, 1, 'a duplicate key is not retried');
+  assert.equal(isRetryableLockError({ errno: 1205 }), true);
+});
