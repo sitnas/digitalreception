@@ -29,7 +29,7 @@ Conservazione predefinita delle visite: Italia 90 giorni, Spagna 30, Perù e Col
 | UID della tessera NFC | sistema esterno | come sopra | solo indice cifrato (HMAC) e ultime 4 cifre |
 | Segreto del badge sul telefono | generato all'attivazione | finché non viene disattivato o rigenerato | sì |
 | Passaggi (porta, ora, esito, tessera o telefono) | lettori | 90 giorni (`ACCESS_LOG_RETENTION_DAYS`) | no, ma collegati alla persona solo tramite un identificativo interno |
-| Codici QR usati (`access_qr_uses`: dipendente, porta, passo del codice, ora), perché lo stesso codice non apra due volte la stessa porta | lettori, solo per gli accessi QR concessi | 10 minuti, poi li cancella il job di conservazione | no, ma collegati alla persona solo tramite un identificativo interno |
+| Codici QR usati (`access_qr_uses`: dipendente, porta, passo del codice, ora), perché lo stesso codice non apra due volte la stessa porta | lettori, solo per gli accessi QR concessi | da 10 a circa 40 minuti: il job di conservazione, ogni 30 minuti, cancella quelli più vecchi di 10 minuti | no, ma collegati alla persona solo tramite un identificativo interno |
 
 La registrazione degli ingressi dei dipendenti rientra nell'art. 4 dello Statuto dei Lavoratori: prima dell'uso servono accordo sindacale o autorizzazione dell'Ispettorato del Lavoro, informativa ai dipendenti e DPIA. Dettagli in [ACCESSI-DIPENDENTI.md](ACCESSI-DIPENDENTI.md).
 

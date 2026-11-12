@@ -46,7 +46,7 @@ L'API non era coinvolta: ha i suoi header tramite helmet.
 
 ### M1. QR del badge riutilizzabile per circa 90 secondi (media, parzialmente chiusa)
 
-Il QR del telefono contiene l'identificativo del dipendente, il passo di tempo da 30 secondi e una firma HMAC-SHA256 troncata a 64 bit. Il lettore accetta il passo corrente, il precedente e il successivo. Nessuno però segna un codice come usato: uno screenshot mandato in chat a un'altra persona apre la stessa porta finché il codice resta valido, cioè fino a circa 90 secondi. Lo stesso vale per il codice trasmesso via NFC.
+Il QR del telefono contiene l'identificativo del dipendente, il passo di tempo da 30 secondi e una firma HMAC-SHA256 troncata a 64 bit. Il lettore accetta il passo corrente, il precedente e il successivo. Al momento dell'audit nessuno segnava un codice come usato: uno screenshot mandato in chat a un'altra persona apriva la stessa porta finché il codice restava valido, cioè fino a circa 90 secondi. Lo stesso valeva per il codice trasmesso via NFC.
 
 **Raccomandazione.** Il lettore dovrebbe accettare ogni coppia dipendente e passo una sola volta per porta, per esempio con una tabella dei codici usati che scade dopo due minuti. Per le porte sensibili conviene anche l'anti-passback (non si rientra senza essere usciti). È un intervento contenuto nel servizio di verifica, `api/src/access/access.service.ts`.
 

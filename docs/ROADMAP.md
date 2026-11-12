@@ -2,7 +2,7 @@
 
 Ottobre 2026. Cosa resta da fare, in ordine. Prima il lavoro di sviluppo, poi le attività che non sono codice (prove, verifiche esterne, decisioni). Le sigle M1, B3… sono quelle dell'[audit CISO](AUDIT-CISO.md).
 
-Le stime sono giornate di sviluppo e test di una persona, revisione esclusa. Quando una voce è fatta, si segna qui con il numero della PR.
+Le stime sono giornate di sviluppo e test di una persona, revisione esclusa. Quando una voce è fatta, si segna qui con il numero della PR. Il numero identifica la voce e non dice l'ordine: una voce nuova prende il primo numero libero, anche se finisce in mezzo alla tabella.
 
 ## Sviluppo
 
