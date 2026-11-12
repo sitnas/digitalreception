@@ -19,7 +19,9 @@ interface EmployeeRow {
 }
 type ParkingRole = 'NONE' | 'USER' | 'MANAGER';
 interface ReaderRow { id: string; name: string; lastSeenAt: string | null; createdAt: string }
-interface DoorRow { id: string; externalId: string; name: string; active: boolean; siteId: string; siteName: string; readers: ReaderRow[] }
+type DoorDirection = 'NONE' | 'IN' | 'OUT';
+interface DoorRow { id: string; externalId: string; name: string; active: boolean; siteId: string; siteName: string; direction: DoorDirection; antiPassback: boolean; readers: ReaderRow[] }
+interface DoorForm { id: string | null; siteId: string; name: string; externalId: string; direction: DoorDirection; antiPassback: boolean }
 interface EventRow { id: string; at: string; method: 'QR' | 'NFC'; result: 'GRANTED' | 'DENIED'; reason: string; door: string; site: string; timezone: string; employee: string | null; externalId: string | null; project: string | null }
 interface KeyRow { id: string; name: string; prefix: string; createdAt: string; lastUsedAt: string | null; revokedAt: string | null }
 
@@ -328,7 +330,7 @@ export function DoorsPage() {
   const doors = useAsync(() => api.get<DoorRow[]>('/admin/access/doors'), []);
   const sites = useAsync(() => api.get<Site[]>('/admin/sites'), []);
   const mySites = (sites.data ?? []).filter((s) => s.active && (me.role === 'SUPER_ADMIN' || me.siteIds.includes(s.id)));
-  const [form, setForm] = useState<{ siteId: string; name: string; externalId: string } | null>(null);
+  const [form, setForm] = useState<DoorForm | null>(null);
   const [code, setCode] = useState<{ door: string; code: string; expiresAt: string } | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const run = async (fn: () => Promise<unknown>, ok?: string) => {
@@ -340,11 +342,22 @@ export function DoorsPage() {
     if (!name) return;
     await run(async () => setCode({ door: d.name, ...(await api.post<{ code: string; expiresAt: string }>(`/admin/access/doors/${d.id}/reader-code`, { name })) }));
   };
+  const open = (f: DoorForm) => { setMsg(null); setForm(f); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+  const saveDoor = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form) return;
+    // Anti-passback only exists on entry doors.
+    const rules = { direction: form.direction, antiPassback: form.direction === 'IN' && form.antiPassback };
+    const ok = await run(() => (form.id
+      ? api.patch(`/admin/access/doors/${form.id}`, { name: form.name, ...rules })
+      : api.post('/admin/access/doors', { siteId: form.siteId, name: form.name, externalId: form.externalId, ...rules })), t.access.doorSaved);
+    if (ok) setForm(null);
+  };
 
   return (
     <>
       <PageHead title={t.access.doorsTitle} intro={t.access.doorsIntro}
-        actions={canEdit && !form && mySites.length > 0 && <button type="button" className="btn btn-primary" onClick={() => setForm({ siteId: mySites[0].id, name: '', externalId: '' })}>{t.access.addDoor}</button>} />
+        actions={canEdit && !form && mySites.length > 0 && <button type="button" className="btn btn-primary" onClick={() => open({ id: null, siteId: mySites[0].id, name: '', externalId: '', direction: 'NONE', antiPassback: false })}>{t.access.addDoor}</button>} />
       <ErrorBox error={doors.error ?? sites.error} />
       {msg && <p className={msg.ok ? 'alert alert-info' : 'alert'} role="status">{msg.text}</p>}
       {code && (
@@ -356,12 +369,25 @@ export function DoorsPage() {
         </div>
       )}
       {form && (
-        <form className="a-card stack" style={{ marginBottom: 16 }} onSubmit={async (e) => { e.preventDefault(); if (await run(() => api.post('/admin/access/doors', form), t.access.doorSaved)) setForm(null); }}>
-          <h2 style={{ margin: 0 }}>{t.access.addDoor}</h2>
+        <form className="a-card stack" style={{ marginBottom: 16 }} onSubmit={saveDoor}>
+          <h2 style={{ margin: 0 }}>{form.id ? t.access.editDoor : t.access.addDoor}</h2>
           <div className="a-grid">
-            {mySites.length > 1 && <SiteSelect sites={mySites} value={form.siteId} onChange={(v) => setForm({ ...form, siteId: v })} id="ds" />}
+            {!form.id && mySites.length > 1 && <SiteSelect sites={mySites} value={form.siteId} onChange={(v) => setForm({ ...form, siteId: v })} id="ds" />}
             <div className="field"><label htmlFor="dn">{t.access.doorName}</label><input id="dn" className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} maxLength={80} required /></div>
-            <div className="field"><label htmlFor="dx">{t.access.externalId}</label><input id="dx" className="input" value={form.externalId} onChange={(e) => setForm({ ...form, externalId: e.target.value.replace(/[^A-Za-z0-9._:@-]/g, '') })} maxLength={100} required /><span className="hint">{t.access.externalIdHint}</span></div>
+            {form.id
+              ? <div className="field"><span className="label">{t.access.externalId}</span><code translate="no" style={{ alignSelf: 'flex-start' }}>{form.externalId}</code></div>
+              : <div className="field"><label htmlFor="dx">{t.access.externalId}</label><input id="dx" className="input" value={form.externalId} onChange={(e) => setForm({ ...form, externalId: e.target.value.replace(/[^A-Za-z0-9._:@-]/g, '') })} maxLength={100} required /><span className="hint">{t.access.externalIdHint}</span></div>}
+            <div className="field"><label htmlFor="dd">{t.access.direction}</label>
+              <select id="dd" className="input" value={form.direction} aria-describedby="dd-h"
+                onChange={(e) => { const direction = e.target.value as DoorDirection; setForm({ ...form, direction, antiPassback: direction === 'IN' && form.antiPassback }); }}>
+                {(['NONE', 'IN', 'OUT'] as const).map((d) => <option key={d} value={d}>{t.access.directions[d]}</option>)}
+              </select>
+              <span id="dd-h" className="hint">{t.access.directionHint}</span></div>
+          </div>
+          <div className="field">
+            <label className="toggle"><input type="checkbox" role="switch" name="anti-passback" aria-describedby="dap-h" checked={form.direction === 'IN' && form.antiPassback} disabled={form.direction !== 'IN'}
+              onChange={(e) => setForm({ ...form, antiPassback: e.target.checked })} />{t.access.antiPassback}</label>
+            <span id="dap-h" className="hint">{form.direction === 'IN' ? t.access.antiPassbackHint : t.access.antiPassbackInOnly}</span>
           </div>
           <div className="inline"><button className="btn btn-primary">{t.hosts.save}</button><button type="button" className="btn btn-ghost" onClick={() => setForm(null)}>{t.hosts.cancel}</button></div>
         </form>
@@ -373,7 +399,8 @@ export function DoorsPage() {
             <tbody>
               {(doors.data ?? []).map((d) => (
                 <tr key={d.id} className={d.active ? undefined : 'row-off'}>
-                  <td><strong>{d.name}</strong>{!d.active && <> <span className="pill">{t.access.inactive}</span></>}</td>
+                  <td><strong>{d.name}</strong>{!d.active && <> <span className="pill">{t.access.inactive}</span></>}
+                    {(d.direction ?? 'NONE') !== 'NONE' && <div className="host-tags"><span className="tag">{t.access.directions[d.direction]}</span>{d.antiPassback && <span className="tag">{t.access.antiPassback}</span>}</div>}</td>
                   <td className="num">{d.externalId}</td>
                   <td>{d.siteName}</td>
                   <td className="wrap">{d.readers.length ? d.readers.map((r) => (
@@ -383,6 +410,7 @@ export function DoorsPage() {
                     </div>
                   )) : <span className="muted">{t.access.noReaders}</span>}</td>
                   <td className="inline" style={{ justifyContent: 'flex-end' }}>
+                    {canEdit && <button type="button" className="btn btn-ghost btn-sm" onClick={() => open({ id: d.id, siteId: d.siteId, name: d.name, externalId: d.externalId, direction: d.direction ?? 'NONE', antiPassback: !!d.antiPassback })}>{t.access.edit}</button>}
                     {canEdit && <button type="button" className="btn btn-ghost btn-sm" onClick={() => newReader(d)}>{t.access.pairReader}</button>}
                     {canEdit && <button type="button" className="btn btn-ghost btn-sm" onClick={() => run(() => api.patch(`/admin/access/doors/${d.id}`, { active: !d.active }))}>{d.active ? t.hosts.deactivate : t.hosts.activate}</button>}
                   </td>
