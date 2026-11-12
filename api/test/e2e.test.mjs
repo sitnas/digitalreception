@@ -314,7 +314,26 @@ describe('end-to-end', { skip: !enabled && 'E2E_DB_HOST not set' }, () => {
       const step = Math.floor(Date.now() / 1000 / 30) + stepOffset;
       return `DRE1:${badge.employeeId}.${step}.${createHmac('sha256', Buffer.from(secret, 'base64')).update(`${badge.employeeId}.${step}`).digest('hex').slice(0, 16)}`;
     };
-    assert.equal((await verify(mainReader, { qr: qr() })).result, 'GRANTED');
+    // One code opens a given door once: a screenshot passed to a colleague is refused there.
+    const code = qr();
+    assert.equal((await verify(mainReader, { qr: code })).result, 'GRANTED');
+    const reused = await verify(mainReader, { qr: code });
+    assert.equal(reused.result, 'DENIED'); assert.equal(reused.reason, 'QR_USED', 'the same code at the same door');
+    // A refused attempt does not use the code up: denied at the lab, allowed there once permitted.
+    assert.equal((await verify(labReader, { qr: code })).reason, 'OUTSIDE_SCHEDULE');
+    assert.equal((await api('PUT', '/employees/E001', { ...person, permissions: [{ door: 'MI-MAIN' }, { door: 'MI-LAB' }] }, key)).status, 200);
+    assert.equal((await verify(labReader, { qr: code })).result, 'GRANTED', 'the same code at another door, after a refusal there');
+    assert.equal((await verify(labReader, { qr: code })).reason, 'QR_USED');
+    // The next code the phone shows opens the door again.
+    assert.equal((await verify(mainReader, { qr: qr(1) })).result, 'GRANTED', 'the next step is a new code');
+    // Two readers scanning the same code at the same instant: the database lets exactly one through.
+    const next = qr(1);
+    const burst = await Promise.all(Array.from({ length: 5 }, () => verify(labReader, { qr: next })));
+    assert.equal(burst.filter((r) => r.result === 'GRANTED').length, 1, JSON.stringify(burst.map((r) => r.reason)));
+    assert.ok(burst.filter((r) => r.result === 'DENIED').every((r) => r.reason === 'QR_USED'));
+    const [[used]] = await db.query("SELECT COUNT(*) AS n FROM access_events WHERE employeeId = ? AND reason = 'QR_USED' AND result = 'DENIED'", [emp.id]);
+    assert.equal(Number(used.n), 6, 'each refused reuse is in the access log');
+    await api('PUT', '/employees/E001', person, key);
     assert.equal((await verify(mainReader, { qr: qr(-5) })).reason, 'QR_EXPIRED', 'a screenshot stops working');
     const forged = await verify(mainReader, { qr: qr(0, Buffer.alloc(32).toString('base64')) });
     assert.equal(forged.reason, 'QR_INVALID', 'forged signature');
