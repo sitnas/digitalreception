@@ -10,6 +10,9 @@ import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn, Update
 export enum AccessMethod { QR = 'QR', NFC = 'NFC' }
 export enum AccessResult { GRANTED = 'GRANTED', DENIED = 'DENIED' }
 export type EmployeeSource = 'API' | 'CONSOLE';
+/** Which way a door is passed: NONE = not counted for anti-passback, IN = way in, OUT = way out. */
+export const DOOR_DIRECTIONS = ['NONE', 'IN', 'OUT'] as const;
+export type DoorDirection = (typeof DOOR_DIRECTIONS)[number];
 
 @Entity('employees')
 @Index('IDX_employees_external', ['tenantId', 'externalId'], { unique: true })
@@ -67,6 +70,13 @@ export class Door {
   @Column({ type: 'varchar', length: 100 }) externalId: string;
   @Column({ type: 'varchar', length: 80 }) name: string;
   @Column({ default: true }) active: boolean;
+  /** Way in or way out of the site; NONE (the default) keeps the door out of anti-passback. */
+  @Column({ type: 'varchar', length: 4, default: 'NONE' }) direction: DoorDirection;
+  /**
+   * Only with direction IN: refuses a second way in when the person's last access today at this site
+   * was through a way in (a screenshot of the QR used before its owner, or a card passed back).
+   */
+  @Column({ default: false }) antiPassback: boolean;
   @CreateDateColumn({ type: 'datetime', precision: 3, default: () => 'CURRENT_TIMESTAMP(3)' }) createdAt: Date;
 }
 
@@ -104,6 +114,7 @@ export class DoorReader {
 @Index('IDX_access_events_tenant_at', ['tenantId', 'at'])
 @Index('IDX_access_events_at', ['at'])
 @Index('IDX_access_events_site_at', ['tenantId', 'siteId', 'result', 'at'])
+@Index('IDX_access_events_employee_at', ['tenantId', 'employeeId', 'at'])
 export class AccessEvent {
   @PrimaryGeneratedColumn('uuid') id: string;
   @Column({ type: 'uuid' }) tenantId: string;

@@ -1,11 +1,12 @@
 import { BadRequestException, Body, Controller, Delete, HttpCode, Param, Put, Req, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { Transform, Type } from 'class-transformer';
-import { ArrayMaxSize, IsArray, IsBoolean, IsEmail, IsInt, IsISO8601, IsOptional, IsString, Length, Matches, Max, MaxLength, Min, ValidateNested } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsBoolean, IsEmail, IsIn, IsInt, IsISO8601, IsOptional, IsString, Length, Matches, Max, MaxLength, Min, ValidateNested } from 'class-validator';
 import { AuditService } from '../common/audit.service';
 import { AppRequest } from '../common/request-context';
 import { ApiKeyGuard, CurrentApiKey } from './access.guards';
 import { AccessService } from './access.service';
+import { DOOR_DIRECTIONS, type DoorDirection } from '../entities';
 
 const trim = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim().replace(/\s+/g, ' ') : value);
 const NAME = /^[\p{L}\p{M}' .-]+$/u;
@@ -46,6 +47,10 @@ export class PutDoorDto {
   @IsString() @Length(1, 20) siteCode: string;
   @Transform(trim) @IsString() @Length(1, 80) name: string;
   @IsOptional() @IsBoolean() active?: boolean;
+  /** Omitted: the stored value stays (a new door starts at NONE). */
+  @IsOptional() @IsIn(DOOR_DIRECTIONS) direction?: DoorDirection;
+  /** Only with direction IN; omitted keeps the stored value, which turns off if the door stops being a way in. */
+  @IsOptional() @IsBoolean() antiPassback?: boolean;
 }
 
 const assertId = (id: string) => { if (!EXTERNAL_ID.test(id)) throw new BadRequestException('INVALID_EXTERNAL_ID'); };
@@ -66,7 +71,7 @@ export class IntegrationController {
   async putDoor(@CurrentApiKey() key: { id: string; tenantId: string }, @Param('externalId') externalId: string, @Body() dto: PutDoorDto, @Req() req: AppRequest) {
     assertId(externalId);
     const { created, door } = await this.access.upsertDoor(key.tenantId, externalId, dto);
-    await this.audit.fromRequest(req, { action: 'API_DOOR_UPSERT', entityType: 'door', entityId: door.id, siteId: door.siteId, details: { apiKey: key.id, externalId, created } });
+    await this.audit.fromRequest(req, { action: 'API_DOOR_UPSERT', entityType: 'door', entityId: door.id, siteId: door.siteId, details: { apiKey: key.id, externalId, created, direction: door.direction, antiPassback: door.antiPassback } });
     return { id: door.externalId, created };
   }
 

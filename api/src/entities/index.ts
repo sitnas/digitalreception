@@ -4,7 +4,8 @@ import { ParkingBooking, ParkingSpot, ParkingWeek } from './parking.entity';
 import { Project } from './project.entity';
 import { SiteDocument, SiteDocumentVersion, VisitDocument } from './site-document.entity';
 import { PlatformSecret, PushDevice, PushDelivery } from './push.entity';
-import { AccessEvent, AccessMethod, AccessQrUse, AccessResult, AccessRule, ApiKey, Door, DoorReader, Employee } from './access.entity';
+import { AccessEvent, AccessMethod, AccessQrUse, AccessResult, AccessRule, ApiKey, DOOR_DIRECTIONS, Door, DoorReader, Employee } from './access.entity';
+export type { DoorDirection } from './access.entity';
 import { AuditLog } from './audit-log.entity';
 import { CountryPolicy } from './country-policy.entity';
 import { Device, PairingCode } from './device.entity';
@@ -21,7 +22,7 @@ import { Visit } from './visit.entity';
 
 export * from './enums';
 export { ParkingBooking, ParkingSpot, ParkingWeek, Project, Parcel, SiteDocument, SiteDocumentVersion, VisitDocument, Evacuation, EvacuationCheck, PlatformSecret, PushDevice, PushDelivery };
-export { AccessEvent, AccessMethod, AccessQrUse, AccessResult, AccessRule, ApiKey, Door, DoorReader, Employee };
+export { AccessEvent, AccessMethod, AccessQrUse, AccessResult, AccessRule, ApiKey, DOOR_DIRECTIONS, Door, DoorReader, Employee };
 export { Tenant, TenantStatus, AuditLog, CountryPolicy, Device, Host, Invitation, InvitationStatus, PairingCode, PrivacyNotice, Site, SsoRequest, StoredFile, User, Visit, Webhook, WebhookDelivery, WEBHOOK_EVENTS };
 export type { EmployeeSource } from './access.entity';
 export type { BookingSource } from './parking.entity';
