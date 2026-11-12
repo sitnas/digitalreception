@@ -418,9 +418,12 @@ describe('end-to-end', { skip: !enabled && 'E2E_DB_HOST not set' }, () => {
       const person = { firstName: 'Lia', lastName: 'Ferro', email: 'lia.ap@e2e.test', badgeUid: '04:BB:00:01', permissions: ['TO-IN', 'TO-IN2', 'TO-OUT', 'TO-SIDE'].map((door) => ({ door })) };
       assert.equal((await api('PUT', '/employees/AP01', person)).status, 200);
       const emp = (await admin.get('/admin/access/employees')).data.find((e) => e.externalId === 'AP01');
+      // Pairing is limited to 5 a minute per address: these four use their own, not the other tests'.
       const pair = async (door) => {
         const { code } = (await admin.post(`/admin/access/doors/${door.id}/reader-code`, { name: `Lettore ${door.name}` })).data;
-        return (await new Client().post('/reader/pair', { code })).data.readerToken;
+        const token = (await new Client('10.9.0.32').post('/reader/pair', { code })).data.readerToken;
+        assert.ok(token, 'reader paired');
+        return token;
       };
       const rIn = await pair(inDoor), rIn2 = await pair(in2), rOut = await pair(outDoor), rSide = await pair(side);
       const verify = (token, body) => new Client().post('/reader/verify', body, { bearer: token }).then((r) => r.data);
