@@ -361,7 +361,9 @@ export class AccessService {
   /**
    * Employees whose last granted passage today (local midnight of the site) at this site, through a door
    * with a direction, was a way in: the same rule as anti-passback. One query on the (tenant, site,
-   * result, time) index; the window function keeps each person's last row. Ties at the same instant
+   * result, time) index, named: on a small or freshly loaded table the optimiser may pick the plain time
+   * index instead, which reads every organisation's passages of the day. The window function keeps each
+   * person's last row. Ties at the same instant
    * count as a way out, as in lastInOut.
    */
   async insideAt(tenantId: string, site: Site, now = new Date()) {
@@ -370,7 +372,7 @@ export class AccessService {
       `SELECT t.employeeId, t.at, t.doorId FROM (
          SELECT ev.employeeId, ev.at, ev.doorId, ev.direction,
                 ROW_NUMBER() OVER (PARTITION BY ev.employeeId ORDER BY ev.at DESC, (ev.direction = 'OUT') DESC) AS rn
-         FROM access_events ev
+         FROM access_events ev FORCE INDEX (IDX_access_events_site_at)
          WHERE ev.tenantId = ? AND ev.siteId = ? AND ev.result = ? AND ev.at >= ?
            AND ev.direction IN ('IN', 'OUT') AND ev.employeeId IS NOT NULL
        ) t WHERE t.rn = 1 AND t.direction = 'IN'`,
