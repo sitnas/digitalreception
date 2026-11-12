@@ -19,7 +19,7 @@ Piattaforma multi-cliente per reception, accessi dei dipendenti, pacchi e parche
 
 ## Agenti
 
-In `.claude/agents/` ci sono sei agenti:
+In `.claude/agents/` ci sono otto agenti:
 
 | Agente | Ruolo | Modifica file |
 |---|---|---|
@@ -29,12 +29,17 @@ In `.claude/agents/` ci sono sei agenti:
 | `docs` | testi e documentazione; revisore dei testi | sì quando scrive, no quando revisiona |
 | `reviewer` | revisore del codice | no |
 | `security` | revisore di sicurezza | no |
+| `designer` | revisore di interfaccia ed esperienza d'uso, con screenshot | no |
+| `analyst` | specifica e criteri di accettazione prima del codice, verifica dopo | no |
 
 La sessione principale fa da **coordinatore**:
+- per una funzione nuova o un cambio di comportamento, chiede prima la specifica ad `analyst` e porta all'utente le sue domande;
 - divide il compito;
-- lo assegna agli agenti autori;
+- lo assegna agli agenti autori, insieme ai criteri di accettazione;
 - fa partire le revisioni;
 - fa commit, PR e merge.
+
+Per una correzione piccola (un bug, un testo, un rilievo di revisione) `analyst` non serve.
 
 Gli agenti non fanno commit né push.
 
@@ -50,13 +55,15 @@ Nessuna modifica arriva a una PR senza l'approvazione di almeno un agente divers
 | `api/src/auth`, `api/src/access`, guard, cifratura, token, ruoli, migrazioni, endpoint senza login, dati di visitatori o dipendenti | `reviewer` + `security` |
 | stringhe dell'interfaccia, email, `docs/`, README | `docs` (in modalità revisione) |
 | la forma di una risposta dell'API usata da web o mobile | `reviewer`, più l'agente dell'altra parte (`web` o `mobile`) in modalità revisione, solo per il contratto |
+| schermate, componenti o stili di web o mobile che le persone vedono o toccano | `designer` |
+| una funzione con una specifica di `analyst` | `analyst` in modalità verifica, sui criteri di accettazione |
 
 Un agente non revisiona mai il proprio lavoro. Le revisioni indipendenti tra loro partono in parallelo.
 
 ### 2. Cosa riceve il revisore
 
 Il coordinatore passa al revisore:
-- il compito originale;
+- il compito originale, con i criteri di accettazione se ci sono;
 - l'elenco dei file cambiati;
 - l'output di `git diff`;
 - il riepilogo dell'autore: comandi lanciati e dubbi.
@@ -101,6 +108,8 @@ Quando tutti i revisori obbligatori hanno risposto APPROVATO, il coordinatore:
    - reviewer: APPROVATO al giro 2 (corretti: limite su tutta la richiesta, test mancante)
    - security: APPROVATO al giro 1
    - docs: APPROVATO al giro 1 (nit non applicato: …)
+   - designer: APPROVATO al giro 1
+   - analyst: criteri 1-6 rispettati
    ```
 3. aspetta la CI verde e fa il merge.
 
