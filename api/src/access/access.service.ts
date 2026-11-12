@@ -351,7 +351,7 @@ export class AccessService {
     const last = await em.createQueryBuilder(AccessEvent, 'ev')
       .select('ev.direction', 'direction')
       .where('ev.tenantId = :t AND ev.employeeId = :id AND ev.at >= :since', { t: site.tenantId, id: employeeId, since: midnight(localDay(now, site.timezone), site.timezone) })
-      .andWhere('ev.result = :granted AND ev.direction IN (:...dirs)', { site: site.id, granted: AccessResult.GRANTED, dirs: ['IN', 'OUT'] })
+      .andWhere('ev.siteId = :site AND ev.result = :granted AND ev.direction IN (:...dirs)', { site: site.id, granted: AccessResult.GRANTED, dirs: ['IN', 'OUT'] })
       .orderBy('ev.at', 'DESC').limit(1)
       .getRawOne<{ direction: DoorDirection }>();
     return last?.direction === 'IN';

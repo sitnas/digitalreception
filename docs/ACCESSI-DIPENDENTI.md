@@ -256,12 +256,12 @@ Ogni porta ha una **direzione**: *Nessuna* (il valore predefinito), *Ingresso* o
 
 Quando qualcuno passa la credenziale su un Ingresso con l'anti-passback, il server cerca il suo ultimo passaggio **concesso** di oggi nella stessa sede, su una porta di Ingresso o di Uscita; "oggi" parte dalla mezzanotte nel fuso orario della sede. Se quel passaggio è un ingresso, rifiuta con `ANTI_PASSBACK` e il lettore mostra «Risulti già dentro: se sei uscito senza passare il badge, chiedi alla reception». Se è un'uscita, o se oggi non c'è niente, la persona entra.
 
-- Il controllo arriva per ultimo, quando credenziale, validità, permesso e orario sono già a posto. Chi non ha il permesso riceve `NO_PERMISSION` come prima.
+- Il controllo arriva dopo credenziale, validità, permesso e orario, e prima del controllo del QR già usato (`QR_USED`). Chi non ha il permesso riceve `NO_PERMISSION` come prima.
 - Le porte con direzione *Nessuna* non contano: passarci non fa risultare né dentro né fuori.
 - Un'Uscita non rifiuta mai per anti-passback, ma permessi e orari valgono anche lì. Un'uscita negata non conta come uscita: con un permesso fino alle 19:00, chi esce alle 19:30 riceve `OUTSIDE_SCHEDULE` e resta "dentro" fino a mezzanotte.
 - Ogni passaggio salva la direzione che la porta aveva in quel momento, nella colonna `access_events.direction`. Se cambi la direzione di una porta a metà giornata, i passaggi già registrati non cambiano significato. I passaggi di prima di questa versione hanno la colonna vuota (`NULL`) e non contano.
 - Un QR rifiutato per anti-passback non viene consumato.
-- Se la stessa persona si presenta a due porte nello stesso istante (il titolare con il QR, un altro con lo screenshot), il server mette in fila le due richieste e ne passa una sola.
+- Se la stessa persona si presenta a due ingressi con l'anti-passback nello stesso istante (il titolare con il QR, un altro con lo screenshot), il server mette in fila le due richieste e ne passa una sola.
 
 ### Configurare una sede
 
@@ -274,7 +274,7 @@ Direzione e anti-passback li cambiano l'Amministratore (SUPER_ADMIN) e il Respon
 
 La console avvisa in tre casi:
 
-- quando imposti un Ingresso con l'anti-passback in una sede che non ha nessun'altra porta di uscita attiva: «In questa sede non c'è nessuna porta di uscita attiva: chi esce non viene registrato e non può rientrare fino a mezzanotte»;
+- quando imposti un Ingresso con l'anti-passback in una sede che non ha nessun'altra porta di uscita attiva: «In questa sede non c’è nessuna porta di uscita attiva: chi esce non viene registrato e non può rientrare fino a mezzanotte. Imposta Uscita su almeno una porta.» L'avviso conta anche le porte di uscita senza lettore: controlla a mano che ognuna ne abbia uno;
 - quando in una sede con l'anti-passback su almeno una porta restano porte attive con un lettore, con direzione *Nessuna* o di Ingresso senza anti-passback. Nell'elenco hanno l'etichetta **Senza anti-passback**, e il modulo della porta con l'anti-passback le nomina;
 - quando stai modificando una di quelle porte e la lasceresti scoperta.
 

@@ -18,4 +18,4 @@ Prima di restituire il lavoro:
 2. `E2E_DB_HOST=127.0.0.1 npm test` (serve MariaDB in esecuzione). Se non puoi lanciarli, dillo: non scrivere che passano.
 3. Un test e2e per ogni comportamento nuovo, compresi i casi di errore.
 
-Restituisci: file toccati, cosa cambia per chi usa l'API, comandi lanciati con l'esito, dubbi aperti. Non fare commit, push o PR: li fa il coordinatore dopo la revisione.
+Restituisci: file toccati, cosa cambia per chi usa l'API, comandi lanciati con l'esito, dubbi aperti. Non fare commit, push o PR: li fa il coordinatore.

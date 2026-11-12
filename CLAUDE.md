@@ -95,7 +95,7 @@ L'esito è APPROVATO solo se non ci sono rilievi bloccanti né da correggere. I 
 
 Quando tutti i revisori obbligatori hanno risposto APPROVATO, il coordinatore:
 1. lancia di nuovo i controlli delle parti toccate;
-2. fa il commit e apre la PR, con una sezione **Revisioni** nella descrizione:
+2. fa l'ultimo commit e apre la PR, con una sezione **Revisioni** nella descrizione:
    ```
    ## Revisioni
    - reviewer: APPROVATO al giro 2 (corretti: limite su tutta la richiesta, test mancante)
