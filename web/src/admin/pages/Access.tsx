@@ -9,6 +9,7 @@ import { ErrorBox, PageHead, SiteSelect, useAsync } from '../ui';
 import type { ProjectRow } from './Projects';
 import type { SpotRow } from './Parking';
 import { CopyButton } from './Users';
+import { doorNames, formDoorUnguarded, guardedSiteIds, openDoorsFor, unguarded } from '../../lib/doors';
 
 interface Permission { doorExternalId: string; door: string; site: string; days: number[] | null; from: string | null; to: string | null }
 interface EmployeeRow {
@@ -342,13 +343,11 @@ export function DoorsPage() {
     if (!name) return;
     await run(async () => setCode({ door: d.name, ...(await api.post<{ code: string; expiresAt: string }>(`/admin/access/doors/${d.id}/reader-code`, { name })) }));
   };
-  // An active door with a reader and no direction, or an entry door without anti-passback, lets a lent badge or a QR screenshot in.
-  const unguarded = (d: DoorRow) => d.active && d.readers.length > 0 && ((d.direction ?? 'NONE') === 'NONE' || (d.direction === 'IN' && !d.antiPassback));
-  const guardedSites = new Set((doors.data ?? []).filter((d) => d.active && d.direction === 'IN' && d.antiPassback).map((d) => d.siteId));
-  const openDoors = form && form.direction === 'IN' && form.antiPassback
-    ? (doors.data ?? []).filter((d) => d.id !== form.id && d.siteId === form.siteId && unguarded(d)) : [];
-  const openDoorNames = openDoors.slice(0, 3).map((d) => d.name).join(', ')
-    + (openDoors.length > 3 ? ` ${plural(t.access.moreDoors, openDoors.length - 3, intl)}` : '');
+  const allDoors = doors.data ?? [];
+  const guardedSites = guardedSiteIds(allDoors);
+  const openDoors = form ? openDoorsFor(allDoors, form) : [];
+  const openDoorNames = doorNames(openDoors, t.access.moreDoors, (f, n) => plural(f, n, intl));
+  const thisDoorOpen = !!form && formDoorUnguarded(allDoors, form);
   const open = (f: DoorForm) => { setMsg(null); setForm(f); window.scrollTo({ top: 0, behavior: 'smooth' }); };
   const saveDoor = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -369,7 +368,7 @@ export function DoorsPage() {
       {msg && <p className={msg.ok ? 'alert alert-info' : 'alert'} role="status">{msg.text}</p>}
       {code && (
         <div className="a-card stack" style={{ marginBottom: 16 }}>
-          <h2 style={{ margin: 0 }}>{t.access.pairTitle.replace('{door}', code.door)}</h2>
+          <h2 style={{ margin: 0 }}>{t.access.pairTitle.replace('{door}', () => code.door)}</h2>
           <div className="codebox num">{code.code}</div>
           <p className="muted" style={{ margin: 0 }}>{t.access.pairHint.replace('{url}', `${origin()}/reader`).replace('{time}', fmtDateTime(code.expiresAt, intl))}</p>
           <div><button type="button" className="btn btn-ghost btn-sm" onClick={() => setCode(null)}>{t.detail.close}</button></div>
@@ -385,19 +384,20 @@ export function DoorsPage() {
               ? <div className="field"><span className="label">{t.access.externalId}</span><code translate="no" style={{ alignSelf: 'flex-start' }}>{form.externalId}</code></div>
               : <div className="field"><label htmlFor="dx">{t.access.externalId}</label><input id="dx" className="input" value={form.externalId} onChange={(e) => setForm({ ...form, externalId: e.target.value.replace(/[^A-Za-z0-9._:@-]/g, '') })} maxLength={100} required /><span className="hint">{t.access.externalIdHint}</span></div>}
             <div className="field"><label htmlFor="dd">{t.access.direction}</label>
-              <select id="dd" className="input" value={form.direction} aria-describedby="dd-h"
+              <select id="dd" className="input" value={form.direction} aria-describedby="dd-h dap-w3"
                 onChange={(e) => { const direction = e.target.value as DoorDirection; setForm({ ...form, direction, antiPassback: direction === 'IN' && form.antiPassback }); }}>
                 {(['NONE', 'IN', 'OUT'] as const).map((d) => <option key={d} value={d}>{t.access.directions[d]}</option>)}
               </select>
               <span id="dd-h" className="hint">{t.access.directionHint}</span></div>
           </div>
           <div className="field">
-            <label className="toggle"><input type="checkbox" role="switch" name="anti-passback" aria-describedby="dap-h dap-w dap-w2" checked={form.direction === 'IN' && form.antiPassback} disabled={form.direction !== 'IN'}
+            <label className="toggle"><input type="checkbox" role="switch" name="anti-passback" aria-describedby="dap-h dap-w dap-w2 dap-w3" checked={form.direction === 'IN' && form.antiPassback} disabled={form.direction !== 'IN'}
               onChange={(e) => setForm({ ...form, antiPassback: e.target.checked })} />{t.access.antiPassback}</label>
             <span id="dap-h" className="hint">{form.direction === 'IN' ? t.access.antiPassbackHint : t.access.antiPassbackInOnly}</span>
             {form.direction === 'IN' && form.antiPassback && doors.data && !doors.data.some((d) => d.id !== form.id && d.siteId === form.siteId && d.active && d.direction === 'OUT')
               && <p id="dap-w" className="alert alert-info" style={{ margin: 0 }}>{t.access.noExitDoor}</p>}
-            {openDoors.length > 0 && <p id="dap-w2" className="alert alert-info" style={{ margin: 0 }}>{t.access.unguardedDoors.replace('{doors}', openDoorNames)}</p>}
+            {openDoors.length > 0 && <p id="dap-w2" className="alert alert-info" style={{ margin: 0 }}>{plural(t.access.unguardedDoors, openDoors.length, intl).replace('{doors}', () => openDoorNames)}</p>}
+            {thisDoorOpen && <p id="dap-w3" className="alert alert-info" style={{ margin: 0 }}>{t.access.thisDoorUnguarded}</p>}
           </div>
           <div className="inline"><button className="btn btn-primary">{t.hosts.save}</button><button type="button" className="btn btn-ghost" onClick={() => setForm(null)}>{t.hosts.cancel}</button></div>
         </form>
@@ -420,7 +420,7 @@ export function DoorsPage() {
                   <td className="wrap">{d.readers.length ? d.readers.map((r) => (
                     <div key={r.id} className="inline" style={{ gap: 8 }}>
                       <span>{r.name} <ReaderStatus lastSeenAt={r.lastSeenAt} /></span>
-                      {canEdit && <button type="button" className="btn btn-ghost btn-sm" onClick={() => { if (window.confirm(t.access.revokeReaderConfirm.replace('{name}', r.name))) run(() => api.post(`/admin/access/readers/${r.id}/revoke`), t.access.readerRevoked); }}>{t.access.revokeReader}</button>}
+                      {canEdit && <button type="button" className="btn btn-ghost btn-sm" onClick={() => { if (window.confirm(t.access.revokeReaderConfirm.replace('{name}', () => r.name))) run(() => api.post(`/admin/access/readers/${r.id}/revoke`), t.access.readerRevoked); }}>{t.access.revokeReader}</button>}
                     </div>
                   )) : <span className="muted">{t.access.noReaders}</span>}</td>
                   <td className="inline" style={{ justifyContent: 'flex-end' }}>
