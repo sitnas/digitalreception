@@ -40,7 +40,7 @@ Gli agenti non fanno commit né push.
 
 ## Revisione tra agenti
 
-Nessuna modifica arriva a un commit senza l'approvazione di almeno un agente diverso da quello che l'ha scritta.
+Nessuna modifica arriva a una PR senza l'approvazione di almeno un agente diverso da quello che l'ha scritta.
 
 ### 1. Chi revisiona cosa
 

@@ -29,7 +29,7 @@ L'app è progettata per ridurre i dati al minimo:
 ## Come si configura
 
 1. **Console → Integrazione API → Crea chiave.** La chiave (`drk_…`) si vede una volta sola: va consegnata al fornitore del sistema esterno. Si può revocare in qualsiasi momento.
-2. **Porte.** Il sistema esterno le crea con l'API, oppure le crea l'amministratore in **Console → Porte e lettori**. Ogni porta ha un **codice esterno**, lo stesso usato dal sistema esterno.
+2. **Porte.** Il sistema esterno le crea con l'API, oppure le crea l'amministratore in **Console → Porte e lettori**. Ogni porta ha un **codice esterno**, lo stesso usato dal sistema esterno, e una **direzione** che serve solo all'anti-passback (vedi *Anti-passback*).
 3. **Lettori.** In **Porte e lettori → Associa lettore** si ottiene un codice di 8 caratteri. Sul tablet o telefono Android alla porta si apre `https://<indirizzo>/reader`, si inserisce il codice e il lettore resta associato a quella porta.
    - **QR**: il lettore usa la fotocamera frontale.
    - **Tessere NFC**: su Chrome per Android si tocca una volta "Attiva tessere NFC". In alternativa si collega un lettore NFC USB che funziona come tastiera.
@@ -267,7 +267,7 @@ Quando qualcuno passa la credenziale su un Ingresso con l'anti-passback, il serv
 
 Direzione e anti-passback li cambiano l'Amministratore (SUPER_ADMIN) e il Responsabile di sede (SITE_MANAGER), quest'ultimo solo per le sue sedi, da **Porte e lettori → Modifica**. Il sistema esterno può fare lo stesso con l'API (`PUT /doors/{id}`, sopra).
 
-1. Imposta *Uscita* su ogni porta da cui si esce passando il badge. L'uscita registra qualcuno solo se ha un lettore.
+1. Imposta *Uscita* su ogni porta da cui si esce passando il badge. Una porta di uscita registra chi esce solo se ha un lettore.
 2. Dai a chi entra il permesso anche sulle porte di uscita, senza limiti di orario, per evitare il caso delle 19:30 descritto sopra.
 3. Imposta *Ingresso* su ogni porta con lettore da cui si entra e accendi l'anti-passback su tutte, nessuna esclusa: una sola porta scoperta basta per entrare con il badge di un altro (vedi *Limiti*).
 4. In **Porte e lettori** controlla che nessuna porta della sede abbia l'etichetta **Senza anti-passback**.
@@ -292,7 +292,7 @@ Ogni modifica finisce nel **Registro accessi**: `DOOR_CREATED` con direzione e a
 
 **Presenza del titolare.** Chi ha la credenziale di un collega e riceve `ANTI_PASSBACK` capisce che il titolare è in sede. Il tentativo resta nei Passaggi con l'id del titolare, quindi si può risalire a quando è successo.
 
-**Notifiche.** Se un canale di *Notifiche* riceve l'evento "una porta rifiuta un badge" (`access.denied`) e ha acceso *Includi i nomi di ospiti e dipendenti*, il messaggio dice chi è stato rifiutato e perché: con `ANTI_PASSBACK`, dice a Slack o Teams che quella persona risulta in sede.
+**Notifiche.** Se un canale di *Notifiche* riceve l'evento «Una porta rifiuta un badge» (`access.denied`) e ha acceso *Includi i nomi di ospiti e dipendenti*, il messaggio dice chi è stato rifiutato e perché: con `ANTI_PASSBACK`, dice a Slack o Teams che quella persona risulta in sede.
 
 ### Il QR monouso resta per porta
 

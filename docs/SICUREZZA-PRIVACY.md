@@ -28,8 +28,10 @@ Conservazione predefinita delle visite: Italia 90 giorni, Spagna 30, Perù e Col
 | Nome, cognome, email del dipendente | sistema esterno, tramite API | finché il sistema esterno non lo cancella | sì |
 | UID della tessera NFC | sistema esterno | come sopra | solo indice cifrato (HMAC) e ultime 4 cifre |
 | Segreto del badge sul telefono | generato all'attivazione | finché non viene disattivato o rigenerato | sì |
-| Passaggi (porta, ora, esito, tessera o telefono) | lettori | 90 giorni (`ACCESS_LOG_RETENTION_DAYS`) | no, ma collegati alla persona solo tramite un identificativo interno |
+| Passaggi (porta, direzione della porta in quel momento, ora, esito, tessera o telefono) | lettori | 90 giorni (`ACCESS_LOG_RETENTION_DAYS`) | no, ma collegati alla persona solo tramite un identificativo interno |
 | Codici QR usati (`access_qr_uses`: dipendente, porta, passo del codice, ora), perché lo stesso codice non apra due volte la stessa porta | lettori, solo per gli accessi QR concessi | da 10 a circa 40 minuti: il job di conservazione, ogni 30 minuti, cancella quelli più vecchi di 10 minuti | no, ma collegati alla persona solo tramite un identificativo interno |
+
+La direzione salvata nel passaggio (ingresso, uscita o nessuna) è un attributo della porta, non un dato nuovo sulla persona. Con l'anti-passback acceso, però, il server ne ricava ogni volta se un dipendente risulta in sede in quel momento: è un dato personale nuovo, anche se non viene salvato a parte. Chi tenta di entrare con la credenziale di un collega lo legge nel rifiuto `ANTI_PASSBACK`, e un canale di notifica con i nomi accesi lo riceve. Da valutare con il DPO per l'informativa e la DPIA dei dipendenti; i limiti sono in [ACCESSI-DIPENDENTI.md](ACCESSI-DIPENDENTI.md#limiti).
 
 La registrazione degli ingressi dei dipendenti rientra nell'art. 4 dello Statuto dei Lavoratori: prima dell'uso servono accordo sindacale o autorizzazione dell'Ispettorato del Lavoro, informativa ai dipendenti e DPIA. Dettagli in [ACCESSI-DIPENDENTI.md](ACCESSI-DIPENDENTI.md).
 
@@ -87,7 +89,7 @@ Riferimenti normativi dei modelli di informativa: GDPR e D.Lgs. 196/2003 (Italia
 
 **Notifiche verso Teams, Slack o altri sistemi.**
 - *Eventi.* Il SUPER_ADMIN collega un canale da *Notifiche* e sceglie gli eventi: arriva un ospite, una porta rifiuta un badge. Gli avvisi passano da una coda nel database, scritta nella stessa transazione dell'evento, e un job li invia ogni minuto con fino a 4 nuovi tentativi; né il tablet né il lettore aspettano Teams o Slack.
-- *Nomi.* I nomi di ospiti e dipendenti sono esclusi di default, perché un canale lo leggono in tanti; si attivano per singolo collegamento. Le voci in coda sono cifrate e si cancellano dopo 7 giorni.
+- *Nomi.* I nomi di ospiti e dipendenti sono esclusi di default, perché un canale lo leggono in tanti; si attivano per singolo collegamento. Con i nomi accesi, un rifiuto per anti-passback (`ANTI_PASSBACK`) dice al canale anche che quella persona risulta già in sede. Le voci in coda sono cifrate e si cancellano dopo 7 giorni.
 - *Indirizzi.* L'indirizzo del webhook contiene un segreto: è salvato cifrato e la console ne mostra solo l'host. Per evitare che diventi un modo di raggiungere la rete interna, il server accetta solo `https://` e rifiuta la connessione se il nome risolve in un indirizzo privato, di loopback o link-local (metadati cloud). Il controllo avviene al momento della connessione, quindi resiste al DNS rebinding, e i redirect non vengono seguiti.
 - *Firma.* I collegamenti "altro sistema" ricevono `X-DR-Timestamp` e `X-DR-Signature: sha256=HMAC(segreto, "<timestamp>.<corpo>")`. Il segreto viene mostrato una volta sola.
 

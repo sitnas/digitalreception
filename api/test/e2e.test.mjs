@@ -488,6 +488,47 @@ describe('end-to-end', { skip: !enabled && 'E2E_DB_HOST not set' }, () => {
       assert.equal((await admin.patch(`/admin/access/doors/${outDoor.id}`, { direction: 'OUT' })).status, 200);
       assert.equal((await admin.patch(`/admin/access/doors/${inDoor.id}`, { direction: 'IN', antiPassback: true })).status, 200);
 
+      // Only the events that matter count. Each case starts outside (a way out just made), then a way in is
+      // written straight into the log, then the person tries the way in.
+      const addIn = async (at, fields = {}) => {
+        await new Promise((r) => setTimeout(r, 5)); // later than the way out just recorded
+        await db.query('INSERT INTO access_events (id, tenantId, siteId, doorId, readerId, employeeId, method, result, reason, at, direction) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          [randomUUID(), tenantId, fields.siteId ?? site.id, inDoor.id, randomUUID(), fields.employeeId ?? emp.id, 'NFC', 'GRANTED', 'OK', at ?? new Date(), 'direction' in fields ? fields.direction : 'IN']);
+      };
+      // (a) A way in at another site of the same organisation.
+      assert.equal((await verify(rOut, nfc)).result, 'GRANTED');
+      await addIn(null, { siteId: ctx.milano.id });
+      assert.equal((await verify(rIn, nfc)).result, 'GRANTED', 'a way in at another site does not count here');
+      // (b) A way in with no stored direction (recorded before doors had one), and one through a NONE door.
+      assert.equal((await verify(rOut, nfc)).result, 'GRANTED');
+      await addIn(null, { direction: null });
+      assert.equal((await verify(rIn, nfc)).result, 'GRANTED', 'an event with no direction does not count');
+      assert.equal((await verify(rOut, nfc)).result, 'GRANTED');
+      await addIn(null, { direction: 'NONE' });
+      assert.equal((await verify(rIn, nfc)).result, 'GRANTED', 'an event through a NONE door does not count');
+      // (c) "Today" starts at the site's local midnight, not at UTC midnight. Pago Pago is UTC-11 all year.
+      // A second person with no passages: an earlier way out today would come after the event written here.
+      // The event falls on different days in UTC and in local time, whatever the hour of the run:
+      // local midnight after UTC midnight -> one minute before it (today in UTC, yesterday locally: GRANTED);
+      // otherwise -> one minute after it (today locally, yesterday in UTC: ANTI_PASSBACK).
+      assert.equal((await api('PUT', '/employees/AP02', { firstName: 'Ugo', lastName: 'Riva', badgeUid: '04:BB:00:02', permissions: [{ door: 'TO-IN' }] })).status, 200);
+      const ugo = (await admin.get('/admin/access/employees')).data.find((e) => e.externalId === 'AP02');
+      assert.equal((await admin.patch(`/admin/sites/${site.id}`, { timezone: 'Pacific/Pago_Pago' })).status, 200);
+      try {
+        const now = new Date();
+        const localDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Pacific/Pago_Pago', year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
+        const localMidnight = Date.parse(`${localDate}T00:00:00-11:00`);
+        const utcMidnight = Date.parse(`${now.toISOString().slice(0, 10)}T00:00:00Z`);
+        const afterUtc = localMidnight > utcMidnight;
+        await addIn(new Date(localMidnight + (afterUtc ? -60_000 : 60_000)), { employeeId: ugo.id });
+        v = await verify(rIn, { nfc: '04BB0002' });
+        if (afterUtc) assert.equal(v.result, 'GRANTED', `yesterday in local time: ${JSON.stringify(v)}`);
+        else assert.equal(v.reason, 'ANTI_PASSBACK', `today in local time: ${JSON.stringify(v)}`);
+      } finally {
+        await admin.patch(`/admin/sites/${site.id}`, { timezone: 'Europe/Rome' });
+        await api('DELETE', '/employees/AP02');
+      }
+
       // Anti-passback off: the same way in opens again; the refusals are in the access log.
       assert.equal((await admin.patch(`/admin/access/doors/${inDoor.id}`, { antiPassback: false })).status, 200);
       assert.equal((await verify(rIn, nfc)).result, 'GRANTED');

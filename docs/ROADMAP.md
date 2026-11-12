@@ -12,12 +12,14 @@ Prima di tutto, perché costano poco e sono le prime domande di un CISO.
 
 | # | Intervento | Perché | Dove | Stima | Stato |
 |---|---|---|---|---|---|
-| 1 | **QR del badge monouso per porta** (M1), più anti-passback facoltativo per porta | Prima uno screenshot girato a un collega apriva la stessa porta per circa 90 secondi; ora la apre una volta sola, e solo se arriva prima del titolare | `api/src/access/access.service.ts`, tabella `access_qr_uses` dei codici usati, ripulita dopo 10 minuti | 2-3 g | in parte: monouso per porta fatto (PR in arrivo), anti-passback da fare |
+| 1 | **QR del badge monouso per porta** (M1), più anti-passback facoltativo per porta | Prima uno screenshot girato a un collega apriva la stessa porta per circa 90 secondi; ora la apre una volta sola, e solo se arriva prima del titolare | `api/src/access/access.service.ts`, tabella `access_qr_uses` dei codici usati, ripulita dopo 10 minuti | 2-3 g | fatto (PR #78 monouso, PR in arrivo anti-passback); sblocco manuale «Segna come uscito» nella PR successiva (voce 20) |
 | 2 | **Timeout per inattività della console** (B3), configurabile, di default 30 minuti | Un PC della reception lasciato aperto resta collegato per 8 ore | sessione in `api/src/auth`, avviso in console prima della scadenza | 0,5 g | da fare |
 | 3 | **Ritardo crescente al posto del blocco fisso** (M5) | Chi conosce l'email di un amministratore può tenerlo fuori a ripetizione | `api/src/auth` | 1 g | da fare |
 | 4 | **Verifica in due passaggi obbligatoria** per Amministratore e Auditor senza SSO (B1) | L'Auditor vede documenti e foto dei visitatori con la sola password | `api/src/auth`, impostazione in Organizzazione | 0,5 g | da fare |
 | 5 | **Limite del corpo per rotta** (B4): 12 MB solo per il tablet, 100 KB per il resto | Anche le rotte senza login accettano 12 MB | `api/src/main.ts` | 0,5 g | da fare |
 | 6 | **Scansioni in CI** (M3): `npm audit` bloccante sulle alte, CodeQL o Semgrep, gitleaks, SBOM | Oggi gli avvisi si vedono solo lanciando il controllo a mano | `.github/workflows/ci.yml` | 1 g | da fare |
+| 20 | **«Segna come uscito» in console** per la singola persona (M1) | Con l'anti-passback acceso, chi esce senza passare il badge resta bloccato fuori fino a mezzanotte e nessuno può sbloccarlo: fino a questa voce l'anti-passback non va acceso in produzione | console (schermata da decidere), `api/src/access/access.service.ts`, una voce nel registro accessi per ogni sblocco | da stimare | da fare |
+| 21 | **Test e2e: Responsabile di sede di un'altra sede** che cambia direzione o anti-passback di una porta e riceve 403 | Il controllo `assertSiteAccess` c'è, ma nessun test lo prova su questi campi | `api/test/e2e.test.mjs` | da stimare | da fare |
 
 ### P2 — Prodotto: funzioni che mancano a chi lo usa ogni giorno
 
