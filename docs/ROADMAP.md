@@ -36,6 +36,8 @@ Prima di tutto, perché costano poco e sono le prime domande di un CISO.
 | 12 | **Dipendenze** (M2): NestJS 12, react-router, SDK Expo | Avvisi noti, nessuno critico né raggiungibile, ma vanno chiusi | 3-5 g | da fare |
 | 13 | **Chiavi master in un KMS** (M4): AWS KMS, Azure Key Vault o Vault | Chi legge l'ambiente del container può decifrare tutto | 3-4 g per un fornitore | da fare |
 | 14 | **Lista dei presenti paginata** | Costa circa 0,13 ms per ospite: va bene per ogni reception reale, ma è l'unica schermata che cresce con i dati | 1 g | quando serve |
+| 18 | **Paragrafo "Il telefono come tessera"** in [ACCESSI-DIPENDENTI.md](ACCESSI-DIPENDENTI.md) da riscrivere | Dice che serve un'app nativa, ma l'app Android fa già da tessera NFC (`mobile/modules/badge-nfc`) | da stimare | da fare |
+| 19 | **Scenario `doors` di `load/run.mjs` adattato al QR monouso**, prima di rimisurare | Ripete persone e porte a caso nello stesso passo da 30 secondi: oggi molte richieste finirebbero in `QR_USED` e le misure non direbbero quanto costa un accesso concesso | da stimare | da fare |
 
 ### P4 — Prima del primo cliente regolato (NIS2, DORA)
 
