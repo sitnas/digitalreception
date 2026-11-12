@@ -12,7 +12,7 @@ Prima di tutto, perché costano poco e sono le prime domande di un CISO.
 
 | # | Intervento | Perché | Dove | Stima | Stato |
 |---|---|---|---|---|---|
-| 1 | **QR del badge monouso per porta** (M1), più anti-passback facoltativo per porta | Oggi uno screenshot girato a un collega apre la porta per circa 90 secondi | `api/src/access/access.service.ts`, una tabella dei codici usati che scade dopo 2 minuti | 2-3 g | da fare |
+| 1 | **QR del badge monouso per porta** (M1), più anti-passback facoltativo per porta | Prima uno screenshot girato a un collega apriva la stessa porta per circa 90 secondi; ora la apre una volta sola, e solo se arriva prima del titolare | `api/src/access/access.service.ts`, tabella `access_qr_uses` dei codici usati, ripulita dopo 10 minuti | 2-3 g | in parte: monouso per porta fatto (PR in arrivo), anti-passback da fare |
 | 2 | **Timeout per inattività della console** (B3), configurabile, di default 30 minuti | Un PC della reception lasciato aperto resta collegato per 8 ore | sessione in `api/src/auth`, avviso in console prima della scadenza | 0,5 g | da fare |
 | 3 | **Ritardo crescente al posto del blocco fisso** (M5) | Chi conosce l'email di un amministratore può tenerlo fuori a ripetizione | `api/src/auth` | 1 g | da fare |
 | 4 | **Verifica in due passaggi obbligatoria** per Amministratore e Auditor senza SSO (B1) | L'Auditor vede documenti e foto dei visitatori con la sola password | `api/src/auth`, impostazione in Organizzazione | 0,5 g | da fare |
