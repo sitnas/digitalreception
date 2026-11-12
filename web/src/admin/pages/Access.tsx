@@ -385,9 +385,11 @@ export function DoorsPage() {
               <span id="dd-h" className="hint">{t.access.directionHint}</span></div>
           </div>
           <div className="field">
-            <label className="toggle"><input type="checkbox" role="switch" name="anti-passback" aria-describedby="dap-h" checked={form.direction === 'IN' && form.antiPassback} disabled={form.direction !== 'IN'}
+            <label className="toggle"><input type="checkbox" role="switch" name="anti-passback" aria-describedby="dap-h dap-w" checked={form.direction === 'IN' && form.antiPassback} disabled={form.direction !== 'IN'}
               onChange={(e) => setForm({ ...form, antiPassback: e.target.checked })} />{t.access.antiPassback}</label>
             <span id="dap-h" className="hint">{form.direction === 'IN' ? t.access.antiPassbackHint : t.access.antiPassbackInOnly}</span>
+            {form.direction === 'IN' && form.antiPassback && doors.data && !doors.data.some((d) => d.siteId === form.siteId && d.active && d.direction === 'OUT')
+              && <p id="dap-w" className="alert alert-info" style={{ margin: 0 }}>{t.access.noExitDoor}</p>}
           </div>
           <div className="inline"><button className="btn btn-primary">{t.hosts.save}</button><button type="button" className="btn btn-ghost" onClick={() => setForm(null)}>{t.hosts.cancel}</button></div>
         </form>
@@ -410,7 +412,7 @@ export function DoorsPage() {
                     </div>
                   )) : <span className="muted">{t.access.noReaders}</span>}</td>
                   <td className="inline" style={{ justifyContent: 'flex-end' }}>
-                    {canEdit && <button type="button" className="btn btn-ghost btn-sm" onClick={() => open({ id: d.id, siteId: d.siteId, name: d.name, externalId: d.externalId, direction: d.direction ?? 'NONE', antiPassback: !!d.antiPassback })}>{t.access.edit}</button>}
+                    {canEdit && <button type="button" className="btn btn-ghost btn-sm" disabled={!!form && !form.id} onClick={() => open({ id: d.id, siteId: d.siteId, name: d.name, externalId: d.externalId, direction: d.direction ?? 'NONE', antiPassback: !!d.antiPassback })}>{t.access.edit}</button>}
                     {canEdit && <button type="button" className="btn btn-ghost btn-sm" onClick={() => newReader(d)}>{t.access.pairReader}</button>}
                     {canEdit && <button type="button" className="btn btn-ghost btn-sm" onClick={() => run(() => api.patch(`/admin/access/doors/${d.id}`, { active: !d.active }))}>{d.active ? t.hosts.deactivate : t.hosts.activate}</button>}
                   </td>
