@@ -35,10 +35,19 @@ export function canConfirm(reason: string | null | undefined, busy: boolean): bo
   return !busy && !!reason && (MARK_OUT_REASONS as readonly string[]).includes(reason);
 }
 
-/** 409 NOT_INSIDE: the person had already left (a reader, or someone else at the console). */
-export function isNotInside(err: unknown): boolean {
+/**
+ * What a failed mark-out means for the console:
+ * - 'notInside': 409 NOT_INSIDE, the person had already left (a reader, or someone else at the console);
+ * - 'gone': 404 EMPLOYEE_NOT_FOUND, the person was deleted meanwhile;
+ * - 'error': anything else, shown in the dialog.
+ * In the first two cases the dialog closes and the list reloads.
+ */
+export type MarkOutOutcome = 'notInside' | 'gone' | 'error';
+export function markOutOutcome(err: unknown): MarkOutOutcome {
   const e = err as { status?: number; code?: string } | null;
-  return !!e && e.status === 409 && e.code === 'NOT_INSIDE';
+  if (e?.status === 409 && e.code === 'NOT_INSIDE') return 'notInside';
+  if (e?.status === 404 && e.code === 'EMPLOYEE_NOT_FOUND') return 'gone';
+  return 'error';
 }
 
 /** One row of GET /admin/access/events, as far as the door and method columns go. */

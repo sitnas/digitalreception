@@ -1,7 +1,7 @@
 // "Inside now" and "Mark as left": search, empty states, confirm button, NOT_INSIDE, the MAN row of the door log.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { MARK_OUT_REASONS, canConfirm, emptyState, eventColumns, filterPeople, isNotInside } from '../src/lib/inside.ts';
+import { MARK_OUT_REASONS, canConfirm, emptyState, eventColumns, filterPeople, markOutOutcome } from '../src/lib/inside.ts';
 
 const person = (name: string) => ({ employeeId: name, name, department: null, since: '2026-11-12T08:12:00.000Z', door: 'Garage' });
 const people = [person('Rossi Mario'), person('Bianchi Anna'), person('Núñez Pilar'), person('Rossetti Luca')];
@@ -56,13 +56,24 @@ test('the four reasons are the codes of the API contract', () => {
   assert.deepEqual([...MARK_OUT_REASONS], ['NO_BADGE_EXIT', 'NO_READER_EXIT', 'EXIT_DENIED', 'OTHER']);
 });
 
-test('NOT_INSIDE is recognised only as a 409 with that code', () => {
-  assert.equal(isNotInside({ status: 409, code: 'NOT_INSIDE' }), true);
-  assert.equal(isNotInside({ status: 404, code: 'EMPLOYEE_NOT_FOUND' }), false);
-  assert.equal(isNotInside({ status: 409, code: 'EVACUATION_RUNNING' }), false);
-  assert.equal(isNotInside({ status: 403, code: 'APP_DISABLED' }), false);
-  assert.equal(isNotInside(null), false);
-  assert.equal(isNotInside(new Error('network')), false);
+test('NOT_INSIDE (409) closes the dialog and reloads: the person had already left', () => {
+  assert.equal(markOutOutcome({ status: 409, code: 'NOT_INSIDE' }), 'notInside');
+  assert.equal(markOutOutcome({ status: 409, code: 'EVACUATION_RUNNING' }), 'error');
+});
+
+test('EMPLOYEE_NOT_FOUND (404) closes the dialog and reloads too: the person was deleted meanwhile', () => {
+  assert.equal(markOutOutcome({ status: 404, code: 'EMPLOYEE_NOT_FOUND' }), 'gone');
+  // A missing site is not about the person: it stays an error in the dialog.
+  assert.equal(markOutOutcome({ status: 404, code: 'SITE_NOT_FOUND' }), 'error');
+});
+
+test('any other failure stays an error shown in the dialog', () => {
+  assert.equal(markOutOutcome({ status: 403, code: 'APP_DISABLED' }), 'error');
+  assert.equal(markOutOutcome({ status: 403, code: 'Forbidden' }), 'error');
+  assert.equal(markOutOutcome({ status: 400, code: 'reason must be one of the following values' }), 'error');
+  assert.equal(markOutOutcome(null), 'error');
+  assert.equal(markOutOutcome(undefined), 'error');
+  assert.equal(markOutOutcome(new Error('network')), 'error');
 });
 
 test('door log: a MAN row names the console mark-out, never a door, a phone or a card', () => {

@@ -1215,6 +1215,7 @@ code { border-radius: 6px; }
 .drawer-head h2 { font-size: 22px; }
 .icon-btn { flex: none; width: 44px; height: 44px; display: grid; place-items: center; border: 0; border-radius: 12px; background: transparent; color: var(--ink); cursor: pointer; }
 .icon-btn:hover { background: var(--surface-2); }
+.icon-btn:disabled { opacity: .45; cursor: not-allowed; background: transparent; }
 .icon-btn:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
 @media (max-width: 640px) { .drawer { border-radius: 0; } }
 @media (prefers-reduced-motion: no-preference) { .drawer { animation: a-drawer-in .2s ease-out; } .drawer-back { animation: a-fade-in .2s ease-out; } }

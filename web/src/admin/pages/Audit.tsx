@@ -14,6 +14,9 @@ export function AuditPage() {
   const { t, intl } = useI18n();
   // Readable names exist for some actions only; the others show the code alone.
   const actionName = (a: string) => (t.audit.actions as Record<string, string>)[a];
+  // ACCESS_MARKED_OUT: the reason code also in words, under the raw details.
+  const markOutReason = (r: AuditRow) => (r.action === 'ACCESS_MARKED_OUT' && typeof r.details?.reason === 'string'
+    ? (t.access.inside.reasons as Record<string, string>)[r.details.reason] : undefined);
   const [draft, setDraft] = useState({ from: daysAgo(7), to: todayIso(), action: '', actor: '' });
   const [f, setF] = useState(draft);
   const [page, setPage] = useState(1);
@@ -53,7 +56,7 @@ export function AuditPage() {
                 <td><code translate="no">{r.action}</code>{actionName(r.action) && <><br /><span className="muted">{actionName(r.action)}</span></>}</td>
                 <td className="muted">{r.entityType ? `${r.entityType} ${r.entityId?.slice(0, 8) ?? ''}` : '—'}</td>
                 <td className="num muted">{r.ip ?? '—'}</td>
-                <td className="wrap muted" style={{ fontSize: 13, maxWidth: 420 }}>{r.details ? JSON.stringify(r.details) : ''}</td>
+                <td className="wrap muted" style={{ fontSize: 13, maxWidth: 420 }}>{r.details ? JSON.stringify(r.details) : ''}{markOutReason(r) && <><br />{markOutReason(r)}</>}</td>
               </tr>
             ))}
           </tbody>

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, qs } from '../../lib/api';
 import { fmtTime } from '../../lib/format';
-import { MARK_OUT_REASONS, canConfirm, emptyState, filterPeople, isNotInside, type InsideList, type InsidePerson, type MarkOutReason } from '../../lib/inside';
+import { MARK_OUT_REASONS, canConfirm, emptyState, filterPeople, markOutOutcome, type InsideList, type InsidePerson, type MarkOutReason } from '../../lib/inside';
 import { errorText, useI18n } from '../i18n';
 import type { Site } from '../types';
 import { CloseButton, ErrorBox, PageHead, SiteSelect, useAsync, useDialog } from '../ui';
@@ -62,10 +62,11 @@ export function InsidePage() {
           )}
         </div>
       )}
-      <div className="table-wrap">
+      {sites.data && active.length === 0 && <p className="empty">{I.noSites}</p>}
+      {data && <div className="table-wrap">
         {empty === 'none' ? <p className="empty">{I.none}</p>
           : empty === 'noMatch' ? <p className="empty" role="status">{I.noMatch}</p>
-          : data && (
+          : (
             <table>
               <thead><tr><th>{t.access.person}</th><th>{t.access.department}</th><th>{I.since}</th><th>{t.access.door}</th><th></th></tr></thead>
               <tbody>
@@ -84,11 +85,11 @@ export function InsidePage() {
               </tbody>
             </table>
           )}
-      </div>
+      </div>}
       {target && (
         <MarkOutDialog person={target} siteId={siteId} onClose={() => setTarget(null)}
           onDone={() => report({ ok: true, text: I.done.replace('{name}', () => target.name) })}
-          onGone={() => report({ ok: true, text: t.errors.NOT_INSIDE })} />
+          onGone={(why) => report({ ok: true, text: why === 'gone' ? I.gone : I.alreadyOut.replace('{name}', () => target.name) })} />
       )}
     </>
   );
@@ -96,7 +97,7 @@ export function InsidePage() {
 
 /** Confirmation with the reason: a closed list, no free text, and the button stays off until one is chosen. */
 function MarkOutDialog({ person, siteId, onClose, onDone, onGone }: {
-  person: InsidePerson; siteId: string; onClose: () => void; onDone: () => void; onGone: () => void;
+  person: InsidePerson; siteId: string; onClose: () => void; onDone: () => void; onGone: (why: 'notInside' | 'gone') => void;
 }) {
   const { t } = useI18n();
   const I = t.access.inside;
@@ -104,6 +105,7 @@ function MarkOutDialog({ person, siteId, onClose, onDone, onGone }: {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const dlg = useRef<HTMLElement>(null);
+  const errorRef = useRef<HTMLParagraphElement>(null);
   // Escape and the backdrop do nothing while the request runs: the answer decides what happens next.
   const close = () => { if (!busy) onClose(); };
   useDialog(dlg, close);
@@ -117,9 +119,12 @@ function MarkOutDialog({ person, siteId, onClose, onDone, onGone }: {
       await api.post(`/admin/access/employees/${encodeURIComponent(person.employeeId)}/mark-out`, { siteId, reason });
       onDone();
     } catch (err) {
-      if (isNotInside(err)) { onGone(); return; }
+      const outcome = markOutOutcome(err);
+      if (outcome !== 'error') { onGone(outcome); return; }
       setError(errorText(t, err));
       setBusy(false);
+      // The confirm button keeps the focus while busy (aria-disabled); the error is read out as an alert.
+      requestAnimationFrame(() => errorRef.current?.focus());
     }
   };
 
@@ -129,7 +134,7 @@ function MarkOutDialog({ person, siteId, onClose, onDone, onGone }: {
       <aside ref={dlg} className="drawer" role="dialog" aria-modal="true" aria-labelledby="mo-title" aria-describedby="mo-text">
         <div className="drawer-head">
           <h2 id="mo-title">{I.dialogTitle.replace('{name}', () => person.name)}</h2>
-          <CloseButton label={t.detail.close} onClick={close} />
+          <CloseButton label={t.detail.close} onClick={close} disabled={busy} />
         </div>
         <p id="mo-text" className="muted" style={{ margin: '8px 0 0' }}>{I.dialogText}</p>
         <form className="stack" style={{ marginTop: 24 }} onSubmit={submit}>
@@ -145,9 +150,9 @@ function MarkOutDialog({ person, siteId, onClose, onDone, onGone }: {
             </div>
             {!reason && <span id="mo-hint" className="hint">{I.reasonHint}</span>}
           </fieldset>
-          {error && <p className="alert" role="alert" style={{ margin: 0 }}>{error}</p>}
+          {error && <p ref={errorRef} tabIndex={-1} className="alert" role="alert" style={{ margin: 0 }}>{error}</p>}
           <div className="inline">
-            <button className="btn btn-primary" disabled={!ok} aria-busy={busy}>{I.markOut}</button>
+            <button className="btn btn-primary" disabled={!reason} aria-disabled={busy || undefined} aria-busy={busy}>{I.markOut}</button>
             <button type="button" className="btn btn-ghost" onClick={close} disabled={busy}>{t.hosts.cancel}</button>
           </div>
         </form>
