@@ -292,7 +292,11 @@ export class AccessService {
       else if (employee.validFrom && now < employee.validFrom) reason = 'NOT_YET_VALID';
       else if (employee.validUntil && now >= employee.validUntil) reason = 'EXPIRED';
       else if (!door.active) reason = 'DOOR_INACTIVE';
-      else {
+      else if (door.direction === 'OUT') {
+        // A way out ignores the schedule (nobody is kept inside after hours) and needs no rule on the
+        // door itself: a rule on any door of the same site is enough. Without one, the card stays unknown here.
+        if (!(await this.hasRuleAtSite(reader.tenantId, employee.id, site.id))) reason = 'NO_PERMISSION';
+      } else {
         const rules = await this.rules.find({ where: { tenantId: reader.tenantId, employeeId: employee.id, doorId: door.id } });
         if (!rules.length) reason = 'NO_PERMISSION';
         else if (!rules.some((r) => ruleAllows(r, now, site.timezone))) reason = 'OUTSIDE_SCHEDULE';
@@ -305,8 +309,16 @@ export class AccessService {
     const antiPassback = !reason && !!employee && door.direction === 'IN' && door.antiPassback;
     const result = await retryOnDeadlock(() => this.ds.transaction(async (em) => {
       reason = checked;
+      let at = now;
       // Anti-passback, before the QR is used up (a refusal here leaves the code valid).
-      if (antiPassback && (await this.alreadyInside(em, employee!.id, site, now))) reason = 'ANTI_PASSBACK';
+      if (antiPassback) {
+        const last = await this.lastInOut(em, employee!.id, site, now);
+        if (last?.direction === 'IN') reason = 'ANTI_PASSBACK';
+        // A way out written while this request waited for the lock (marked from the console, which
+        // takes its time after the lock) may be later than `now`: this way in goes after it, so the
+        // day's last passage stays the one that happened last.
+        else if (last && last.at.getTime() >= now.getTime()) at = new Date(last.at.getTime() + 1);
+      }
       // One QR code opens a door once (a screenshot passed on is refused). Only an access that would be
       // granted uses it up; the unique index decides between two readers scanning at the same instant,
       // with this transaction's connection (a second one from the pool here can deadlock under load).
@@ -321,7 +333,7 @@ export class AccessService {
       const result = reason ? AccessResult.DENIED : AccessResult.GRANTED;
       await em.save(em.create(AccessEvent, {
         tenantId: reader.tenantId, siteId: door.siteId, doorId: door.id, readerId: reader.id,
-        employeeId: employee?.id ?? null, method, result, reason: reason ?? 'OK', at: now, direction: door.direction,
+        employeeId: employee?.id ?? null, method, result, reason: reason ?? 'OK', at, direction: door.direction,
       }));
       if (reason) {
         const policy = await em.findOne(CountryPolicy, { where: { tenantId: reader.tenantId, countryCode: site.countryCode }, select: { tenantId: true, countryCode: true, defaultLocale: true } });
@@ -335,25 +347,102 @@ export class AccessService {
     return { result, reason: reason ?? 'OK', name: first && last ? `${first} ${last.charAt(0)}.` : null, door: door.name, at: now };
   }
 
+  /** True when the employee has a rule on at least one door of the site (any schedule). */
+  private async hasRuleAtSite(tenantId: string, employeeId: string, siteId: string) {
+    const row = await this.rules.createQueryBuilder('r').select('r.id', 'id')
+      .innerJoin(Door, 'd', 'd.id = r.doorId AND d.tenantId = r.tenantId')
+      .where('r.tenantId = :t AND r.employeeId = :e AND d.siteId = :s', { t: tenantId, e: employeeId, s: siteId })
+      .limit(1).getRawOne<{ id: string }>();
+    return !!row;
+  }
+
+  // ------------------------------------------------------------ who is inside, marked out by hand
+
   /**
-   * True when the person's last granted access at this site since local midnight, through a door with a
-   * direction, was a way in. The direction is the one stored on the event (the door's at that moment), so
-   * a door changed during the day does not rewrite the day's passages; NONE and older events (NULL) do not count.
+   * Employees whose last granted passage today (local midnight of the site) at this site, through a door
+   * with a direction, was a way in: the same rule as anti-passback. One query on the (tenant, site,
+   * result, time) index; the window function keeps each person's last row. Ties at the same instant
+   * count as a way out, as in lastInOut.
+   */
+  async insideAt(tenantId: string, site: Site, now = new Date()) {
+    const since = midnight(localDay(now, site.timezone), site.timezone);
+    const rows: { employeeId: string; at: Date; doorId: string | null }[] = await this.ds.query(
+      `SELECT t.employeeId, t.at, t.doorId FROM (
+         SELECT ev.employeeId, ev.at, ev.doorId, ev.direction,
+                ROW_NUMBER() OVER (PARTITION BY ev.employeeId ORDER BY ev.at DESC, (ev.direction = 'OUT') DESC) AS rn
+         FROM access_events ev
+         WHERE ev.tenantId = ? AND ev.siteId = ? AND ev.result = ? AND ev.at >= ?
+           AND ev.direction IN ('IN', 'OUT') AND ev.employeeId IS NOT NULL
+       ) t WHERE t.rn = 1 AND t.direction = 'IN'`,
+      [tenantId, site.id, AccessResult.GRANTED, since],
+    );
+    if (!rows.length) return [];
+    const employees = new Map((await this.employees.find({ where: { tenantId, id: In(rows.map((r) => r.employeeId)) } })).map((e) => [e.id, e]));
+    const doorIds = [...new Set(rows.map((r) => r.doorId).filter((d): d is string => !!d))];
+    const doors = new Map((doorIds.length ? await this.doors.find({ where: { tenantId, id: In(doorIds) }, select: { id: true, name: true } }) : []).map((d) => [d.id, d.name]));
+    const tc = await this.keys.forTenant(tenantId);
+    const people = rows.flatMap((r) => {
+      const e = employees.get(r.employeeId);
+      if (!e) return [];
+      const first = tc.decrypt(e.firstNameEnc, 'employee.firstName') ?? '', last = tc.decrypt(e.lastNameEnc, 'employee.lastName') ?? '';
+      return [{
+        employeeId: e.id, name: `${last} ${first}`.trim(), department: tc.decrypt(e.departmentEnc, 'employee.department') ?? null,
+        since: new Date(r.at).toISOString(), door: (r.doorId && doors.get(r.doorId)) || '—',
+        sortKey: [last, first],
+      }];
+    });
+    people.sort((a, b) => a.sortKey[0].localeCompare(b.sortKey[0]) || a.sortKey[1].localeCompare(b.sortKey[1]) || a.employeeId.localeCompare(b.employeeId));
+    return people.map(({ sortKey: _, ...p }) => p);
+  }
+
+  /**
+   * "Segna come uscito": records a way out by hand for an employee who is inside the site today, so the
+   * anti-passback lets them in again. The employee row is locked first, as in verify: two clicks at once,
+   * or a click and a way in at a reader, run one after the other. The time is taken after the lock and
+   * is never before the last passage it closes. Throws NOT_INSIDE when the person is not inside (any
+   * more). No webhook, no change to validity or permissions: marking a way out gives no access.
+   */
+  async markOut(tenantId: string, employeeId: string, site: Site): Promise<{ at: Date }> {
+    if (site.tenantId !== tenantId) throw new NotFoundException('SITE_NOT_FOUND');
+    return retryOnDeadlock(() => this.ds.transaction(async (em) => {
+      const locked = await this.lockEmployee(em, employeeId, tenantId);
+      if (!locked) throw new NotFoundException('EMPLOYEE_NOT_FOUND');
+      const now = new Date();
+      const last = await this.lastInOut(em, employeeId, site, now);
+      if (last?.direction !== 'IN') throw new ConflictException('NOT_INSIDE');
+      const at = last.at.getTime() >= now.getTime() ? new Date(last.at.getTime() + 1) : now;
+      await em.insert(AccessEvent, {
+        tenantId, siteId: site.id, doorId: null, readerId: null, employeeId, method: AccessMethod.MAN,
+        result: AccessResult.GRANTED, reason: 'MARKED_OUT', at, direction: 'OUT',
+      });
+      return { at };
+    }));
+  }
+
+  private lockEmployee(em: EntityManager, employeeId: string, tenantId: string) {
+    return em.createQueryBuilder(Employee, 'e').setLock('pessimistic_write').select('e.id')
+      .where('e.id = :id AND e.tenantId = :t', { id: employeeId, t: tenantId }).getOne();
+  }
+
+  /**
+   * The person's last granted passage at this site since local midnight, through a door with a
+   * direction (a way out marked by hand is one, with direction OUT). The direction is the one stored on
+   * the event (the door's at that moment), so a door changed during the day does not rewrite the day's
+   * passages; NONE and older events (NULL) do not count. Two passages at the same instant: the way out wins.
    *
    * The employee row is locked first (this transaction's connection): two ways in at the same instant on
    * different doors (the QR and its screenshot) are checked one after the other, and the second sees the
    * first one's event. The lock comes before any plain read of the transaction, so the snapshot the
    * event query reads is taken after the wait.
    */
-  private async alreadyInside(em: EntityManager, employeeId: string, site: Site, now: Date) {
-    await em.createQueryBuilder(Employee, 'e').setLock('pessimistic_write').select('e.id')
-      .where('e.id = :id AND e.tenantId = :t', { id: employeeId, t: site.tenantId }).getOne();
+  private async lastInOut(em: EntityManager, employeeId: string, site: Site, now: Date) {
+    await this.lockEmployee(em, employeeId, site.tenantId);
     const last = await em.createQueryBuilder(AccessEvent, 'ev')
-      .select('ev.direction', 'direction')
+      .select('ev.direction', 'direction').addSelect('ev.at', 'at')
       .where('ev.tenantId = :t AND ev.employeeId = :id AND ev.at >= :since', { t: site.tenantId, id: employeeId, since: midnight(localDay(now, site.timezone), site.timezone) })
       .andWhere('ev.siteId = :site AND ev.result = :granted AND ev.direction IN (:...dirs)', { site: site.id, granted: AccessResult.GRANTED, dirs: ['IN', 'OUT'] })
-      .orderBy('ev.at', 'DESC').limit(1)
-      .getRawOne<{ direction: DoorDirection }>();
-    return last?.direction === 'IN';
+      .orderBy('ev.at', 'DESC').addOrderBy("(ev.direction = 'OUT')", 'DESC').limit(1)
+      .getRawOne<{ direction: DoorDirection; at: Date }>();
+    return last ? { direction: last.direction, at: new Date(last.at) } : undefined;
   }
 }

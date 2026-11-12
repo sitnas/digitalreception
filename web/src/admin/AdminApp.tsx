@@ -20,6 +20,7 @@ import { HistoryPage } from './pages/History';
 import { InvitationsPage } from './pages/Invitations';
 import { AccessLogPage, DoorsPage, EmployeesPage, IntegrationPage } from './pages/Access';
 import { HostsPage } from './pages/Hosts';
+import { InsidePage } from './pages/Inside';
 import { OrganisationPage } from './pages/Organisation';
 import { WebhooksPage } from './pages/Webhooks';
 import { PrivacyPage } from './pages/Privacy';
@@ -63,6 +64,7 @@ const NAV: { to: string; key: keyof typeof ADMIN_STRINGS.it.nav; group: NavGroup
   { to: 'documents', key: 'documents', group: 'reception', app: 'reception', roles: ['SUPER_ADMIN', 'SITE_MANAGER', 'AUDITOR'] },
   { to: 'doors', key: 'doors', group: 'access', app: 'access', roles: ['SUPER_ADMIN', 'SITE_MANAGER', 'AUDITOR'] },
   { to: 'access-log', key: 'accessLog', group: 'access', app: 'access', roles: ['SUPER_ADMIN', 'SITE_MANAGER', 'AUDITOR'] },
+  { to: 'inside', key: 'inside', group: 'access', app: 'access', roles: ['SUPER_ADMIN', 'SITE_MANAGER', 'RECEPTIONIST'] },
   { to: 'parcels', key: 'parcels', group: 'parcels', app: 'parcels', roles: ['SUPER_ADMIN', 'SITE_MANAGER', 'RECEPTIONIST', 'AUDITOR'] },
   { to: 'parking', key: 'parking', group: 'parking', app: 'parking', roles: ['SUPER_ADMIN', 'SITE_MANAGER', 'RECEPTIONIST', 'AUDITOR'] },
   { to: 'apps', key: 'apps', group: 'settings', roles: ['SUPER_ADMIN', 'SITE_MANAGER', 'AUDITOR'] },
@@ -447,6 +449,7 @@ function Shell({ branding, me, onLogout }: { branding: Branding; me: Me; onLogou
             {items.some((i) => i.to === 'employees') && <Route path="employees" element={<EmployeesPage />} />}
             {items.some((i) => i.to === 'doors') && <Route path="doors" element={<DoorsPage />} />}
             {items.some((i) => i.to === 'access-log') && <Route path="access-log" element={<AccessLogPage />} />}
+            {items.some((i) => i.to === 'inside') && <Route path="inside" element={<InsidePage />} />}
             {items.some((i) => i.to === 'integration') && <Route path="integration" element={<IntegrationPage />} />}
             {items.some((i) => i.to === 'history') && <Route path="history" element={<HistoryPage />} />}
             {items.some((i) => i.to === 'stats') && <Route path="stats" element={<StatsPage />} />}

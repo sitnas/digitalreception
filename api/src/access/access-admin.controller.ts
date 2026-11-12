@@ -62,6 +62,17 @@ export class AccessEventsQuery {
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(2000) limit?: number;
 }
 
+export class InsideQuery {
+  @IsUUID() siteId: string;
+}
+
+/** Why the reception marks someone as gone out: a closed list, no free text (it would carry personal notes). */
+export const MARK_OUT_REASONS = ['NO_BADGE_EXIT', 'NO_READER_EXIT', 'EXIT_DENIED', 'OTHER'] as const;
+export class MarkOutDto {
+  @IsUUID() siteId: string;
+  @IsIn(MARK_OUT_REASONS) reason: (typeof MARK_OUT_REASONS)[number];
+}
+
 export class EmployeeAppsDto {
   @IsArray() @ArrayUnique() @IsIn(APP_KEYS, { each: true }) appsOff: AppKey[];
 }
@@ -78,6 +89,8 @@ export class AccessSettingsDto {
 
 const MANAGE = [Role.SUPER_ADMIN, Role.SITE_MANAGER];
 const READ = [Role.SUPER_ADMIN, Role.SITE_MANAGER, Role.AUDITOR];
+/** Who sees who is inside a site and marks a person as gone out: the people at the front desk, not the auditor. */
+const INSIDE = [Role.SUPER_ADMIN, Role.SITE_MANAGER, Role.RECEPTIONIST];
 
 /** Console side of employee access control: what the external system sent, doors, readers, log, API keys. */
 @Controller('admin/access')
@@ -365,6 +378,40 @@ export class AccessAdminController {
     return { ok: true };
   }
 
+  // ------------------------------------------------------------------ who is inside, marked out by hand
+  /** A site of the organisation the user may act on: 403 for a site out of reach, 404 for any other. */
+  private async accessibleSite(user: AuthUser, siteId: string) {
+    assertSiteAccess(user, siteId);
+    const site = await this.sites.findOne({ where: { id: siteId, tenantId: user.tenantId } });
+    if (!site) throw new NotFoundException('SITE_NOT_FOUND');
+    return site;
+  }
+
+  /** Employees inside the site today (last way in not followed by a way out), for the reception to mark out. */
+  @Get('inside')
+  @RequireApp('access')
+  @Roles(...INSIDE)
+  async inside(@CurrentUser() user: AuthUser, @Query() q: InsideQuery, @Req() req: AppRequest) {
+    const site = await this.accessibleSite(user, q.siteId);
+    const people = await this.access.insideAt(user.tenantId, site);
+    await this.audit.fromRequest(req, { action: 'ACCESS_INSIDE_VIEW', siteId: site.id, details: { rows: people.length } });
+    return { timezone: site.timezone, people };
+  }
+
+  /** "Segna come uscito": a way out recorded by hand, so the anti-passback lets the person in again. */
+  @Post('employees/:id/mark-out')
+  @RequireApp('access')
+  @HttpCode(200)
+  @Roles(...INSIDE)
+  async markOut(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Body() dto: MarkOutDto, @Req() req: AppRequest) {
+    const site = await this.accessibleSite(user, dto.siteId);
+    const e = await this.employees.findOne({ where: { id, tenantId: user.tenantId }, select: { id: true } });
+    if (!e) throw new NotFoundException('EMPLOYEE_NOT_FOUND');
+    const { at } = await this.access.markOut(user.tenantId, e.id, site);
+    await this.audit.fromRequest(req, { action: 'ACCESS_MARKED_OUT', entityType: 'employee', entityId: e.id, siteId: site.id, details: { reason: dto.reason } });
+    return { ok: true, at: at.toISOString() };
+  }
+
   // ------------------------------------------------------------------ access log
   @Get('events')
   @RequireApp('access')
@@ -383,7 +430,9 @@ export class AccessAdminController {
     });
     const tc = await this.keys.forTenant(user.tenantId);
     const emps = new Map((rows.length ? await this.employees.find({ where: { tenantId: user.tenantId, id: In([...new Set(rows.map((r) => r.employeeId).filter(Boolean))] as string[]) } }) : []).map((e) => [e.id, e]));
-    const doors = new Map((rows.length ? await this.doors.find({ where: { tenantId: user.tenantId, id: In([...new Set(rows.map((r) => r.doorId))]) } }) : []).map((d) => [d.id, d]));
+    // A way out marked by hand has no door.
+    const doorIds = [...new Set(rows.map((r) => r.doorId).filter((d): d is string => !!d))];
+    const doors = new Map((doorIds.length ? await this.doors.find({ where: { tenantId: user.tenantId, id: In(doorIds) } }) : []).map((d) => [d.id, d]));
     const sites = new Map((await this.sites.find({ where: { tenantId: user.tenantId } })).map((s) => [s.id, s]));
     const projects = new Map((await this.projects().find({ where: { tenantId: user.tenantId } })).map((p) => [p.id, p]));
     await this.audit.fromRequest(req, { action: 'ACCESS_LOG_VIEW', siteId: q.siteId ?? null, details: { from: q.from, to: q.to, rows: rows.length } });
@@ -391,7 +440,7 @@ export class AccessAdminController {
       const e = r.employeeId ? emps.get(r.employeeId) : undefined;
       return {
         id: r.id, at: r.at, method: r.method, result: r.result, reason: r.reason,
-        door: doors.get(r.doorId)?.name ?? '—', site: sites.get(r.siteId)?.name ?? '—', timezone: sites.get(r.siteId)?.timezone ?? 'UTC',
+        door: r.doorId ? doors.get(r.doorId)?.name ?? '—' : null, site: sites.get(r.siteId)?.name ?? '—', timezone: sites.get(r.siteId)?.timezone ?? 'UTC',
         employee: e ? `${tc.decrypt(e.lastNameEnc, 'employee.lastName')} ${tc.decrypt(e.firstNameEnc, 'employee.firstName')}` : null,
         externalId: e?.externalId ?? null,
         project: e?.projectId ? projects.get(e.projectId)?.code ?? null : null,

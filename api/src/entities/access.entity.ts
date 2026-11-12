@@ -7,7 +7,8 @@ import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn, Update
  * short access log. Personal data is encrypted per tenant like visitor data.
  */
 
-export enum AccessMethod { QR = 'QR', NFC = 'NFC' }
+/** MAN: a way out recorded by hand from the console ("Segna come uscito"), with no door nor reader. */
+export enum AccessMethod { QR = 'QR', NFC = 'NFC', MAN = 'MAN' }
 export enum AccessResult { GRANTED = 'GRANTED', DENIED = 'DENIED' }
 export type EmployeeSource = 'API' | 'CONSOLE';
 /** Which way a door is passed: NONE = not counted for anti-passback, IN = way in, OUT = way out. */
@@ -113,14 +114,16 @@ export class DoorReader {
 @Entity('access_events')
 @Index('IDX_access_events_tenant_at', ['tenantId', 'at'])
 @Index('IDX_access_events_at', ['at'])
-@Index('IDX_access_events_site_at', ['tenantId', 'siteId', 'result', 'at'])
+// method last: the dashboard counts leave out the ways out marked by hand and still read only the index.
+@Index('IDX_access_events_site_at', ['tenantId', 'siteId', 'result', 'at', 'method'])
 @Index('IDX_access_events_employee_at', ['tenantId', 'employeeId', 'at'])
 export class AccessEvent {
   @PrimaryGeneratedColumn('uuid') id: string;
   @Column({ type: 'uuid' }) tenantId: string;
   @Column({ type: 'uuid' }) siteId: string;
-  @Column({ type: 'uuid' }) doorId: string;
-  @Column({ type: 'uuid' }) readerId: string;
+  /** NULL only for a way out marked by hand from the console (method MAN). */
+  @Column({ type: 'uuid', nullable: true }) doorId: string | null;
+  @Column({ type: 'uuid', nullable: true }) readerId: string | null;
   @Column({ type: 'uuid', nullable: true }) employeeId: string | null;
   @Column({ type: 'varchar', length: 4 }) method: AccessMethod;
   @Column({ type: 'varchar', length: 8 }) result: AccessResult;
