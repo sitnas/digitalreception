@@ -544,6 +544,440 @@ describe('end-to-end', { skip: !enabled && 'E2E_DB_HOST not set' }, () => {
     }
   });
 
+  test('who is inside and "segna come uscito": list, roles, sites, organisations, errors, audit, races, log and dashboard', async () => {
+    const { randomUUID } = await import('node:crypto');
+    const { key } = (await admin.post('/admin/access/api-keys', { name: 'HR inside' })).data;
+    const hr = (method, path, body) => fetch(`${BASE}/integration/v1${path}`, { method, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` }, body: body && JSON.stringify(body) }).then(async (r) => ({ status: r.status, data: await r.json().catch(() => null) }));
+    const mysql = require('mysql2/promise');
+    const db = await mysql.createConnection({ host: env.DB_HOST, port: Number(env.DB_PORT), user: env.DB_USER, password: env.DB_PASSWORD, database: env.DB_NAME });
+    const [[{ id: tenantId }]] = await db.query('SELECT id FROM tenants WHERE slug = ?', [SLUG]);
+    // Sites of their own: S (Bologna) and A (Genova). Nobody else passes there, and their dashboard is not cached yet.
+    const bo = (await admin.post('/admin/sites', { code: 'BO', name: 'Bologna', countryCode: 'IT', timezone: 'Europe/Rome' })).data;
+    const ge = (await admin.post('/admin/sites', { code: 'GE', name: 'Genova', countryCode: 'IT', timezone: 'Europe/Rome' })).data;
+    const otherTenant = randomUUID(), otherSite = randomUUID(), otherEmployee = randomUUID();
+    const apps = (await admin.get('/admin/apps')).data.apps;
+    const doors = async () => (await admin.get('/admin/access/doors')).data;
+    try {
+      assert.ok(bo.id && ge.id, JSON.stringify([bo, ge]));
+      const door = async (siteId, name, externalId, direction, antiPassback = false) => {
+        const r = await admin.post('/admin/access/doors', { siteId, name, externalId, direction, antiPassback });
+        assert.equal(r.status, 201, JSON.stringify(r.data));
+        return r.data;
+      };
+      const boIn = await door(bo.id, 'Ingresso garage', 'BO-IN', 'IN', true), boOut = await door(bo.id, 'Uscita BO', 'BO-OUT', 'OUT');
+      const boNone = await door(bo.id, 'Mensa BO', 'BO-NONE', 'NONE'), geIn = await door(ge.id, 'Ingresso GE', 'GE-IN', 'IN', true);
+      let pairs = 0;
+      const pair = async (d) => {
+        const { code } = (await admin.post(`/admin/access/doors/${d.id}/reader-code`, { name: `Lettore ${d.name}` })).data;
+        const token = (await new Client(`10.9.1.${++pairs}`).post('/reader/pair', { code })).data.readerToken;
+        assert.ok(token, 'reader paired');
+        return token;
+      };
+      const rIn = await pair(boIn), rOut = await pair(boOut), rNone = await pair(boNone), rGe = await pair(geIn);
+      const verify = (token, nfc) => new Client().post('/reader/verify', { nfc }, { bearer: token }).then((r) => r.data);
+
+      const all = ['BO-IN', 'BO-OUT', 'BO-NONE', 'GE-IN'].map((d) => ({ door: d }));
+      const people = {
+        carla: { firstName: 'Carla', lastName: 'Verdi', department: 'Logistica', email: 'carla.in@e2e.test', badgeUid: '04:CC:00:01', permissions: all },
+        aldo: { firstName: 'Aldo', lastName: 'Neri', badgeUid: '04:CC:00:02', permissions: all },
+        ezio: { firstName: 'Ezio', lastName: 'Bassi', badgeUid: '04:CC:00:03', permissions: [{ door: 'BO-NONE' }] },
+        bruno: { firstName: 'Bruno', lastName: 'Amato', badgeUid: '04:CC:00:04', permissions: all },
+        gone: { firstName: 'Gino', lastName: 'Andato', badgeUid: '04:CC:00:05', permissions: all },
+        zeno: { firstName: 'Zeno', lastName: 'Zatti', badgeUid: '04:CC:00:06', permissions: all },
+      };
+      const ext = { carla: 'IN01', aldo: 'IN02', ezio: 'IN03', bruno: 'IN04', gone: 'IN05', zeno: 'IN06' };
+      for (const [k, p] of Object.entries(people)) assert.equal((await hr('PUT', `/employees/${ext[k]}`, p)).status, 200, k);
+      const list = (await admin.get('/admin/access/employees')).data;
+      const id = Object.fromEntries(Object.entries(ext).map(([k, x]) => [k, list.find((e) => e.externalId === x).id]));
+      const card = (k) => people[k].badgeUid.replace(/:/g, '');
+
+      // Passages: Carla in at S and at A; Aldo in and out; Ezio only through a NONE door and refused at the
+      // way in; Bruno and Zeno in; Gino in, then deleted.
+      for (const [token, k] of [[rIn, 'carla'], [rGe, 'carla'], [rIn, 'aldo'], [rOut, 'aldo'], [rNone, 'ezio'], [rIn, 'bruno'], [rIn, 'gone'], [rIn, 'zeno']]) {
+        assert.equal((await verify(token, card(k))).result, 'GRANTED', k);
+      }
+      assert.equal((await verify(rIn, card('ezio'))).reason, 'NO_PERMISSION');
+      assert.equal((await hr('DELETE', `/employees/${ext.gone}`)).status, 200);
+
+      // ---- users: receptionist and site manager of S, receptionist of A
+      const user = async (email, role, siteIds, ip) => {
+        assert.equal((await admin.post('/admin/users', { email, displayName: email, role, siteIds, temporaryPassword: 'Temporary-Pass-444' })).status, 201);
+        const c = new Client(ip); await c.signIn(email, 'Temporary-Pass-444', 'Inside-Password-E2E-1');
+        return c;
+      };
+      const recBo = await user('rec.bo@e2e.test', 'RECEPTIONIST', [bo.id], '10.9.2.1');
+      const smBo = await user('sm.bo@e2e.test', 'SITE_MANAGER', [bo.id], '10.9.2.2');
+      const recGe = await user('rec.ge@e2e.test', 'RECEPTIONIST', [ge.id], '10.9.2.3');
+      const smGe = await user('sm.ge@e2e.test', 'SITE_MANAGER', [ge.id], '10.9.2.4');
+
+      // ---- the list (criteria 1-3, 5-7)
+      const inside = async (c, siteId) => { const r = await c.get(`/admin/access/inside?siteId=${siteId}`); assert.equal(r.status, 200, JSON.stringify(r.data)); return r.data; };
+      let r = await inside(recBo, bo.id);
+      assert.deepEqual(Object.keys(r).sort(), ['people', 'timezone']);
+      assert.equal(r.timezone, 'Europe/Rome');
+      assert.deepEqual(r.people.map((p) => p.name), ['Amato Bruno', 'Verdi Carla', 'Zatti Zeno'], 'alphabetical; no Aldo (out), Ezio (NONE / refused), deleted Gino');
+      const carlaRow = r.people.find((p) => p.employeeId === id.carla);
+      assert.deepEqual(Object.keys(carlaRow).sort(), ['department', 'door', 'employeeId', 'name', 'since'], 'nothing else: no email, code, card, job or permissions');
+      assert.equal(carlaRow.department, 'Logistica'); assert.equal(carlaRow.door, 'Ingresso garage');
+      assert.equal(r.people.find((p) => p.employeeId === id.bruno).department, null);
+      const [[carlaIn]] = await db.query("SELECT at FROM access_events WHERE tenantId = ? AND siteId = ? AND employeeId = ? AND direction = 'IN' AND result = 'GRANTED'", [tenantId, bo.id, id.carla]);
+      assert.equal(carlaRow.since, carlaIn.at.toISOString(), 'time of the last way in');
+      assert.deepEqual((await inside(smGe, ge.id)).people.map((p) => p.name), ['Verdi Carla'], 'inside at both sites');
+      assert.deepEqual((await inside(admin, bo.id)).people.length, 3);
+      // A deleted employee's way in stays in the log, without a person, and gives no row.
+      const [[orphan]] = await db.query("SELECT COUNT(*) AS n FROM access_events WHERE tenantId = ? AND siteId = ? AND employeeId IS NULL AND direction = 'IN' AND result = 'GRANTED'", [tenantId, bo.id]);
+      assert.equal(Number(orphan.n), 1);
+      // A later way in moves "since" and the door (Zeno: in again after a way out, at another door made IN).
+      assert.equal((await verify(rOut, card('zeno'))).result, 'GRANTED');
+      assert.equal((await admin.patch(`/admin/access/doors/${boNone.id}`, { direction: 'IN' })).status, 200);
+      assert.equal((await verify(rNone, card('zeno'))).result, 'GRANTED');
+      assert.equal((await admin.patch(`/admin/access/doors/${boNone.id}`, { direction: 'NONE' })).status, 200);
+      assert.equal((await inside(recBo, bo.id)).people.find((p) => p.employeeId === id.zeno).door, 'Mensa BO');
+
+      // Consultation in the access log: site and number of rows, no names (criterion 17).
+      const [views] = await db.query("SELECT actorLabel, siteId, details FROM audit_logs WHERE tenantId = ? AND action = 'ACCESS_INSIDE_VIEW' AND siteId = ? ORDER BY at", [tenantId, bo.id]);
+      assert.equal(views.length, 3, JSON.stringify(views));
+      assert.equal(views[0].actorLabel, 'rec.bo@e2e.test');
+      assert.deepEqual(typeof views[0].details === 'string' ? JSON.parse(views[0].details) : views[0].details, { rows: 3 });
+      assert.ok(!JSON.stringify(views).includes('Verdi'), 'no names in the log');
+
+      // ---- who may read it (criteria 12-15, 18)
+      const viewsBefore = async () => Number((await db.query("SELECT COUNT(*) AS n FROM audit_logs WHERE tenantId = ? AND action = 'ACCESS_INSIDE_VIEW'", [tenantId]))[0][0].n);
+      const v0 = await viewsBefore();
+      assert.equal((await recGe.get(`/admin/access/inside?siteId=${bo.id}`)).status, 403, 'receptionist of another site');
+      assert.equal((await smGe.get(`/admin/access/inside?siteId=${bo.id}`)).status, 403, 'site manager of another site');
+      assert.equal((await ctx.aud.get(`/admin/access/inside?siteId=${bo.id}`)).status, 403, 'auditor');
+      await db.query("INSERT INTO sites (id, tenantId, code, name, countryCode, timezone) VALUES (?, ?, 'XX', 'Altro cliente', 'IT', 'Europe/Rome')", [otherSite, otherTenant]);
+      for (const siteId of [randomUUID(), otherSite]) {
+        const nf = await admin.get(`/admin/access/inside?siteId=${siteId}`);
+        assert.equal(nf.status, 404); assert.equal(nf.data.message, 'SITE_NOT_FOUND');
+      }
+      assert.equal((await admin.get('/admin/access/inside')).status, 400);
+      assert.equal((await admin.get('/admin/access/inside?siteId=abc')).status, 400);
+      assert.equal(await viewsBefore(), v0, 'refused requests leave no consultation entry');
+
+      // ---- marking out: refused requests write nothing (criteria 21-25, 31)
+      const markOut = (c, k, body) => c.post(`/admin/access/employees/${typeof k === 'string' && id[k] ? id[k] : k}/mark-out`, body);
+      const written = async () => {
+        const [[e]] = await db.query("SELECT COUNT(*) AS n FROM access_events WHERE method = 'MAN' AND (tenantId = ? OR tenantId = ?)", [tenantId, otherTenant]);
+        const [[a]] = await db.query("SELECT COUNT(*) AS n FROM audit_logs WHERE action = 'ACCESS_MARKED_OUT' AND (tenantId = ? OR tenantId = ?)", [tenantId, otherTenant]);
+        return [Number(e.n), Number(a.n)];
+      };
+      const refused = async (res, status, message) => {
+        assert.equal(res.status, status, JSON.stringify(res.data));
+        if (message) assert.equal(res.data.message, message);
+      };
+      // An employee of another organisation, inside "this" site in their own log.
+      await db.query("INSERT INTO employees (id, tenantId, externalId, firstNameEnc, lastNameEnc) VALUES (?, ?, 'X1', 'x', 'x')", [otherEmployee, otherTenant]);
+      await db.query("INSERT INTO access_events (id, tenantId, siteId, doorId, readerId, employeeId, method, result, reason, at, direction) VALUES (?, ?, ?, ?, ?, ?, 'NFC', 'GRANTED', 'OK', UTC_TIMESTAMP(3), 'IN')",
+        [randomUUID(), otherTenant, bo.id, randomUUID(), randomUUID(), otherEmployee]);
+      const before = await written();
+      await refused(await markOut(recBo, 'carla', { siteId: bo.id }), 400);
+      await refused(await markOut(recBo, 'carla', { siteId: bo.id, reason: 'FORGOT' }), 400);
+      await refused(await markOut(recBo, 'carla', { siteId: bo.id, reason: 'OTHER', note: 'free text' }), 400);
+      await refused(await markOut(recBo, 'carla', { reason: 'OTHER' }), 400);
+      await refused(await markOut(recBo, 'carla', { siteId: 'abc', reason: 'OTHER' }), 400);
+      await refused(await markOut(recBo, 'not-a-uuid', { siteId: bo.id, reason: 'OTHER' }), 400);
+      await refused(await markOut(recGe, 'carla', { siteId: bo.id, reason: 'OTHER' }), 403);
+      await refused(await markOut(smGe, 'carla', { siteId: bo.id, reason: 'OTHER' }), 403);
+      await refused(await markOut(ctx.aud, 'carla', { siteId: bo.id, reason: 'OTHER' }), 403);
+      await refused(await markOut(admin, 'carla', { siteId: randomUUID(), reason: 'OTHER' }), 404, 'SITE_NOT_FOUND');
+      await refused(await markOut(admin, 'carla', { siteId: otherSite, reason: 'OTHER' }), 404, 'SITE_NOT_FOUND');
+      await refused(await markOut(recBo, otherEmployee, { siteId: bo.id, reason: 'OTHER' }), 404, 'EMPLOYEE_NOT_FOUND');
+      await refused(await markOut(recBo, randomUUID(), { siteId: bo.id, reason: 'OTHER' }), 404, 'EMPLOYEE_NOT_FOUND');
+      await refused(await markOut(recBo, 'aldo', { siteId: bo.id, reason: 'OTHER' }), 409, 'NOT_INSIDE');
+      await refused(await markOut(recBo, 'ezio', { siteId: bo.id, reason: 'OTHER' }), 409, 'NOT_INSIDE');
+      await refused(await markOut(recGe, 'bruno', { siteId: ge.id, reason: 'OTHER' }), 409, 'NOT_INSIDE');
+      assert.deepEqual(await written(), before, 'no synthetic passage and no audit entry for a refused request');
+
+      // ---- marking out (criteria 19, 20, 30, 33, 34)
+      // A webhook on denials at S: a denial queues a delivery, a marked way out does not.
+      const hook = await admin.post('/admin/webhooks', { name: 'Inside hook', kind: 'generic', url: `http://127.0.0.1:${HOOK_PORT}/inside`, events: ['access.denied'], siteId: bo.id });
+      assert.equal(hook.status, 201, JSON.stringify(hook.data));
+      const deliveries = async () => Number((await db.query('SELECT COUNT(*) AS n FROM webhook_deliveries WHERE tenantId = ?', [tenantId]))[0][0].n);
+      try {
+        const d0 = await deliveries();
+        const t0 = Date.now();
+        r = await markOut(recBo, 'carla', { siteId: bo.id, reason: 'NO_BADGE_EXIT' });
+        assert.equal(r.status, 200, JSON.stringify(r.data));
+        assert.deepEqual(Object.keys(r.data).sort(), ['at', 'ok']); assert.equal(r.data.ok, true);
+        const at = Date.parse(r.data.at);
+        assert.ok(at >= t0 - 1000 && at <= Date.now() + 1000, `server time: ${r.data.at}`);
+        const [synthetic] = await db.query("SELECT * FROM access_events WHERE tenantId = ? AND employeeId = ? AND method = 'MAN'", [tenantId, id.carla]);
+        assert.equal(synthetic.length, 1);
+        const s = synthetic[0];
+        assert.deepEqual([s.siteId, s.doorId, s.readerId, s.method, s.result, s.reason, s.direction, s.at.toISOString()], [bo.id, null, null, 'MAN', 'GRANTED', 'MARKED_OUT', 'OUT', r.data.at]);
+        assert.equal(await deliveries(), d0, 'no webhook for a way out marked by hand');
+        assert.equal((await verify(rIn, card('ezio'))).result, 'DENIED');
+        assert.equal(await deliveries(), d0 + 1, 'the webhook does work for a denial');
+      } finally {
+        await admin.del(`/admin/webhooks/${hook.data.id}`);
+      }
+      assert.ok(!(await inside(recBo, bo.id)).people.some((p) => p.employeeId === id.carla), 'gone from the list');
+      assert.deepEqual((await inside(recGe, ge.id)).people.map((p) => p.name), ['Verdi Carla'], 'still inside at the other site');
+      assert.equal((await verify(rGe, card('carla'))).reason, 'ANTI_PASSBACK', 'marking out at S changes nothing at A');
+      assert.equal((await verify(rIn, card('carla'))).result, 'GRANTED', 'the way in at S opens again');
+      await refused(await markOut(recBo, 'aldo', { siteId: bo.id, reason: 'OTHER' }), 409, 'NOT_INSIDE');
+
+      // A site manager of S and the administrator; a deactivated or expired person can be marked out.
+      assert.equal((await hr('PUT', `/employees/${ext.carla}`, { ...people.carla, active: false })).status, 200);
+      r = await markOut(smBo, 'carla', { siteId: bo.id, reason: 'NO_READER_EXIT' });
+      assert.equal(r.status, 200, JSON.stringify(r.data));
+      assert.equal((await verify(rIn, card('carla'))).reason, 'EMPLOYEE_INACTIVE', 'marking out gives no access');
+      assert.equal((await hr('PUT', `/employees/${ext.carla}`, people.carla)).status, 200);
+      assert.equal((await hr('PUT', `/employees/${ext.bruno}`, { ...people.bruno, validUntil: new Date(Date.now() - 60_000).toISOString() })).status, 200);
+      r = await markOut(admin, 'bruno', { siteId: bo.id, reason: 'EXIT_DENIED' });
+      assert.equal(r.status, 200, JSON.stringify(r.data));
+      assert.equal((await hr('PUT', `/employees/${ext.bruno}`, people.bruno)).status, 200);
+
+      const [marked] = await db.query("SELECT actorLabel, entityType, entityId, siteId, ip, details FROM audit_logs WHERE tenantId = ? AND action = 'ACCESS_MARKED_OUT' ORDER BY at, id", [tenantId]);
+      assert.deepEqual(marked.map((a) => [a.actorLabel, a.entityType, a.entityId, a.siteId, typeof a.details === 'string' ? JSON.parse(a.details) : a.details]), [
+        ['rec.bo@e2e.test', 'employee', id.carla, bo.id, { reason: 'NO_BADGE_EXIT' }],
+        ['sm.bo@e2e.test', 'employee', id.carla, bo.id, { reason: 'NO_READER_EXIT' }],
+        ['admin@e2e.test', 'employee', id.bruno, bo.id, { reason: 'EXIT_DENIED' }],
+      ]);
+      assert.equal(marked[0].ip, '10.9.2.1');
+      const [[other]] = await db.query('SELECT (SELECT COUNT(*) FROM access_events WHERE tenantId = ?) AS e, (SELECT COUNT(*) FROM audit_logs WHERE tenantId = ?) AS a', [otherTenant, otherTenant]);
+      assert.deepEqual([Number(other.e), Number(other.a)], [1, 0], 'nothing written in the other organisation');
+
+      // ---- two clicks at the same instant (criterion 27)
+      for (let i = 0; i < 3; i++) {
+        assert.equal((await verify(rIn, card('zeno'))).reason, i === 0 ? 'ANTI_PASSBACK' : 'OK', 'inside');
+        const [[n0]] = await db.query("SELECT COUNT(*) AS n FROM access_events WHERE tenantId = ? AND employeeId = ? AND method = 'MAN'", [tenantId, id.zeno]);
+        const both = await Promise.all([markOut(recBo, 'zeno', { siteId: bo.id, reason: 'OTHER' }), markOut(smBo, 'zeno', { siteId: bo.id, reason: 'OTHER' })]);
+        assert.deepEqual(both.map((x) => x.status).sort(), [200, 409], JSON.stringify(both.map((x) => x.data)));
+        assert.equal(both.find((x) => x.status === 409).data.message, 'NOT_INSIDE');
+        const [[n1]] = await db.query("SELECT COUNT(*) AS n FROM access_events WHERE tenantId = ? AND employeeId = ? AND method = 'MAN'", [tenantId, id.zeno]);
+        assert.equal(Number(n1.n) - Number(n0.n), 1, 'one synthetic passage');
+      }
+
+      // ---- a click and a way in at the same instant (criterion 28): one of the two orders, never a way in
+      // granted while the person is still inside; whoever got in is inside afterwards.
+      const seen = new Set();
+      for (let i = 0; i < 12; i++) {
+        if (!(await inside(recBo, bo.id)).people.some((p) => p.employeeId === id.zeno)) assert.equal((await verify(rIn, card('zeno'))).result, 'GRANTED');
+        const [m, v] = await Promise.all([markOut(recBo, 'zeno', { siteId: bo.id, reason: 'OTHER' }), verify(rIn, card('zeno'))]);
+        assert.equal(m.status, 200, JSON.stringify(m.data));
+        assert.ok(v.result === 'GRANTED' || v.reason === 'ANTI_PASSBACK', JSON.stringify(v));
+        seen.add(v.result);
+        const stillInside = (await inside(recBo, bo.id)).people.some((p) => p.employeeId === id.zeno);
+        assert.equal(stillInside, v.result === 'GRANTED', `after ${v.result}: the last passage is the one that happened last`);
+      }
+      const [seq] = await db.query("SELECT direction FROM access_events WHERE tenantId = ? AND siteId = ? AND employeeId = ? AND result = 'GRANTED' AND direction IN ('IN', 'OUT') ORDER BY at, (direction = 'OUT') DESC", [tenantId, bo.id, id.zeno]);
+      const dirs = seq.map((x) => x.direction).join(' ');
+      assert.ok(!/IN IN/.test(dirs), `a way in granted without a way out before it: ${dirs}`);
+      assert.ok(seen.size >= 1);
+
+      // ---- the synthetic passage in Passaggi (criteria 35, 36)
+      const from = new Date(Date.now() - 3_600_000).toISOString(), to = new Date(Date.now() + 60_000).toISOString();
+      const log = await admin.get(`/admin/access/events?from=${from}&to=${to}&siteId=${bo.id}`);
+      assert.equal(log.status, 200, JSON.stringify(log.data));
+      const man = log.data.filter((e) => e.method === 'MAN');
+      assert.ok(man.length >= 5, JSON.stringify(man));
+      assert.ok(man.every((e) => e.door === null && e.reason === 'MARKED_OUT' && e.result === 'GRANTED' && e.site === 'Bologna' && e.timezone === 'Europe/Rome'), JSON.stringify(man[0]));
+      assert.ok(man.some((e) => e.employee === 'Verdi Carla'));
+      assert.ok(log.data.filter((e) => e.method !== 'MAN').every((e) => typeof e.door === 'string' && e.door !== '—'), 'real passages keep their door');
+      assert.equal((await admin.get(`/admin/access/events?from=${from}&to=${to}&siteId=${bo.id}&result=GRANTED`)).data.filter((e) => e.method === 'MAN').length, man.length);
+      assert.equal((await admin.get(`/admin/access/events?from=${from}&to=${to}&siteId=${bo.id}&result=DENIED`)).data.filter((e) => e.method === 'MAN').length, 0);
+
+      // ---- dashboard (criterion 37): read first by the site manager of S, so nothing comes from the cache.
+      // Same day last week: a passage and a way out marked by hand.
+      const weekAgo = new Date(Date.now() - 7 * 86_400_000);
+      for (const [method, doorId, reason] of [['NFC', boIn.id, 'OK'], ['MAN', null, 'MARKED_OUT']]) {
+        await db.query("INSERT INTO access_events (id, tenantId, siteId, doorId, readerId, employeeId, method, result, reason, at, direction) VALUES (?, ?, ?, ?, ?, ?, ?, 'GRANTED', ?, ?, ?)",
+          [randomUUID(), tenantId, bo.id, doorId, doorId && randomUUID(), id.aldo, method, reason, weekAgo, method === 'MAN' ? 'OUT' : 'IN']);
+      }
+      const [[counts]] = await db.query(`SELECT SUM(result = 'GRANTED' AND method <> 'MAN') AS granted, SUM(result = 'GRANTED' AND method = 'MAN') AS man, SUM(result = 'DENIED') AS denied
+        FROM access_events WHERE tenantId = ? AND siteId = ? AND at >= DATE_SUB(UTC_TIMESTAMP(3), INTERVAL 1 HOUR)`, [tenantId, bo.id]);
+      assert.ok(Number(counts.man) >= 5);
+      const dash = await smBo.get('/admin/dashboard');
+      assert.equal(dash.status, 200, JSON.stringify(dash.data));
+      assert.deepEqual(dash.data.access, { today: Number(counts.granted), sameDayLastWeek: 1, deniedWeek: Number(counts.denied), deniedPreviousWeek: 0 }, JSON.stringify(counts));
+
+      // ---- the access app turned off (criteria 15, 32)
+      await setApps(apps.filter((a) => a !== 'access'));
+      try {
+        for (const res of [await recBo.get(`/admin/access/inside?siteId=${bo.id}`), await markOut(recBo, 'carla', { siteId: bo.id, reason: 'OTHER' })]) {
+          assert.equal(res.status, 403); assert.equal(res.data.message, 'APP_DISABLED');
+        }
+      } finally {
+        await setApps(apps);
+      }
+      assert.equal((await verify(rIn, card('carla'))).result, 'GRANTED');
+      assert.equal((await markOut(recBo, 'carla', { siteId: bo.id, reason: 'OTHER' })).status, 200, 'back on');
+    } finally {
+      await db.query('DELETE FROM access_events WHERE tenantId = ?', [otherTenant]);
+      await db.query('DELETE FROM employees WHERE tenantId = ?', [otherTenant]);
+      await db.query('DELETE FROM sites WHERE tenantId = ?', [otherTenant]);
+      await db.end();
+      for (const d of (await doors()).filter((x) => x.siteId === bo.id || x.siteId === ge.id)) await admin.patch(`/admin/access/doors/${d.id}`, { active: false, direction: 'NONE' });
+      for (const s of [bo, ge]) if (s?.id) await admin.patch(`/admin/sites/${s.id}`, { active: false });
+    }
+  });
+
+  test('who is inside: "today" starts at the site\'s local midnight, not at UTC midnight', async () => {
+    const { randomUUID } = await import('node:crypto');
+    const { key } = (await admin.post('/admin/access/api-keys', { name: 'HR midnight' })).data;
+    const hr = (method, path, body) => fetch(`${BASE}/integration/v1${path}`, { method, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` }, body: body && JSON.stringify(body) }).then(async (r) => ({ status: r.status, data: await r.json().catch(() => null) }));
+    const mysql = require('mysql2/promise');
+    const db = await mysql.createConnection({ host: env.DB_HOST, port: Number(env.DB_PORT), user: env.DB_USER, password: env.DB_PASSWORD, database: env.DB_NAME });
+    const [[{ id: tenantId }]] = await db.query('SELECT id FROM tenants WHERE slug = ?', [SLUG]);
+    const site = (await admin.post('/admin/sites', { code: 'LI', name: 'Lima', countryCode: 'IT', timezone: 'America/Lima' })).data;
+    const door = (await admin.post('/admin/access/doors', { siteId: site.id, name: 'Ingreso', externalId: 'LI-IN', direction: 'IN' })).data;
+    // Lima is UTC-5 all year. Whatever the hour of the run, one of the two cases falls on different days
+    // in UTC and in local time: before 05:00 UTC, 00:10 local today is yesterday in UTC (must count);
+    // from 05:10 UTC, 23:50 local yesterday is today in UTC (must not count). The other zones make sure
+    // that at every hour of the run at least one case of each kind does, or as many as the hour allows.
+    const zones = [['America/Lima', -5], ['Asia/Tokyo', 9], ['Atlantic/Cape_Verde', -1], ['Africa/Lagos', 1]];
+    let telling = 0, n = 0;
+    try {
+      for (const [tz, offset] of zones) {
+        assert.equal((await admin.patch(`/admin/sites/${site.id}`, { timezone: tz })).status, 200);
+        const now = Date.now();
+        const localDate = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(now));
+        const localMidnight = Date.parse(`${localDate}T00:00:00Z`) - offset * 3_600_000;
+        const utcMidnight = Date.parse(`${new Date(now).toISOString().slice(0, 10)}T00:00:00Z`);
+        // Yesterday 23:50 local, and a moment after local midnight (00:10, or earlier if it is not 00:10 yet).
+        const yesterday = new Date(localMidnight - 10 * 60_000), today = new Date(localMidnight + Math.min(10 * 60_000, Math.floor((now - localMidnight) / 2)));
+        if (yesterday.getTime() >= utcMidnight) telling++;
+        if (today.getTime() < utcMidnight) telling++;
+        const ids = [];
+        for (const [label, at] of [['Ieri', yesterday], ['Oggi', today]]) {
+          const ext = `LI${++n}`;
+          assert.equal((await hr('PUT', `/employees/${ext}`, { firstName: 'Fuso', lastName: `${label} ${n}`, permissions: [] })).status, 200);
+          const emp = (await admin.get('/admin/access/employees')).data.find((e) => e.externalId === ext);
+          await db.query("INSERT INTO access_events (id, tenantId, siteId, doorId, readerId, employeeId, method, result, reason, at, direction) VALUES (?, ?, ?, ?, ?, ?, 'NFC', 'GRANTED', 'OK', ?, 'IN')",
+            [randomUUID(), tenantId, site.id, door.id, randomUUID(), emp.id, at]);
+          ids.push(emp.id);
+        }
+        const r = await admin.get(`/admin/access/inside?siteId=${site.id}`);
+        assert.equal(r.data.timezone, tz);
+        const listed = r.data.people.map((p) => p.employeeId);
+        assert.ok(!listed.includes(ids[0]), `${tz}: a way in at 23:50 yesterday local time (${yesterday.toISOString()}) does not count`);
+        assert.ok(listed.includes(ids[1]), `${tz}: a way in after local midnight (${today.toISOString()}) counts`);
+        // Next zone: these people are out of the way.
+        await db.query('DELETE FROM access_events WHERE tenantId = ? AND siteId = ?', [tenantId, site.id]);
+        for (let i = n - 1; i <= n; i++) await hr('DELETE', `/employees/LI${i}`);
+      }
+      assert.ok(telling >= 1, 'at least one case falls on different days in UTC and in local time');
+    } finally {
+      await db.end();
+      await admin.patch(`/admin/access/doors/${door.id}`, { active: false, direction: 'NONE' });
+      await admin.patch(`/admin/sites/${site.id}`, { active: false, timezone: 'Europe/Rome' });
+    }
+  });
+
+  test('ways out ignore the schedule and need a rule at any door of the site; everything else is checked as before', async () => {
+    const { createHmac, createHash } = await import('node:crypto');
+    const { key } = (await admin.post('/admin/access/api-keys', { name: 'HR exits' })).data;
+    const hr = (method, path, body) => fetch(`${BASE}/integration/v1${path}`, { method, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` }, body: body && JSON.stringify(body) }).then(async (r) => ({ status: r.status, data: await r.json().catch(() => null) }));
+    const mysql = require('mysql2/promise');
+    const db = await mysql.createConnection({ host: env.DB_HOST, port: Number(env.DB_PORT), user: env.DB_USER, password: env.DB_PASSWORD, database: env.DB_NAME });
+    const site = (await admin.post('/admin/sites', { code: 'PD', name: 'Padova', countryCode: 'IT', timezone: 'Europe/Rome' })).data;
+    const doors = async () => (await admin.get('/admin/access/doors')).data;
+    try {
+      const mk = async (name, externalId, direction) => {
+        const r = await admin.post('/admin/access/doors', { siteId: site.id, name, externalId, direction });
+        assert.equal(r.status, 201, JSON.stringify(r.data));
+        return r.data;
+      };
+      const pdIn = await mk('Ingresso PD', 'PD-IN', 'IN'), pdOut = await mk('Uscita PD', 'PD-OUT', 'OUT'), pdNone = await mk('Archivio PD', 'PD-NONE', 'NONE'), pdLater = await mk('Cancello PD', 'PD-LATER', 'NONE');
+      let pairs = 0;
+      const pair = async (d) => {
+        const { code } = (await admin.post(`/admin/access/doors/${d.id}/reader-code`, { name: `Lettore ${d.name}` })).data;
+        const token = (await new Client(`10.9.3.${++pairs}`).post('/reader/pair', { code })).data.readerToken;
+        assert.ok(token, 'reader paired');
+        return token;
+      };
+      const rIn = await pair(pdIn), rOut = await pair(pdOut), rNone = await pair(pdNone), rLater = await pair(pdLater);
+      const verify = (token, body) => new Client().post('/reader/verify', body, { bearer: token }).then((r) => r.data);
+
+      // A window that leaves out the current time at the site (like 08:00-19:00 at 19:30), and a weekday that is not today.
+      const p = Object.fromEntries(new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Rome', weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date()).map((x) => [x.type, x.value]));
+      const minutes = Number(p.hour) * 60 + Number(p.minute), weekday = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].indexOf(p.weekday) + 1;
+      const hhmm = (m) => `${String(Math.floor((m % 1440) / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+      const closed = { from: hhmm(minutes + 60), to: hhmm(minutes + 180) };
+      const otherDay = [(weekday % 7) + 1];
+      const people = {
+        // A schedule on the way out, the way in and the NONE doors, closed now.
+        sched: { firstName: 'Orario', lastName: 'Chiuso', badgeUid: '04:DD:00:01', email: 'orario.out@e2e.test', permissions: ['PD-OUT', 'PD-IN', 'PD-NONE', 'PD-LATER'].map((door) => ({ door, ...closed })) },
+        // Monday to Friday only, or rather: only on a day that is not today.
+        day: { firstName: 'Giorno', lastName: 'Diverso', badgeUid: '04:DD:00:02', permissions: [{ door: 'PD-OUT', days: otherDay }] },
+        // No rule on the way out, one closed rule on another door of the site.
+        other: { firstName: 'Altra', lastName: 'Porta', badgeUid: '04:DD:00:03', permissions: [{ door: 'PD-NONE', ...closed }] },
+        // Rules only at another site (Milan).
+        away: { firstName: 'Altra', lastName: 'Sede', badgeUid: '04:DD:00:04', permissions: [{ door: 'MI-MAIN' }] },
+        // No rules at all.
+        none: { firstName: 'Senza', lastName: 'Regole', badgeUid: '04:DD:00:05', permissions: [] },
+      };
+      const ext = { sched: 'OUT01', day: 'OUT02', other: 'OUT03', away: 'OUT04', none: 'OUT05' };
+      for (const [k, x] of Object.entries(people)) assert.equal((await hr('PUT', `/employees/${ext[k]}`, x)).status, 200, k);
+      const listed = (await admin.get('/admin/access/employees')).data;
+      const id = Object.fromEntries(Object.entries(ext).map(([k, x]) => [k, listed.find((e) => e.externalId === x).id]));
+      const nfc = (k) => ({ nfc: people[k].badgeUid.replace(/:/g, '') });
+
+      // The person is inside (a way in made earlier, written into the log), then goes out after hours (criterion 40).
+      const [[{ tenantId }]] = await db.query('SELECT tenantId FROM sites WHERE id = ?', [site.id]);
+      await db.query("INSERT INTO access_events (id, tenantId, siteId, doorId, readerId, employeeId, method, result, reason, at, direction) VALUES (UUID(), ?, ?, ?, UUID(), ?, 'NFC', 'GRANTED', 'OK', DATE_SUB(UTC_TIMESTAMP(3), INTERVAL 1 MINUTE), 'IN')", [tenantId, site.id, pdIn.id, id.sched]);
+      assert.ok((await admin.get(`/admin/access/inside?siteId=${site.id}`)).data.people.some((x) => x.employeeId === id.sched));
+      let v = await verify(rOut, nfc('sched'));
+      assert.deepEqual([v.result, v.reason], ['GRANTED', 'OK'], 'the way out ignores the time window');
+      const [[ev]] = await db.query("SELECT direction, reason FROM access_events WHERE employeeId = ? AND doorId = ? ORDER BY at DESC LIMIT 1", [id.sched, pdOut.id]);
+      assert.deepEqual([ev.direction, ev.reason], ['OUT', 'OK']);
+      assert.ok(!(await admin.get(`/admin/access/inside?siteId=${site.id}`)).data.people.some((x) => x.employeeId === id.sched), 'no longer inside');
+      // The same window on a way in and on a NONE door still refuses (criterion 45).
+      assert.equal((await verify(rIn, nfc('sched'))).reason, 'OUTSIDE_SCHEDULE');
+      assert.equal((await verify(rNone, nfc('sched'))).reason, 'OUTSIDE_SCHEDULE');
+      // Weekdays (criterion 41), a rule at another door of the site (42), at another site only (43), none (44).
+      assert.equal((await verify(rOut, nfc('day'))).result, 'GRANTED', 'another weekday only');
+      assert.equal((await verify(rOut, nfc('other'))).result, 'GRANTED', 'a rule on another door of the site is enough');
+      assert.equal((await verify(rNone, nfc('other'))).reason, 'OUTSIDE_SCHEDULE', 'that door keeps its window');
+      assert.equal((await verify(rIn, nfc('other'))).reason, 'NO_PERMISSION', 'a way in needs a rule on that door');
+      assert.equal((await verify(rOut, nfc('away'))).reason, 'NO_PERMISSION', 'rules at another site do not count');
+      assert.equal((await verify(rOut, nfc('none'))).reason, 'NO_PERMISSION');
+
+      // Everything else is checked as before (criterion 46).
+      const sched = people.sched;
+      for (const [change, reason] of [[{ active: false }, 'EMPLOYEE_INACTIVE'], [{ validFrom: new Date(Date.now() + 86_400_000).toISOString() }, 'NOT_YET_VALID'], [{ validUntil: new Date(Date.now() - 60_000).toISOString() }, 'EXPIRED']]) {
+        assert.equal((await hr('PUT', `/employees/${ext.sched}`, { ...sched, ...change })).status, 200);
+        assert.equal((await verify(rOut, nfc('sched'))).reason, reason);
+      }
+      assert.equal((await hr('PUT', `/employees/${ext.sched}`, sched)).status, 200);
+      assert.equal((await admin.put(`/admin/access/employees/${id.sched}/apps`, { appsOff: ['access'] })).status, 200);
+      assert.equal((await verify(rOut, nfc('sched'))).reason, 'APP_DISABLED');
+      assert.equal((await admin.put(`/admin/access/employees/${id.sched}/apps`, { appsOff: [] })).status, 200);
+      assert.equal((await admin.patch(`/admin/access/doors/${pdOut.id}`, { active: false })).status, 200);
+      assert.equal((await verify(rOut, nfc('sched'))).reason, 'DOOR_INACTIVE');
+      assert.equal((await admin.patch(`/admin/access/doors/${pdOut.id}`, { active: true })).status, 200);
+      assert.equal((await verify(rOut, nfc('sched'))).result, 'GRANTED');
+
+      // QR codes at a way out: used once, expired after a while (criterion 47).
+      await db.query('UPDATE employees SET loginCodeHash = ?, loginCodeExpiresAt = DATE_ADD(UTC_TIMESTAMP(3), INTERVAL 5 MINUTE), loginCodeAttempts = 0 WHERE id = ?', [createHash('sha256').update(`${id.sched}|135790`).digest('hex'), id.sched]);
+      const badge = (await new Client('10.9.3.20').post('/badge/activate', { email: 'orario.out@e2e.test', code: '135790' })).data;
+      assert.ok(badge.secret, JSON.stringify(badge));
+      const qr = (stepOffset = 0) => {
+        const step = Math.floor(Date.now() / 1000 / 30) + stepOffset;
+        return `DRE1:${badge.employeeId}.${step}.${createHmac('sha256', Buffer.from(badge.secret, 'base64')).update(`${badge.employeeId}.${step}`).digest('hex').slice(0, 16)}`;
+      };
+      const code = qr();
+      assert.equal((await verify(rOut, { qr: code })).result, 'GRANTED');
+      assert.equal((await verify(rOut, { qr: code })).reason, 'QR_USED');
+      assert.equal((await verify(rOut, { qr: qr(-5) })).reason, 'QR_EXPIRED');
+
+      // A door that becomes a way out during the day (criterion 48): the refusal before the change stays.
+      assert.equal((await verify(rLater, nfc('sched'))).reason, 'OUTSIDE_SCHEDULE');
+      assert.equal((await admin.patch(`/admin/access/doors/${pdLater.id}`, { direction: 'OUT' })).status, 200);
+      assert.equal((await verify(rLater, nfc('sched'))).result, 'GRANTED');
+      const [later] = await db.query('SELECT result, reason, direction FROM access_events WHERE doorId = ? ORDER BY at', [pdLater.id]);
+      assert.deepEqual(later.map((x) => [x.result, x.reason, x.direction]), [['DENIED', 'OUTSIDE_SCHEDULE', 'NONE'], ['GRANTED', 'OK', 'OUT']]);
+      for (const k of Object.keys(ext)) await hr('DELETE', `/employees/${ext[k]}`);
+    } finally {
+      await db.end();
+      for (const d of (await doors()).filter((x) => x.siteId === site.id)) await admin.patch(`/admin/access/doors/${d.id}`, { active: false, direction: 'NONE' });
+      await admin.patch(`/admin/sites/${site.id}`, { active: false });
+    }
+  });
+
   test('employees by hand: the administrator creates, edits and deletes; a sync from the HR system takes over', async () => {
     const door = (await admin.post('/admin/access/doors', { siteId: ctx.milano.id, name: 'Ingresso manuale', externalId: 'MI-HAND' })).data;
     const base = { firstName: 'Lucia', lastName: 'Ferri', email: 'lucia@e2e.test', department: 'Acquisti', badgeUid: '0A:0B:0C:0D', permissions: [{ door: 'MI-HAND', days: [1, 2, 3, 4, 5], from: '07:00', to: '20:00' }] };
@@ -1344,7 +1778,13 @@ describe('end-to-end', { skip: !enabled && 'E2E_DB_HOST not set' }, () => {
     // Used QR codes only block a second use for about 90 seconds: old ones go, a fresh one stays.
     const qrDoor = '00000000-0000-4000-8000-0000000000a1', qrEmployee = '00000000-0000-4000-8000-0000000000e1';
     await db.query('INSERT INTO access_qr_uses (tenantId, doorId, employeeId, step, usedAt) VALUES (?, ?, ?, 1, DATE_SUB(UTC_TIMESTAMP(3), INTERVAL 20 MINUTE)), (?, ?, ?, 2, UTC_TIMESTAMP(3))', [t.id, qrDoor, qrEmployee, t.id, qrDoor, qrEmployee]);
-    await run('node', ['dist/database/run-retention.js'], { env: { ...env, AUDIT_LOG_RETENTION_DAYS: '365' } });
+    // Ways out marked by hand follow the access log's retention, like the passages at a door.
+    const addEvent = (days, method, reason) => db.query("INSERT INTO access_events (id, tenantId, siteId, doorId, readerId, employeeId, method, result, reason, at, direction) VALUES (UUID(), ?, ?, ?, ?, ?, ?, 'GRANTED', ?, DATE_SUB(UTC_TIMESTAMP(3), INTERVAL ? DAY), 'OUT')",
+      [t.id, ctx.milano.id, method === 'MAN' ? null : qrDoor, method === 'MAN' ? null : qrDoor, qrEmployee, method, reason, days]);
+    await addEvent(100, 'MAN', 'E2E_RET_MAN_OLD'); await addEvent(100, 'NFC', 'E2E_RET_NFC_OLD'); await addEvent(10, 'MAN', 'E2E_RET_MAN_NEW');
+    await run('node', ['dist/database/run-retention.js'], { env: { ...env, AUDIT_LOG_RETENTION_DAYS: '365', ACCESS_LOG_RETENTION_DAYS: '90' } });
+    const [evRows] = await db.query("SELECT reason FROM access_events WHERE tenantId = ? AND reason LIKE 'E2E_RET_%'", [t.id]);
+    assert.deepEqual(evRows.map((r) => r.reason), ['E2E_RET_MAN_NEW'], 'the same retention for ways out marked by hand');
     const [rows] = await db.query("SELECT action FROM audit_logs WHERE tenantId = ? AND action LIKE 'E2E_%'", [t.id]);
     const [qrRows] = await db.query('SELECT step FROM access_qr_uses WHERE tenantId = ? AND doorId = ?', [t.id, qrDoor]);
     await db.query('DELETE FROM access_qr_uses WHERE tenantId = ? AND doorId = ?', [t.id, qrDoor]);
@@ -1451,6 +1891,8 @@ describe('end-to-end', { skip: !enabled && 'E2E_DB_HOST not set' }, () => {
     const mysql = require('mysql2/promise');
     const db = await mysql.createConnection({ host: env.DB_HOST, port: Number(env.DB_PORT), user: env.DB_USER, password: env.DB_PASSWORD, database: env.DB_NAME });
     const [[t]] = await db.query('SELECT id FROM tenants WHERE slug = ?', [SLUG]);
+    const [[man]] = await db.query("SELECT COUNT(*) AS n FROM access_events WHERE tenantId = ? AND method = 'MAN'", [t.id]);
+    assert.ok(Number(man.n) > 0, 'there are ways out marked by hand to delete');
     await run('node', ['dist/cli/tenants.js', 'delete', '--slug', SLUG, '--confirm', SLUG], { env });
     const [[h]] = await db.query('SELECT COUNT(*) AS n FROM hosts WHERE tenantId = ?', [t.id]);
     const [[v]] = await db.query('SELECT COUNT(*) AS n FROM visits WHERE tenantId = ?', [t.id]);
