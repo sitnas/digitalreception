@@ -314,7 +314,30 @@ describe('end-to-end', { skip: !enabled && 'E2E_DB_HOST not set' }, () => {
       const step = Math.floor(Date.now() / 1000 / 30) + stepOffset;
       return `DRE1:${badge.employeeId}.${step}.${createHmac('sha256', Buffer.from(secret, 'base64')).update(`${badge.employeeId}.${step}`).digest('hex').slice(0, 16)}`;
     };
-    assert.equal((await verify(mainReader, { qr: qr() })).result, 'GRANTED');
+    // One code opens a given door once: a screenshot passed to a colleague is refused there.
+    const code = qr();
+    assert.equal((await verify(mainReader, { qr: code })).result, 'GRANTED');
+    const reused = await verify(mainReader, { qr: code });
+    assert.equal(reused.result, 'DENIED'); assert.equal(reused.reason, 'QR_USED', 'the same code at the same door');
+    // A refused attempt does not use the code up: denied at the lab, allowed there once permitted.
+    assert.equal((await verify(labReader, { qr: code })).reason, 'OUTSIDE_SCHEDULE');
+    assert.equal((await api('PUT', '/employees/E001', { ...person, permissions: [{ door: 'MI-MAIN' }, { door: 'MI-LAB' }] }, key)).status, 200);
+    try {
+      assert.equal((await verify(labReader, { qr: code })).result, 'GRANTED', 'the same code at another door, after a refusal there');
+      assert.equal((await verify(labReader, { qr: code })).reason, 'QR_USED');
+      // The next code the phone shows opens the door again.
+      assert.equal((await verify(mainReader, { qr: qr(1) })).result, 'GRANTED', 'the next step is a new code');
+      // Two readers scanning the same code at the same instant: the database lets exactly one through.
+      const next = qr(1);
+      const burst = await Promise.all(Array.from({ length: 5 }, () => verify(labReader, { qr: next })));
+      assert.equal(burst.filter((r) => r.result === 'GRANTED').length, 1, JSON.stringify(burst.map((r) => r.reason)));
+      assert.ok(burst.filter((r) => r.result === 'DENIED').every((r) => r.reason === 'QR_USED'));
+      const [[used]] = await db.query("SELECT COUNT(*) AS n FROM access_events WHERE employeeId = ? AND reason = 'QR_USED' AND result = 'DENIED'", [emp.id]);
+      assert.equal(Number(used.n), 6, 'each refused reuse is in the access log');
+    } finally {
+      // Back to the original permissions, so a failure here does not spill into the next checks.
+      await api('PUT', '/employees/E001', person, key);
+    }
     assert.equal((await verify(mainReader, { qr: qr(-5) })).reason, 'QR_EXPIRED', 'a screenshot stops working');
     const forged = await verify(mainReader, { qr: qr(0, Buffer.alloc(32).toString('base64')) });
     assert.equal(forged.reason, 'QR_INVALID', 'forged signature');
@@ -1144,10 +1167,16 @@ describe('end-to-end', { skip: !enabled && 'E2E_DB_HOST not set' }, () => {
     const add = (days, action) => db.query("INSERT INTO audit_logs (tenantId, at, actorType, actorId, actorLabel, action, ip) VALUES (?, DATE_SUB(UTC_TIMESTAMP(3), INTERVAL ? DAY), 'USER', NULL, 'old@e2e.test', ?, '203.0.113.9')", [t.id, days, action]);
     await add(400, 'E2E_OLD_ENTRY');
     await add(30, 'E2E_RECENT_ENTRY');
+    // Used QR codes only block a second use for about 90 seconds: old ones go, a fresh one stays.
+    const qrDoor = '00000000-0000-4000-8000-0000000000a1', qrEmployee = '00000000-0000-4000-8000-0000000000e1';
+    await db.query('INSERT INTO access_qr_uses (tenantId, doorId, employeeId, step, usedAt) VALUES (?, ?, ?, 1, DATE_SUB(UTC_TIMESTAMP(3), INTERVAL 20 MINUTE)), (?, ?, ?, 2, UTC_TIMESTAMP(3))', [t.id, qrDoor, qrEmployee, t.id, qrDoor, qrEmployee]);
     await run('node', ['dist/database/run-retention.js'], { env: { ...env, AUDIT_LOG_RETENTION_DAYS: '365' } });
     const [rows] = await db.query("SELECT action FROM audit_logs WHERE tenantId = ? AND action LIKE 'E2E_%'", [t.id]);
+    const [qrRows] = await db.query('SELECT step FROM access_qr_uses WHERE tenantId = ? AND doorId = ?', [t.id, qrDoor]);
+    await db.query('DELETE FROM access_qr_uses WHERE tenantId = ? AND doorId = ?', [t.id, qrDoor]);
     await db.end();
     assert.deepEqual(rows.map((r) => r.action), ['E2E_RECENT_ENTRY']);
+    assert.deepEqual(qrRows.map((r) => r.step), [2], 'used QR codes older than a few minutes are deleted');
   });
 
   test('webhooks: Slack and signed generic notifications for a denied badge, test message, validation', async () => {
@@ -1175,10 +1204,27 @@ describe('end-to-end', { skip: !enabled && 'E2E_DB_HOST not set' }, () => {
       const { code } = (await admin.post(`/admin/access/doors/${door.id}/reader-code`, { name: 'Lettore hook' })).data;
       const token = (await new Client().post('/reader/pair', { code })).data.readerToken;
       assert.equal((await new Client().post('/reader/verify', { nfc: 'DEADBEEF01' }, { bearer: token })).data.result, 'DENIED');
+      // A phone badge QR shown twice at the same door: the second scan is refused and notified too.
+      const ida = (await admin.post('/admin/access/employees', { firstName: 'Ida', lastName: 'Gancio', email: 'ida.hook@e2e.test', permissions: [{ door: 'MI-HOOK' }] })).data;
+      {
+        const { createHash } = await import('node:crypto');
+        const mysql = require('mysql2/promise');
+        const db = await mysql.createConnection({ host: env.DB_HOST, port: Number(env.DB_PORT), user: env.DB_USER, password: env.DB_PASSWORD, database: env.DB_NAME });
+        await db.query('UPDATE employees SET loginCodeHash = ?, loginCodeExpiresAt = DATE_ADD(UTC_TIMESTAMP(3), INTERVAL 5 MINUTE), loginCodeAttempts = 0 WHERE id = ?', [createHash('sha256').update(`${ida.id}|135790`).digest('hex'), ida.id]);
+        await db.end();
+      }
+      const idaBadge = (await new Client('10.9.0.24').post('/badge/activate', { email: 'ida.hook@e2e.test', code: '135790' })).data;
+      const step = Math.floor(Date.now() / 1000 / 30);
+      const idaQr = `DRE1:${idaBadge.employeeId}.${step}.${createHmac('sha256', Buffer.from(idaBadge.secret, 'base64')).update(`${idaBadge.employeeId}.${step}`).digest('hex').slice(0, 16)}`;
+      assert.equal((await new Client().post('/reader/verify', { qr: idaQr }, { bearer: token })).data.result, 'GRANTED');
+      assert.equal((await new Client().post('/reader/verify', { qr: idaQr }, { bearer: token })).data.reason, 'QR_USED');
       got.length = 0;
       await run('node', ['dist/database/run-retention.js'], { env });
-      const s = got.find((g) => g.path === '/slack'), g = got.find((x) => x.path === '/generic');
+      const s = got.find((g) => g.path === '/slack' && /badge non riconosciuto/.test(g.body.text)), g = got.find((x) => x.path === '/generic' && x.body.data.reason === 'UNKNOWN_CREDENTIAL');
       assert.match(s.body.text, /Accesso negato alla porta Magazzino hook \(Milano\): badge non riconosciuto/);
+      assert.ok(got.some((x) => x.path === '/slack' && x.body.text === 'Accesso negato alla porta Magazzino hook (Milano): QR già usato su questa porta, Ida Gancio.'), JSON.stringify(got.map((x) => x.body.text)));
+      assert.ok(got.some((x) => x.path === '/generic' && x.body.event === 'access.denied' && x.body.data.reason === 'QR_USED'), 'the reused QR reaches the generic webhook');
+      assert.equal((await admin.del(`/admin/access/employees/${ida.id}`)).status, 200);
       assert.equal(g.body.event, 'access.denied'); assert.equal(g.body.data.door, 'Magazzino hook');
       const raw = JSON.stringify(g.body);
       assert.equal(g.headers['x-dr-signature'], `sha256=${createHmac('sha256', generic.secret).update(`${g.headers['x-dr-timestamp']}.${raw}`).digest('hex')}`);

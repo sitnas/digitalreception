@@ -153,6 +153,11 @@ test('webhook messages: names only when allowed, Teams gets an Adaptive Card, ge
   const g = svc.render({ kind: 'generic', includeNames: false }, ev, 'whsec_test');
   assert.equal(JSON.parse(g.body).data.visitor, undefined, 'no names unless allowed');
   assert.equal(g.headers['X-DR-Signature'], `sha256=${createHmac('sha256', 'whsec_test').update(`${g.headers['X-DR-Timestamp']}.${g.body}`).digest('hex')}`);
+  // A QR code shown twice at the same door is explained in each language, not as a bare code.
+  const reused = (locale) => JSON.parse(svc.render({ kind: 'slack', includeNames: false }, { event: 'access.denied', at: ev.at, data: { site: 'Milano', door: 'Ingresso', reason: 'QR_USED', locale } }, null).body).text;
+  assert.equal(reused('it'), 'Accesso negato alla porta Ingresso (Milano): QR già usato su questa porta.');
+  assert.equal(reused('es'), 'Acceso denegado en la puerta Ingresso (Milano): QR ya usado en esta puerta.');
+  assert.equal(reused('en'), 'Access denied at door Ingresso (Milano): QR already used at this door.');
 });
 
 test('push: only real browser push services and well-formed Expo tokens are accepted', () => {

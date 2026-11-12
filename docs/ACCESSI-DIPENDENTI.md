@@ -183,7 +183,9 @@ Motivi di rifiuto mostrati dal lettore e in console (`reason`):
 | `UNKNOWN_CREDENTIAL` | Credenziale non riconosciuta |
 | `QR_INVALID` | QR non valido |
 | `QR_EXPIRED` | QR scaduto, tipicamente una foto o uno screenshot |
+| `QR_USED` | Lo stesso codice ha già aperto questa porta; il lettore dice di aspettare il codice nuovo sul telefono |
 | `EMPLOYEE_INACTIVE` | Dipendente non attivo |
+| `APP_DISABLED` | Porte non attive per questa persona: sono spente nella sua scheda, in "App per questa persona" |
 | `NOT_YET_VALID` | Periodo di validità non ancora iniziato |
 | `EXPIRED` | Periodo di validità terminato |
 | `DOOR_INACTIVE` | Porta disattivata |
@@ -216,7 +218,10 @@ Lo stesso pulsante c'è sulla pagina web `/badge`: dopo Microsoft o Google il br
 
 - **Attivazione**: dopo il codice via email il server genera un segreto casuale di 32 byte. Lo salva cifrato con la chiave dell'organizzazione e lo consegna una sola volta al telefono.
 - **Generazione del QR**: il telefono calcola ogni 30 secondi `DRE1:<id>.<passo>.<firma>`, dove la firma è un HMAC-SHA256 del passo temporale. Il QR si genera anche senza connessione.
-- **Verifica**: il server accetta il passo corrente e quelli vicini (±30 secondi). I codici più vecchi vengono rifiutati come `QR_EXPIRED`, quindi una foto passata a un collega smette di funzionare entro un minuto.
+- **Verifica**: il server accetta il passo corrente, il precedente e il successivo, quindi un codice resta valido per circa 90 secondi; i codici più vecchi li rifiuta come `QR_EXPIRED`.
+- **Un codice, una volta per porta**: ogni coppia dipendente e passo apre ciascuna porta una sola volta, e il secondo uso sulla stessa porta riceve `QR_USED`. Vale anche per il codice che l'app Android trasmette via NFC, con più lettori sulla stessa porta e con più repliche dell'API, perché decide un vincolo UNIQUE nella tabella `access_qr_uses`. Consuma il codice solo un accesso concesso: un rifiuto per permesso o orario lo lascia valido. Finché è valido, lo stesso codice apre ancora un'altra porta per cui la persona ha il permesso. Il job di conservazione, ogni 30 minuti, cancella le righe più vecchie di 10 minuti.
+- **Se il titolare ripassa subito**: chi torna alla stessa porta entro i 30 secondi dello stesso codice riceve `QR_USED` finché il telefono non mostra il codice successivo, cioè al massimo 30 secondi. Lo stesso lettore, per 90 secondi, ignora in silenzio un QR identico a quello appena letto, quindi il messaggio compare soprattutto su un secondo lettore della stessa porta.
+- **Cosa resta possibile**: uno screenshot usato prima del titolare apre ancora una volta ogni porta permessa, nei circa 90 secondi di validità. L'anti-passback (non si rientra senza essere usciti) non c'è ancora: vedi [ROADMAP.md](ROADMAP.md).
 - **Telefono perso o cambiato**: in **Dipendenti** si usa "Disattiva badge telefono". Il dipendente lo riattiva con un nuovo codice, e attivarlo su un nuovo telefono disattiva quello vecchio.
 - **Togliere il badge dal telefono**: il dipendente lo fa da sé in **Impostazioni**, il link sotto il badge nell'app e su `/badge`. Il badge smette di funzionare anche sul server. In **Dipendenti** l'interruttore "I dipendenti possono togliere il badge dal proprio telefono" (lo cambia solo il ruolo Amministratore) toglie questa possibilità: il tasto sparisce e la richiesta viene rifiutata (`SELF_REMOVE_DISABLED`), quindi il badge lo disattiva solo la console. Un badge già disattivato dalla console si può sempre togliere dal telefono, per poterlo attivare di nuovo. Disinstallare l'app resta comunque possibile.
 - **Protezioni del codice email**: vale 10 minuti, ha al massimo 5 tentativi e ci sono limiti di richieste al minuto. La richiesta del codice risponde sempre allo stesso modo, così non si può scoprire quali email sono registrate.

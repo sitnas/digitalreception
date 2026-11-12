@@ -6,7 +6,7 @@ import { DataSource, In, MoreThan, Repository } from 'typeorm';
 import { CryptoService } from '../common/crypto.service';
 import { MailService } from '../common/mail.service';
 import { TenantKeysService } from '../common/tenant-keys.service';
-import { AccessEvent, AccessMethod, AccessResult, AccessRule, CountryPolicy, Door, Employee, EmployeeSource, Host, Project, PushDevice, Site, Tenant, ParkingBooking } from '../entities';
+import { AccessEvent, AccessMethod, AccessQrUse, AccessResult, AccessRule, CountryPolicy, Door, Employee, EmployeeSource, Host, Project, PushDevice, Site, Tenant, ParkingBooking } from '../entities';
 import { WebhooksService } from '../common/webhooks.service';
 
 /** Phone badge QR: DRE1:<employeeId>.<time step>.<signature>; a new code every QR_STEP_S seconds. */
@@ -16,6 +16,9 @@ const QR_SIG_HEX = 16;
 /** Codes up to this many steps old are reported as "expired" (a photo or screenshot), older ones as invalid. */
 const QR_EXPIRED_WINDOW = 20;
 const LOGIN_CODE_TTL_MIN = 10;
+/** Used QR codes are kept this long (the reader accepts a code for about 90 s; margin for clocks between replicas). */
+export const QR_USE_KEEP_MIN = 10;
+const isDuplicate = (e: unknown) => (e as { code?: string })?.code === 'ER_DUP_ENTRY';
 const LOGIN_CODE_MAX_ATTEMPTS = 5;
 
 export interface PermissionInput { door: string; days?: number[]; from?: string; to?: string }
@@ -235,6 +238,8 @@ export class AccessService {
     const tc = await this.keys.forTenant(reader.tenantId);
     let employee: Employee | null = null;
     let reason: string | null = null;
+    /** Step of a QR whose signature and time are valid: if the door opens, the code is used up there. */
+    let qrStep: number | null = null;
 
     if (input.qr) {
       const m = new RegExp(`^${QR_PREFIX}([0-9a-f-]{36})\\.(\\d{1,12})\\.([0-9a-f]{${QR_SIG_HEX}})$`).exec(input.qr.trim());
@@ -253,6 +258,7 @@ export class AccessService {
           if (!sigOk) { reason = 'QR_INVALID'; employee = null; }
           else if (claimed > step + 1) reason = 'QR_INVALID';
           else if (claimed < step - 1) reason = step - claimed <= QR_EXPIRED_WINDOW ? 'QR_EXPIRED' : 'QR_INVALID';
+          else qrStep = claimed;
         }
       }
     } else {
@@ -276,10 +282,23 @@ export class AccessService {
       }
     }
 
-    const result = reason ? AccessResult.DENIED : AccessResult.GRANTED;
     const first = employee && tc.decrypt(employee.firstNameEnc, 'employee.firstName');
     const last = employee && tc.decrypt(employee.lastNameEnc, 'employee.lastName');
-    await this.ds.transaction(async (em) => {
+    const checked = reason;
+    const result = await retryOnDeadlock(() => this.ds.transaction(async (em) => {
+      reason = checked;
+      // One QR code opens a door once (a screenshot passed on is refused). Only an access that would be
+      // granted uses it up; the unique index decides between two readers scanning at the same instant,
+      // with this transaction's connection (a second one from the pool here can deadlock under load).
+      if (!reason && employee && qrStep !== null) {
+        try {
+          await em.insert(AccessQrUse, { tenantId: reader.tenantId, doorId: door.id, employeeId: employee.id, step: qrStep, usedAt: now });
+        } catch (e) {
+          if (!isDuplicate(e)) throw e;
+          reason = 'QR_USED';
+        }
+      }
+      const result = reason ? AccessResult.DENIED : AccessResult.GRANTED;
       await em.save(em.create(AccessEvent, {
         tenantId: reader.tenantId, siteId: door.siteId, doorId: door.id, readerId: reader.id,
         employeeId: employee?.id ?? null, method, result, reason: reason ?? 'OK', at: now,
@@ -290,7 +309,8 @@ export class AccessService {
           site: site.name, door: door.name, reason, locale: policy?.defaultLocale ?? 'en', employee: first && last ? `${first} ${last}` : null,
         });
       }
-    });
+      return result;
+    }));
     // The reader shows who it recognised only to the person standing there: first name and initial.
     return { result, reason: reason ?? 'OK', name: first && last ? `${first} ${last.charAt(0)}.` : null, door: door.name, at: now };
   }

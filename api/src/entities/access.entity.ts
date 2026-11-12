@@ -117,6 +117,23 @@ export class AccessEvent {
   @Column({ type: 'datetime', precision: 3 }) at: Date;
 }
 
+/**
+ * A phone badge QR that opened a door: each code (employee + 30-second step) opens a given door once,
+ * so a screenshot passed to a colleague is refused there. The unique index is the check, even with two
+ * readers scanning at the same instant. Rows matter for about 90 seconds; the retention job deletes them.
+ */
+@Entity('access_qr_uses')
+@Index('IDX_access_qr_uses_code', ['tenantId', 'doorId', 'employeeId', 'step'], { unique: true })
+@Index('IDX_access_qr_uses_at', ['usedAt'])
+export class AccessQrUse {
+  @PrimaryGeneratedColumn('increment', { type: 'bigint' }) id: string;
+  @Column({ type: 'uuid' }) tenantId: string;
+  @Column({ type: 'uuid' }) doorId: string;
+  @Column({ type: 'uuid' }) employeeId: string;
+  @Column({ type: 'int' }) step: number;
+  @Column({ type: 'datetime', precision: 3 }) usedAt: Date;
+}
+
 /** Key used by the external system to call the integration API. Only its SHA-256 is stored. */
 @Entity('api_keys')
 export class ApiKey {

@@ -46,6 +46,8 @@ Il traffico è diviso tra le organizzazioni in proporzione alle dimensioni: quel
 | hr | il gestionale HR aggiorna i dipendenti, con i permessi alle porte | `PUT /api/integration/v1/employees/:id` |
 | mixed | tutto insieme: porte 50%, app 30%, console 10%, check-in 5%, HR 5% | |
 
+Da quando il QR è monouso per porta, ogni accesso QR concesso fa un INSERT in più (nella tabella `access_qr_uses`), mentre i rifiuti non leggono nulla in più; le misure di questa pagina sono di ottobre, prima di quella modifica, e lo scenario doors rilanciato oggi riceve `QR_USED` ogni volta che ripete la stessa persona alla stessa porta nello stesso passo da 30 secondi.
+
 Ogni scenario gira 20 secondi a 10, 50 e 100 connessioni contemporanee. Una connessione manda la richiesta successiva appena riceve la risposta: 100 connessioni equivalgono a migliaia di dispositivi reali, che aspettano secondi tra una richiesta e l'altra.
 
 ## Risultati

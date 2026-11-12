@@ -2,7 +2,7 @@
 
 Ottobre 2026. Cosa resta da fare, in ordine. Prima il lavoro di sviluppo, poi le attività che non sono codice (prove, verifiche esterne, decisioni). Le sigle M1, B3… sono quelle dell'[audit CISO](AUDIT-CISO.md).
 
-Le stime sono giornate di sviluppo e test di una persona, revisione esclusa. Quando una voce è fatta, si segna qui con il numero della PR.
+Le stime sono giornate di sviluppo e test di una persona, revisione esclusa. Quando una voce è fatta, si segna qui con il numero della PR. Il numero identifica la voce e non dice l'ordine: una voce nuova prende il primo numero libero, anche se finisce in mezzo alla tabella.
 
 ## Sviluppo
 
@@ -12,7 +12,7 @@ Prima di tutto, perché costano poco e sono le prime domande di un CISO.
 
 | # | Intervento | Perché | Dove | Stima | Stato |
 |---|---|---|---|---|---|
-| 1 | **QR del badge monouso per porta** (M1), più anti-passback facoltativo per porta | Oggi uno screenshot girato a un collega apre la porta per circa 90 secondi | `api/src/access/access.service.ts`, una tabella dei codici usati che scade dopo 2 minuti | 2-3 g | da fare |
+| 1 | **QR del badge monouso per porta** (M1), più anti-passback facoltativo per porta | Prima uno screenshot girato a un collega apriva la stessa porta per circa 90 secondi; ora la apre una volta sola, e solo se arriva prima del titolare | `api/src/access/access.service.ts`, tabella `access_qr_uses` dei codici usati, ripulita dopo 10 minuti | 2-3 g | in parte: monouso per porta fatto (PR in arrivo), anti-passback da fare |
 | 2 | **Timeout per inattività della console** (B3), configurabile, di default 30 minuti | Un PC della reception lasciato aperto resta collegato per 8 ore | sessione in `api/src/auth`, avviso in console prima della scadenza | 0,5 g | da fare |
 | 3 | **Ritardo crescente al posto del blocco fisso** (M5) | Chi conosce l'email di un amministratore può tenerlo fuori a ripetizione | `api/src/auth` | 1 g | da fare |
 | 4 | **Verifica in due passaggi obbligatoria** per Amministratore e Auditor senza SSO (B1) | L'Auditor vede documenti e foto dei visitatori con la sola password | `api/src/auth`, impostazione in Organizzazione | 0,5 g | da fare |
@@ -36,6 +36,8 @@ Prima di tutto, perché costano poco e sono le prime domande di un CISO.
 | 12 | **Dipendenze** (M2): NestJS 12, react-router, SDK Expo | Avvisi noti, nessuno critico né raggiungibile, ma vanno chiusi | 3-5 g | da fare |
 | 13 | **Chiavi master in un KMS** (M4): AWS KMS, Azure Key Vault o Vault | Chi legge l'ambiente del container può decifrare tutto | 3-4 g per un fornitore | da fare |
 | 14 | **Lista dei presenti paginata** | Costa circa 0,13 ms per ospite: va bene per ogni reception reale, ma è l'unica schermata che cresce con i dati | 1 g | quando serve |
+| 18 | **Paragrafo "Il telefono come tessera"** in [ACCESSI-DIPENDENTI.md](ACCESSI-DIPENDENTI.md) da riscrivere | Dice che serve un'app nativa, ma l'app Android fa già da tessera NFC (`mobile/modules/badge-nfc`) | da stimare | da fare |
+| 19 | **Scenario `doors` di `load/run.mjs` adattato al QR monouso**, prima di rimisurare | Ripete persone e porte a caso nello stesso passo da 30 secondi: oggi molte richieste finirebbero in `QR_USED` e le misure non direbbero quanto costa un accesso concesso | da stimare | da fare |
 
 ### P4 — Prima del primo cliente regolato (NIS2, DORA)
 

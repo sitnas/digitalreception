@@ -12,6 +12,7 @@ import { VisitLifecycleService } from '../common/visit-lifecycle.service';
 import { expiredParcels } from '../admin/parcels.controller';
 import { AccessEvent, CountryPolicy, Invitation, Parcel, Site, SsoRequest, StoredFile, Visit, VisitStatus, WebhookDelivery, PushDelivery } from '../entities';
 import { INVITATION_KEEP_DAYS } from '../invitations/invitations.service';
+import { QR_USE_KEEP_MIN } from '../access/access.service';
 
 const BATCH = 500;
 
@@ -24,7 +25,9 @@ const BATCH = 500;
  *  5. employee access events are deleted after cfg.access.logRetentionDays;
  *  6. audit trail entries (they hold IPs and emails) are deleted after cfg.audit.retentionDays;
  *  7. single sign-on attempts left unfinished are deleted once expired;
- *  8. webhook deliveries (they may hold visitor names) are deleted after 7 days.
+ *  8. webhook deliveries (they may hold visitor names) are deleted after 7 days;
+ *  9. phone badge QR codes used at a door are forgotten after QR_USE_KEEP_MIN minutes (they only
+ *     block a second use while the code is still accepted, about 90 seconds).
  * Runs on one replica at a time (DB lock), in bounded batches so it scales with data volume.
  */
 @Injectable()
@@ -107,6 +110,13 @@ export class RetentionService {
     await this.ds.getRepository(SsoRequest).delete({ expiresAt: LessThan(now) });
     await this.ds.getRepository(WebhookDelivery).delete({ createdAt: LessThan(addDays(now, -7)) });
     await this.ds.getRepository(PushDelivery).delete({ createdAt: LessThan(addDays(now, -7)) });
+    // Here rather than at the door: the door path stays at one extra write per granted QR. Between two
+    // runs the table holds at most half an hour of granted QR accesses; deleted in batches all the same.
+    const qrCutoff = new Date(now.getTime() - QR_USE_KEEP_MIN * 60_000);
+    for (;;) {
+      const r: { affectedRows?: number } = await this.ds.query('DELETE FROM `access_qr_uses` WHERE `usedAt` < ? LIMIT 5000', [qrCutoff]);
+      if ((r.affectedRows ?? 0) < 5000) break;
+    }
     await this.ds.query('DELETE FROM throttle_counters WHERE expiresAt < UTC_TIMESTAMP(3) AND (blockedUntil IS NULL OR blockedUntil < UTC_TIMESTAMP(3))');
 
     for (const [tenantId, s] of stats) {
