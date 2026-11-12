@@ -413,6 +413,13 @@ describe('end-to-end', { skip: !enabled && 'E2E_DB_HOST not set' }, () => {
       assert.equal(putBad.status, 400); assert.equal(putBad.data.message, 'ANTI_PASSBACK_IN_ONLY');
       assert.equal((await api('PUT', '/doors/TO-OUT', { siteCode: 'TO', name: 'Uscita', antiPassback: true })).data.message, 'ANTI_PASSBACK_IN_ONLY', 'the stored OUT counts');
       assert.equal((await doors()).find((x) => x.externalId === 'TO-IN2').antiPassback, true, 'a refused PUT changes nothing');
+      // The integration log keeps the previous direction and switch when they change, as DOOR_UPDATED does.
+      assert.equal((await api('PUT', '/doors/TO-IN2', { siteCode: 'TO', name: 'Ingresso carraio', antiPassback: false })).status, 200);
+      assert.equal((await api('PUT', '/doors/TO-IN2', { siteCode: 'TO', name: 'Ingresso carraio', antiPassback: true })).status, 200);
+      const upserts = (await admin.get(`/admin/audit?action=API_DOOR_UPSERT&entityId=${in2.id}`)).data.items.map((a) => (typeof a.details === 'string' ? JSON.parse(a.details) : a.details));
+      assert.ok(upserts.some((x) => x.antiPassback === true && x.before?.antiPassback === false && x.before?.direction === 'IN'), JSON.stringify(upserts));
+      assert.ok(upserts.some((x) => x.antiPassback === false && x.before?.antiPassback === true), JSON.stringify(upserts));
+      assert.equal(upserts.filter((x) => x.before).length, 2, `no "before" when nothing changes or on creation: ${JSON.stringify(upserts)}`);
 
       // ---- at the doors
       const person = { firstName: 'Lia', lastName: 'Ferro', email: 'lia.ap@e2e.test', badgeUid: '04:BB:00:01', permissions: ['TO-IN', 'TO-IN2', 'TO-OUT', 'TO-SIDE'].map((door) => ({ door })) };
@@ -438,7 +445,7 @@ describe('end-to-end', { skip: !enabled && 'E2E_DB_HOST not set' }, () => {
 
       // A way in yesterday, never followed by a way out, does not count today.
       const [[{ tenantId }]] = await db.query('SELECT tenantId FROM doors WHERE id = ?', [inDoor.id]);
-      await db.query("INSERT INTO access_events (id, tenantId, siteId, doorId, readerId, employeeId, method, result, reason, at) VALUES (?, ?, ?, ?, ?, ?, 'NFC', 'GRANTED', 'OK', ?)",
+      await db.query("INSERT INTO access_events (id, tenantId, siteId, doorId, readerId, employeeId, method, result, reason, at, direction) VALUES (?, ?, ?, ?, ?, ?, 'NFC', 'GRANTED', 'OK', ?, 'IN')",
         [randomUUID(), tenantId, site.id, inDoor.id, randomUUID(), emp.id, new Date(Date.now() - 26 * 3_600_000)]);
 
       let v = await verify(rIn, nfc);
@@ -465,12 +472,27 @@ describe('end-to-end', { skip: !enabled && 'E2E_DB_HOST not set' }, () => {
       assert.equal(burst.filter((r) => r.result === 'GRANTED').length, 1, JSON.stringify(burst.map((r) => r.reason)));
       assert.ok(burst.filter((r) => r.result === 'DENIED').every((r) => r.reason === 'ANTI_PASSBACK'), JSON.stringify(burst.map((r) => r.reason)));
 
+      // A door's direction changed during the day does not rewrite the passages made through it: each
+      // event keeps the direction the door had at that moment.
+      assert.equal((await verify(rOut, nfc)).result, 'GRANTED');
+      assert.equal((await admin.patch(`/admin/access/doors/${outDoor.id}`, { direction: 'NONE' })).status, 200);
+      assert.equal((await verify(rIn, nfc)).result, 'GRANTED', 'the way out made before the door became NONE still counts');
+      assert.equal((await admin.patch(`/admin/access/doors/${outDoor.id}`, { direction: 'OUT' })).status, 200);
+      assert.equal((await admin.patch(`/admin/access/doors/${inDoor.id}`, { direction: 'NONE' })).status, 200);
+      assert.equal((await verify(rIn2, nfc)).reason, 'ANTI_PASSBACK', 'the way in made before the door became NONE still counts');
+      assert.equal((await admin.patch(`/admin/access/doors/${outDoor.id}`, { direction: 'NONE' })).status, 200);
+      assert.equal((await verify(rIn2, nfc)).reason, 'ANTI_PASSBACK', 'a way out turned NONE after a way in changes nothing');
+      const [stored] = await db.query('SELECT doorId, direction FROM access_events WHERE tenantId = ? AND employeeId = ? AND result = ? AND at >= DATE_SUB(UTC_TIMESTAMP(3), INTERVAL 1 HOUR)', [tenantId, emp.id, 'GRANTED']);
+      assert.ok(stored.length && stored.every((e) => e.direction === { [inDoor.id]: 'IN', [in2.id]: 'IN', [outDoor.id]: 'OUT', [side.id]: 'NONE' }[e.doorId]), JSON.stringify(stored));
+      assert.equal((await admin.patch(`/admin/access/doors/${outDoor.id}`, { direction: 'OUT' })).status, 200);
+      assert.equal((await admin.patch(`/admin/access/doors/${inDoor.id}`, { direction: 'IN', antiPassback: true })).status, 200);
+
       // Anti-passback off: the same way in opens again; the refusals are in the access log.
       assert.equal((await admin.patch(`/admin/access/doors/${inDoor.id}`, { antiPassback: false })).status, 200);
       assert.equal((await verify(rIn, nfc)).result, 'GRANTED');
       const from = new Date(Date.now() - 3_600_000).toISOString(), to = new Date(Date.now() + 60_000).toISOString();
       const log = (await admin.get(`/admin/access/events?from=${from}&to=${to}&siteId=${site.id}`)).data;
-      assert.equal(log.filter((e) => e.reason === 'ANTI_PASSBACK' && e.result === 'DENIED' && e.employee === 'Ferro Lia').length, 8, JSON.stringify(log.map((e) => e.reason)));
+      assert.equal(log.filter((e) => e.reason === 'ANTI_PASSBACK' && e.result === 'DENIED' && e.employee === 'Ferro Lia').length, 10, JSON.stringify(log.map((e) => e.reason)));
       assert.equal((await api('DELETE', '/employees/AP01')).status, 200);
     } finally {
       await db.end();

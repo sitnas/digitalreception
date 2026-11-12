@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api } from '../../lib/api';
-import { dayEnd, dayStart, fmtDateTime, todayIso } from '../../lib/format';
+import { dayEnd, dayStart, fmtDateTime, plural, todayIso } from '../../lib/format';
 import { useMe } from '../AdminApp';
 import { errorText, useI18n } from '../i18n';
 import { APP_KEYS, type AppKey, type Site } from '../types';
@@ -342,6 +342,13 @@ export function DoorsPage() {
     if (!name) return;
     await run(async () => setCode({ door: d.name, ...(await api.post<{ code: string; expiresAt: string }>(`/admin/access/doors/${d.id}/reader-code`, { name })) }));
   };
+  // An active door with a reader and no direction, or an entry door without anti-passback, lets a lent badge or a QR screenshot in.
+  const unguarded = (d: DoorRow) => d.active && d.readers.length > 0 && ((d.direction ?? 'NONE') === 'NONE' || (d.direction === 'IN' && !d.antiPassback));
+  const guardedSites = new Set((doors.data ?? []).filter((d) => d.active && d.direction === 'IN' && d.antiPassback).map((d) => d.siteId));
+  const openDoors = form && form.direction === 'IN' && form.antiPassback
+    ? (doors.data ?? []).filter((d) => d.id !== form.id && d.siteId === form.siteId && unguarded(d)) : [];
+  const openDoorNames = openDoors.slice(0, 3).map((d) => d.name).join(', ')
+    + (openDoors.length > 3 ? ` ${plural(t.access.moreDoors, openDoors.length - 3, intl)}` : '');
   const open = (f: DoorForm) => { setMsg(null); setForm(f); window.scrollTo({ top: 0, behavior: 'smooth' }); };
   const saveDoor = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -385,11 +392,12 @@ export function DoorsPage() {
               <span id="dd-h" className="hint">{t.access.directionHint}</span></div>
           </div>
           <div className="field">
-            <label className="toggle"><input type="checkbox" role="switch" name="anti-passback" aria-describedby="dap-h dap-w" checked={form.direction === 'IN' && form.antiPassback} disabled={form.direction !== 'IN'}
+            <label className="toggle"><input type="checkbox" role="switch" name="anti-passback" aria-describedby="dap-h dap-w dap-w2" checked={form.direction === 'IN' && form.antiPassback} disabled={form.direction !== 'IN'}
               onChange={(e) => setForm({ ...form, antiPassback: e.target.checked })} />{t.access.antiPassback}</label>
             <span id="dap-h" className="hint">{form.direction === 'IN' ? t.access.antiPassbackHint : t.access.antiPassbackInOnly}</span>
             {form.direction === 'IN' && form.antiPassback && doors.data && !doors.data.some((d) => d.id !== form.id && d.siteId === form.siteId && d.active && d.direction === 'OUT')
               && <p id="dap-w" className="alert alert-info" style={{ margin: 0 }}>{t.access.noExitDoor}</p>}
+            {openDoors.length > 0 && <p id="dap-w2" className="alert alert-info" style={{ margin: 0 }}>{t.access.unguardedDoors.replace('{doors}', openDoorNames)}</p>}
           </div>
           <div className="inline"><button className="btn btn-primary">{t.hosts.save}</button><button type="button" className="btn btn-ghost" onClick={() => setForm(null)}>{t.hosts.cancel}</button></div>
         </form>
@@ -402,7 +410,11 @@ export function DoorsPage() {
               {(doors.data ?? []).map((d) => (
                 <tr key={d.id} className={d.active ? undefined : 'row-off'}>
                   <td><strong>{d.name}</strong>{!d.active && <> <span className="pill">{t.access.inactive}</span></>}
-                    {(d.direction ?? 'NONE') !== 'NONE' && <div className="host-tags"><span className="tag">{t.access.directions[d.direction]}</span>{d.antiPassback && <span className="tag">{t.access.antiPassback}</span>}</div>}</td>
+                    {((d.direction ?? 'NONE') !== 'NONE' || (guardedSites.has(d.siteId) && unguarded(d))) && <div className="host-tags">
+                      {(d.direction ?? 'NONE') !== 'NONE' && <span className="tag">{t.access.directions[d.direction]}</span>}
+                      {d.antiPassback && <span className="tag">{t.access.antiPassback}</span>}
+                      {guardedSites.has(d.siteId) && unguarded(d) && <span className="tag">{t.access.unguardedTag}</span>}
+                    </div>}</td>
                   <td className="num">{d.externalId}</td>
                   <td>{d.siteName}</td>
                   <td className="wrap">{d.readers.length ? d.readers.map((r) => (

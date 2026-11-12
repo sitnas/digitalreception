@@ -126,6 +126,12 @@ export class AccessEvent {
   @Column({ type: 'varchar', length: 8 }) result: AccessResult;
   @Column({ type: 'varchar', length: 24 }) reason: string;
   @Column({ type: 'datetime', precision: 3 }) at: Date;
+  /**
+   * The door's direction when the person went through (anti-passback reads this, not the door's current
+   * one, so changing a door during the day does not rewrite who is inside). NULL for events recorded
+   * before doors had a direction.
+   */
+  @Column({ type: 'varchar', length: 4, nullable: true }) direction: DoorDirection | null;
 }
 
 /**

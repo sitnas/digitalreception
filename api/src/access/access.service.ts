@@ -90,11 +90,12 @@ export class AccessService {
     const site = await this.sites.findOne({ where: { tenantId, code: dto.siteCode } });
     if (!site) throw new BadRequestException('UNKNOWN_SITE');
     const existing = await this.doors.findOne({ where: { tenantId, externalId } });
+    const before = existing ? { direction: existing.direction, antiPassback: existing.antiPassback } : null;
     const flow = resolveDoorFlow(existing ?? { direction: 'NONE', antiPassback: false }, dto);
     const door = existing ?? this.doors.create({ tenantId, externalId });
     Object.assign(door, { siteId: site.id, name: dto.name, active: dto.active ?? true, ...flow });
     const saved = await this.doors.save(door);
-    return { created: !existing, door: saved };
+    return { created: !existing, door: saved, before };
   }
 
   /** Creates or updates a job / contract by its code (from the HR system or the console). */
@@ -320,7 +321,7 @@ export class AccessService {
       const result = reason ? AccessResult.DENIED : AccessResult.GRANTED;
       await em.save(em.create(AccessEvent, {
         tenantId: reader.tenantId, siteId: door.siteId, doorId: door.id, readerId: reader.id,
-        employeeId: employee?.id ?? null, method, result, reason: reason ?? 'OK', at: now,
+        employeeId: employee?.id ?? null, method, result, reason: reason ?? 'OK', at: now, direction: door.direction,
       }));
       if (reason) {
         const policy = await em.findOne(CountryPolicy, { where: { tenantId: reader.tenantId, countryCode: site.countryCode }, select: { tenantId: true, countryCode: true, defaultLocale: true } });
@@ -336,7 +337,8 @@ export class AccessService {
 
   /**
    * True when the person's last granted access at this site since local midnight, through a door with a
-   * direction, was a way in. Doors with direction NONE do not count; the direction is the door's current one.
+   * direction, was a way in. The direction is the one stored on the event (the door's at that moment), so
+   * a door changed during the day does not rewrite the day's passages; NONE and older events (NULL) do not count.
    *
    * The employee row is locked first (this transaction's connection): two ways in at the same instant on
    * different doors (the QR and its screenshot) are checked one after the other, and the second sees the
@@ -347,10 +349,9 @@ export class AccessService {
     await em.createQueryBuilder(Employee, 'e').setLock('pessimistic_write').select('e.id')
       .where('e.id = :id AND e.tenantId = :t', { id: employeeId, t: site.tenantId }).getOne();
     const last = await em.createQueryBuilder(AccessEvent, 'ev')
-      .innerJoin(Door, 'd', 'd.id = ev.doorId AND d.tenantId = ev.tenantId')
-      .select('d.direction', 'direction')
+      .select('ev.direction', 'direction')
       .where('ev.tenantId = :t AND ev.employeeId = :id AND ev.at >= :since', { t: site.tenantId, id: employeeId, since: midnight(localDay(now, site.timezone), site.timezone) })
-      .andWhere('ev.siteId = :site AND ev.result = :granted AND d.direction IN (:...dirs)', { site: site.id, granted: AccessResult.GRANTED, dirs: ['IN', 'OUT'] })
+      .andWhere('ev.siteId = :site AND ev.result = :granted AND ev.direction IN (:...dirs)', { site: site.id, granted: AccessResult.GRANTED, dirs: ['IN', 'OUT'] })
       .orderBy('ev.at', 'DESC').limit(1)
       .getRawOne<{ direction: DoorDirection }>();
     return last?.direction === 'IN';

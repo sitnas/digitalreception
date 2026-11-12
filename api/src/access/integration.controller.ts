@@ -70,8 +70,10 @@ export class IntegrationController {
   @Put('doors/:externalId')
   async putDoor(@CurrentApiKey() key: { id: string; tenantId: string }, @Param('externalId') externalId: string, @Body() dto: PutDoorDto, @Req() req: AppRequest) {
     assertId(externalId);
-    const { created, door } = await this.access.upsertDoor(key.tenantId, externalId, dto);
-    await this.audit.fromRequest(req, { action: 'API_DOOR_UPSERT', entityType: 'door', entityId: door.id, siteId: door.siteId, details: { apiKey: key.id, externalId, created, direction: door.direction, antiPassback: door.antiPassback } });
+    const { created, door, before } = await this.access.upsertDoor(key.tenantId, externalId, dto);
+    // As DOOR_UPDATED in the console: the previous direction and switch when either one changed.
+    const flowChanged = !!before && (before.direction !== door.direction || before.antiPassback !== door.antiPassback);
+    await this.audit.fromRequest(req, { action: 'API_DOOR_UPSERT', entityType: 'door', entityId: door.id, siteId: door.siteId, details: { apiKey: key.id, externalId, created, direction: door.direction, antiPassback: door.antiPassback, ...(flowChanged ? { before } : {}) } });
     return { id: door.externalId, created };
   }
 
