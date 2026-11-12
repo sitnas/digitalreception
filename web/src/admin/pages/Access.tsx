@@ -388,7 +388,7 @@ export function DoorsPage() {
             <label className="toggle"><input type="checkbox" role="switch" name="anti-passback" aria-describedby="dap-h dap-w" checked={form.direction === 'IN' && form.antiPassback} disabled={form.direction !== 'IN'}
               onChange={(e) => setForm({ ...form, antiPassback: e.target.checked })} />{t.access.antiPassback}</label>
             <span id="dap-h" className="hint">{form.direction === 'IN' ? t.access.antiPassbackHint : t.access.antiPassbackInOnly}</span>
-            {form.direction === 'IN' && form.antiPassback && doors.data && !doors.data.some((d) => d.siteId === form.siteId && d.active && d.direction === 'OUT')
+            {form.direction === 'IN' && form.antiPassback && doors.data && !doors.data.some((d) => d.id !== form.id && d.siteId === form.siteId && d.active && d.direction === 'OUT')
               && <p id="dap-w" className="alert alert-info" style={{ margin: 0 }}>{t.access.noExitDoor}</p>}
           </div>
           <div className="inline"><button className="btn btn-primary">{t.hosts.save}</button><button type="button" className="btn btn-ghost" onClick={() => setForm(null)}>{t.hosts.cancel}</button></div>
