@@ -574,7 +574,9 @@ describe('end-to-end', { skip: !enabled && 'E2E_DB_HOST not set' }, () => {
         return token;
       };
       const rIn = await pair(boIn), rOut = await pair(boOut), rNone = await pair(boNone), rGe = await pair(geIn);
-      const verify = (token, nfc) => new Client().post('/reader/verify', { nfc }, { bearer: token }).then((r) => r.data);
+      // Readers may ask 60 times a minute from one address: each call here comes from its own.
+      let calls = 0;
+      const verify = (token, nfc) => new Client(`10.8.${(++calls >> 8) & 255}.${calls & 255}`).post('/reader/verify', { nfc }, { bearer: token }).then((r) => r.data);
 
       const all = ['BO-IN', 'BO-OUT', 'BO-NONE', 'GE-IN'].map((d) => ({ door: d }));
       const people = {
@@ -844,7 +846,7 @@ describe('end-to-end', { skip: !enabled && 'E2E_DB_HOST not set' }, () => {
         const ids = [];
         for (const [label, at] of [['Ieri', yesterday], ['Oggi', today]]) {
           const ext = `LI${++n}`;
-          assert.equal((await hr('PUT', `/employees/${ext}`, { firstName: 'Fuso', lastName: `${label} ${n}`, permissions: [] })).status, 200);
+          assert.equal((await hr('PUT', `/employees/${ext}`, { firstName: 'Fuso', lastName: `${label} ${'ABCDEFGHIJ'[n]}`, permissions: [] })).status, 200);
           const emp = (await admin.get('/admin/access/employees')).data.find((e) => e.externalId === ext);
           await db.query("INSERT INTO access_events (id, tenantId, siteId, doorId, readerId, employeeId, method, result, reason, at, direction) VALUES (?, ?, ?, ?, ?, ?, 'NFC', 'GRANTED', 'OK', ?, 'IN')",
             [randomUUID(), tenantId, site.id, door.id, randomUUID(), emp.id, at]);
@@ -890,7 +892,8 @@ describe('end-to-end', { skip: !enabled && 'E2E_DB_HOST not set' }, () => {
         return token;
       };
       const rIn = await pair(pdIn), rOut = await pair(pdOut), rNone = await pair(pdNone), rLater = await pair(pdLater);
-      const verify = (token, body) => new Client().post('/reader/verify', body, { bearer: token }).then((r) => r.data);
+      let calls = 0;
+      const verify = (token, body) => new Client(`10.7.${(++calls >> 8) & 255}.${calls & 255}`).post('/reader/verify', body, { bearer: token }).then((r) => r.data);
 
       // A window that leaves out the current time at the site (like 08:00-19:00 at 19:30), and a weekday that is not today.
       const p = Object.fromEntries(new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Rome', weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date()).map((x) => [x.type, x.value]));
