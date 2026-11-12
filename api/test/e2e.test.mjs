@@ -468,7 +468,8 @@ describe('end-to-end', { skip: !enabled && 'E2E_DB_HOST not set' }, () => {
 
       // Two ways in at the same instant on two doors (the QR and its screenshot): only one gets in.
       assert.equal((await verify(rOut, nfc)).result, 'GRANTED');
-      const burst = await Promise.all([verify(rIn, { qr: qr() }), verify(rIn2, { qr: qr() }), verify(rIn, nfc), verify(rIn2, nfc)]);
+      // The next step's code: the current one (`code`) has already opened rIn and would be QR_USED there.
+      const burst = await Promise.all([verify(rIn, { qr: qr(1) }), verify(rIn2, { qr: qr(1) }), verify(rIn, nfc), verify(rIn2, nfc)]);
       assert.equal(burst.filter((r) => r.result === 'GRANTED').length, 1, JSON.stringify(burst.map((r) => r.reason)));
       assert.ok(burst.filter((r) => r.result === 'DENIED').every((r) => r.reason === 'ANTI_PASSBACK'), JSON.stringify(burst.map((r) => r.reason)));
 
