@@ -117,10 +117,27 @@ Regole generali:
 
 | Metodo | Percorso | Cosa fa |
 |---|---|---|
-| `PUT` | `/doors/{id}` | Crea o aggiorna una porta. Corpo: `siteCode` (codice della sede in console), `name`, `active` (facoltativo). |
+| `PUT` | `/doors/{id}` | Crea o aggiorna una porta. Corpo: `siteCode` (codice della sede in console), `name`, `active`, `direction` e `antiPassback` (gli ultimi tre facoltativi; vedi sotto). |
 | `PUT` | `/projects/{codice}` | Crea o aggiorna una commessa. Corpo: `name`, `client` (facoltativo), `active` (facoltativo; `false` la chiude). |
 | `PUT` | `/employees/{id}` | Crea o aggiorna un dipendente e i suoi permessi (vedi sotto). |
 | `DELETE` | `/employees/{id}` | Cancella il dipendente e i permessi; il registro perde il collegamento alla persona. |
+
+Corpo di `PUT /doors/{id}`:
+
+```json
+{
+  "siteCode": "MI",
+  "name": "Ingresso principale",
+  "active": true,
+  "direction": "IN",
+  "antiPassback": true
+}
+```
+
+- **`active`**: se manca, la porta è attiva.
+- **`direction`**: `NONE`, `IN` (ingresso) o `OUT` (uscita). Qui il `PUT` non sostituisce tutto: se il campo manca, la porta tiene la direzione che ha, anche se l'ha cambiata qualcuno dalla console. Una porta nuova parte da `NONE`.
+- **`antiPassback`**: `true` o `false`, solo con la direzione `IN` (vedi *Anti-passback*, più sotto). Se manca resta com'è, con un'eccezione: passando da `IN` a un'altra direzione si spegne da solo.
+- **Errori**: `400 UNKNOWN_SITE`; `400 ANTI_PASSBACK_IN_ONLY` se l'anti-passback resterebbe acceso su una porta che non è `IN`, per esempio `{"direction": "OUT", "antiPassback": true}`, oppure `{"antiPassback": true}` su una porta che è già `OUT`. Una richiesta rifiutata non cambia niente.
 
 Corpo di `PUT /employees/{id}`:
 
@@ -191,6 +208,7 @@ Motivi di rifiuto mostrati dal lettore e in console (`reason`):
 | `DOOR_INACTIVE` | Porta disattivata |
 | `NO_PERMISSION` | Nessun permesso per quella porta |
 | `OUTSIDE_SCHEDULE` | Fuori dai giorni o dagli orari consentiti |
+| `ANTI_PASSBACK` | Risulta già dentro: oggi è entrato in questa sede e non è ancora passato da una porta di uscita. Solo sulle porte di ingresso con l'anti-passback; il lettore dice di chiedere alla reception |
 
 ## Dipendenti a mano
 
@@ -221,10 +239,64 @@ Lo stesso pulsante c'è sulla pagina web `/badge`: dopo Microsoft o Google il br
 - **Verifica**: il server accetta il passo corrente, il precedente e il successivo, quindi un codice resta valido per circa 90 secondi; i codici più vecchi li rifiuta come `QR_EXPIRED`.
 - **Un codice, una volta per porta**: ogni coppia dipendente e passo apre ciascuna porta una sola volta, e il secondo uso sulla stessa porta riceve `QR_USED`. Vale anche per il codice che l'app Android trasmette via NFC, con più lettori sulla stessa porta e con più repliche dell'API, perché decide un vincolo UNIQUE nella tabella `access_qr_uses`. Consuma il codice solo un accesso concesso: un rifiuto per permesso o orario lo lascia valido. Finché è valido, lo stesso codice apre ancora un'altra porta per cui la persona ha il permesso. Il job di conservazione, ogni 30 minuti, cancella le righe più vecchie di 10 minuti.
 - **Se il titolare ripassa subito**: chi torna alla stessa porta entro i 30 secondi dello stesso codice riceve `QR_USED` finché il telefono non mostra il codice successivo, cioè al massimo 30 secondi. Lo stesso lettore, per 90 secondi, ignora in silenzio un QR identico a quello appena letto, quindi il messaggio compare soprattutto su un secondo lettore della stessa porta.
-- **Cosa resta possibile**: uno screenshot usato prima del titolare apre ancora una volta ogni porta permessa, nei circa 90 secondi di validità. L'anti-passback (non si rientra senza essere usciti) non c'è ancora: vedi [ROADMAP.md](ROADMAP.md).
+- **Cosa resta possibile**: uno screenshot usato prima del titolare apre ancora una volta ogni porta permessa senza anti-passback, nei circa 90 secondi di validità. Sulle porte con l'anti-passback entra solo il primo dei due; vedi *Anti-passback*, più sotto.
 - **Telefono perso o cambiato**: in **Dipendenti** si usa "Disattiva badge telefono". Il dipendente lo riattiva con un nuovo codice, e attivarlo su un nuovo telefono disattiva quello vecchio.
 - **Togliere il badge dal telefono**: il dipendente lo fa da sé in **Impostazioni**, il link sotto il badge nell'app e su `/badge`. Il badge smette di funzionare anche sul server. In **Dipendenti** l'interruttore "I dipendenti possono togliere il badge dal proprio telefono" (lo cambia solo il ruolo Amministratore) toglie questa possibilità: il tasto sparisce e la richiesta viene rifiutata (`SELF_REMOVE_DISABLED`), quindi il badge lo disattiva solo la console. Un badge già disattivato dalla console si può sempre togliere dal telefono, per poterlo attivare di nuovo. Disinstallare l'app resta comunque possibile.
 - **Protezioni del codice email**: vale 10 minuti, ha al massimo 5 tentativi e ci sono limiti di richieste al minuto. La richiesta del codice risponde sempre allo stesso modo, così non si può scoprire quali email sono registrate.
+
+## Anti-passback
+
+L'anti-passback rifiuta l'ingresso a chi risulta già dentro, cioè a chi oggi è entrato e non è ancora passato da una porta di uscita. Serve contro il badge, o lo screenshot del QR, passato a un collega che aspetta fuori. È spento di default e si accende porta per porta.
+
+> **Non accenderlo ancora in produzione.** Chi esce senza passare il badge resta bloccato fuori fino a mezzanotte, e per ora né la reception né l'amministratore possono sbloccarlo. Il tasto «Segna come uscito» in console arriva nella prossima versione ([ROADMAP.md](ROADMAP.md), voce 20).
+
+### Come decide il lettore
+
+Ogni porta ha una **direzione**: *Nessuna* (il valore predefinito), *Ingresso* o *Uscita*. L'interruttore **Anti-passback** c'è solo sulle porte di Ingresso.
+
+Quando qualcuno passa la credenziale su un Ingresso con l'anti-passback, il server cerca il suo ultimo passaggio **concesso** di oggi nella stessa sede, su una porta di Ingresso o di Uscita; "oggi" parte dalla mezzanotte nel fuso orario della sede. Se quel passaggio è un ingresso, rifiuta con `ANTI_PASSBACK` e il lettore mostra «Risulti già dentro: se sei uscito senza passare il badge, chiedi alla reception». Se è un'uscita, o se oggi non c'è niente, la persona entra.
+
+- Il controllo arriva per ultimo, quando credenziale, validità, permesso e orario sono già a posto. Chi non ha il permesso riceve `NO_PERMISSION` come prima.
+- Le porte con direzione *Nessuna* non contano: passarci non fa risultare né dentro né fuori.
+- Un'Uscita non rifiuta mai per anti-passback, ma permessi e orari valgono anche lì. Un'uscita negata non conta come uscita: con un permesso fino alle 19:00, chi esce alle 19:30 riceve `OUTSIDE_SCHEDULE` e resta "dentro" fino a mezzanotte.
+- Ogni passaggio salva la direzione che la porta aveva in quel momento, nella colonna `access_events.direction`. Se cambi la direzione di una porta a metà giornata, i passaggi già registrati non cambiano significato. I passaggi di prima di questa versione hanno la colonna vuota (`NULL`) e non contano.
+- Un QR rifiutato per anti-passback non viene consumato.
+- Se la stessa persona si presenta a due porte nello stesso istante (il titolare con il QR, un altro con lo screenshot), il server mette in fila le due richieste e ne passa una sola.
+
+### Configurare una sede
+
+Direzione e anti-passback li cambiano l'Amministratore (SUPER_ADMIN) e il Responsabile di sede (SITE_MANAGER), quest'ultimo solo per le sue sedi, da **Porte e lettori → Modifica**. Il sistema esterno può fare lo stesso con l'API (`PUT /doors/{id}`, sopra).
+
+1. Imposta *Uscita* su ogni porta da cui si esce passando il badge. L'uscita registra qualcuno solo se ha un lettore.
+2. Dai a chi entra il permesso anche sulle porte di uscita, senza limiti di orario, per evitare il caso delle 19:30 descritto sopra.
+3. Imposta *Ingresso* su ogni porta con lettore da cui si entra e accendi l'anti-passback su tutte, nessuna esclusa: una sola porta scoperta basta per entrare con il badge di un altro (vedi *Limiti*).
+4. In **Porte e lettori** controlla che nessuna porta della sede abbia l'etichetta **Senza anti-passback**.
+
+La console avvisa in tre casi:
+
+- quando imposti un Ingresso con l'anti-passback in una sede che non ha nessun'altra porta di uscita attiva: «In questa sede non c'è nessuna porta di uscita attiva: chi esce non viene registrato e non può rientrare fino a mezzanotte»;
+- quando in una sede con l'anti-passback su almeno una porta restano porte attive con un lettore, con direzione *Nessuna* o di Ingresso senza anti-passback. Nell'elenco hanno l'etichetta **Senza anti-passback**, e il modulo della porta con l'anti-passback le nomina;
+- quando stai modificando una di quelle porte e la lasceresti scoperta.
+
+Ogni modifica finisce nel **Registro accessi**: `DOOR_CREATED` con direzione e anti-passback; `DOOR_UPDATED` (dalla console) e `API_DOOR_UPSERT` (dall'API) con i valori precedenti in `before` quando uno dei due cambia.
+
+### Limiti
+
+**Copertura.** L'anti-passback protegge una sede solo se tutti gli ingressi con lettore lo hanno acceso. Chi è già dentro può passare il badge o il QR a un altro, che entra da una porta scoperta.
+
+**Uscita senza badge.** Chi esce senza passare il badge (dietro a un collega, da un'uscita senza lettore, con un'uscita negata) resta bloccato fino a mezzanotte. Lo sblocco della singola persona, con il tasto «Segna come uscito», arriva nella prossima versione: fino ad allora l'anti-passback non va acceso in produzione.
+
+**Turni di notte.** A mezzanotte, ora della sede, lo stato si azzera per tutti. Chi è dentro dopo mezzanotte risulta fuori e può prestare il badge.
+
+**Sedi diverse.** Ogni sede fa storia a sé: chi è dentro nella sede A entra senza problemi nella sede B.
+
+**Presenza del titolare.** Chi ha la credenziale di un collega e riceve `ANTI_PASSBACK` capisce che il titolare è in sede. Il tentativo resta nei Passaggi con l'id del titolare, quindi si può risalire a quando è successo.
+
+**Notifiche.** Se un canale di *Notifiche* riceve l'evento "una porta rifiuta un badge" (`access.denied`) e ha acceso *Includi i nomi di ospiti e dipendenti*, il messaggio dice chi è stato rifiutato e perché: con `ANTI_PASSBACK`, dice a Slack o Teams che quella persona risulta in sede.
+
+### Il QR monouso resta per porta
+
+L'anti-passback non prende il posto del monouso descritto sopra. Uno screenshot usato prima del titolare apre ancora una volta ogni porta senza anti-passback, finché il codice vale (circa 90 secondi). Su un Ingresso con l'anti-passback entra solo il primo che arriva; se è l'altro, il titolare riceve `ANTI_PASSBACK` quando ci prova, e almeno lui vede che qualcosa non torna.
 
 ## Tessere NFC
 
