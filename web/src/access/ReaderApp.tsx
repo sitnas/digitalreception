@@ -64,6 +64,7 @@ const REASONS: Record<string, string> = {
   EMPLOYEE_INACTIVE: 'Badge disattivato', NOT_YET_VALID: 'Badge non ancora valido', EXPIRED: 'Badge scaduto', DOOR_INACTIVE: 'Porta disattivata',
   NO_PERMISSION: 'Nessun permesso per questa porta', OUTSIDE_SCHEDULE: 'Fuori dall’orario consentito', APP_DISABLED: 'Porte non attive per questa persona', OFFLINE: 'Nessuna connessione: riprova',
   NFC_UNREADABLE: 'Tessera rilevata ma non leggibile da questo lettore: usa il QR sul telefono',
+  ANTI_PASSBACK: 'Risulti già dentro: se sei uscito senza passare il badge, chiedi alla reception',
 };
 
 async function call<R>(method: string, path: string, body?: unknown): Promise<R> {

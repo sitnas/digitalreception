@@ -9,8 +9,8 @@ import { CryptoService } from '../common/crypto.service';
 import { AdminAuthGuard, CurrentUser, Roles, assertSiteAccess, visibleSiteIds } from '../common/guards';
 import { AppRequest, AuthUser } from '../common/request-context';
 import { TenantKeysService } from '../common/tenant-keys.service';
-import { AccessEvent, AccessRule, ApiKey, Door, DoorReader, Employee, PairingCode, ParkingSpot, Project, PushDevice, Role, Site, Tenant } from '../entities';
-import { AccessService } from './access.service';
+import { AccessEvent, AccessRule, ApiKey, DOOR_DIRECTIONS, Door, type DoorDirection, DoorReader, Employee, PairingCode, ParkingSpot, Project, PushDevice, Role, Site, Tenant } from '../entities';
+import { AccessService, resolveDoorFlow } from './access.service';
 import { PARKING_ROLES, type ParkingRole } from '../parking/parking-rules';
 import { ParkingService } from '../parking/parking.service';
 import { EXTERNAL_ID, PROJECT_CODE, PutEmployeeDto } from './integration.controller';
@@ -23,10 +23,14 @@ export class CreateDoorDto {
   @IsUUID() siteId: string;
   @Transform(trim) @IsString() @Length(1, 80) name: string;
   @IsString() @Matches(EXTERNAL_ID) externalId: string;
+  @IsOptional() @IsIn(DOOR_DIRECTIONS) direction?: DoorDirection;
+  @IsOptional() @IsBoolean() antiPassback?: boolean;
 }
 export class UpdateDoorDto {
   @IsOptional() @Transform(trim) @IsString() @Length(1, 80) name?: string;
   @IsOptional() @IsBoolean() active?: boolean;
+  @IsOptional() @IsIn(DOOR_DIRECTIONS) direction?: DoorDirection;
+  @IsOptional() @IsBoolean() antiPassback?: boolean;
 }
 /** Same fields as the integration API; the console may leave the code empty and get one generated. */
 export class CreateEmployeeDto extends PutEmployeeDto {
@@ -126,7 +130,7 @@ export class AccessAdminController {
     const sites = new Map((await this.sites.find({ where: { tenantId: user.tenantId } })).map((s) => [s.id, s]));
     const readers = doors.length ? await this.readers.find({ where: { tenantId: user.tenantId, doorId: In(doors.map((d) => d.id)), revokedAt: IsNull() }, order: { createdAt: 'ASC' } }) : [];
     return doors.map((d) => ({
-      id: d.id, externalId: d.externalId, name: d.name, active: d.active, siteId: d.siteId, siteName: sites.get(d.siteId)?.name ?? '—',
+      id: d.id, externalId: d.externalId, name: d.name, active: d.active, direction: d.direction, antiPassback: d.antiPassback, siteId: d.siteId, siteName: sites.get(d.siteId)?.name ?? '—',
       readers: readers.filter((r) => r.doorId === d.id).map((r) => ({ id: r.id, name: r.name, lastSeenAt: r.lastSeenAt, createdAt: r.createdAt })),
     }));
   }
@@ -138,8 +142,9 @@ export class AccessAdminController {
     assertSiteAccess(user, dto.siteId);
     if (!(await this.sites.exist({ where: { id: dto.siteId, tenantId: user.tenantId, active: true } }))) throw new NotFoundException('SITE_NOT_FOUND');
     if (await this.doors.exist({ where: { tenantId: user.tenantId, externalId: dto.externalId } })) throw new ConflictException('DOOR_ID_EXISTS');
-    const door = await this.doors.save(this.doors.create({ tenantId: user.tenantId, siteId: dto.siteId, name: dto.name, externalId: dto.externalId, active: true }));
-    await this.audit.fromRequest(req, { action: 'DOOR_CREATED', entityType: 'door', entityId: door.id, siteId: door.siteId, details: { externalId: door.externalId } });
+    const flow = resolveDoorFlow({ direction: 'NONE', antiPassback: false }, dto);
+    const door = await this.doors.save(this.doors.create({ tenantId: user.tenantId, siteId: dto.siteId, name: dto.name, externalId: dto.externalId, active: true, ...flow }));
+    await this.audit.fromRequest(req, { action: 'DOOR_CREATED', entityType: 'door', entityId: door.id, siteId: door.siteId, details: { externalId: door.externalId, ...flow } });
     return door;
   }
 
@@ -150,8 +155,11 @@ export class AccessAdminController {
     const door = await this.doors.findOne({ where: { id, tenantId: user.tenantId } });
     if (!door) throw new NotFoundException();
     assertSiteAccess(user, door.siteId);
-    await this.doors.update(door.id, { ...(dto.name !== undefined ? { name: dto.name } : {}), ...(dto.active !== undefined ? { active: dto.active } : {}) });
-    await this.audit.fromRequest(req, { action: 'DOOR_UPDATED', entityType: 'door', entityId: door.id, siteId: door.siteId, details: { ...dto } });
+    const flow = resolveDoorFlow(door, dto);
+    await this.doors.update(door.id, { ...(dto.name !== undefined ? { name: dto.name } : {}), ...(dto.active !== undefined ? { active: dto.active } : {}), ...flow });
+    // The log keeps the resulting direction and switch, also when leaving IN turned anti-passback off by itself.
+    const flowChanged = flow.direction !== door.direction || flow.antiPassback !== door.antiPassback;
+    await this.audit.fromRequest(req, { action: 'DOOR_UPDATED', entityType: 'door', entityId: door.id, siteId: door.siteId, details: { ...dto, ...(flowChanged ? { ...flow, before: { direction: door.direction, antiPassback: door.antiPassback } } : {}) } });
     return { ok: true };
   }
 

@@ -1,6 +1,6 @@
 ---
 name: reviewer
-description: Revisore del codice di Mortise. Controlla correttezza, regressioni, test e coerenza fra api/, web/ e mobile/ delle modifiche fatte da un altro agente. Non modifica mai i file. Usalo dopo ogni modifica al codice, prima del commit.
+description: Revisore del codice di Mortise. Controlla correttezza, regressioni, test e coerenza fra api/, web/ e mobile/ delle modifiche fatte da un altro agente. Non modifica mai i file. Usalo dopo ogni modifica al codice, prima della PR.
 tools: Read, Grep, Glob, Bash
 model: inherit
 ---

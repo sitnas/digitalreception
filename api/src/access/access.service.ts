@@ -2,11 +2,12 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { createHmac, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
 import { retryOnDeadlock } from '../common/db-retry';
-import { DataSource, In, MoreThan, Repository } from 'typeorm';
+import { DataSource, EntityManager, In, MoreThan, Repository } from 'typeorm';
 import { CryptoService } from '../common/crypto.service';
 import { MailService } from '../common/mail.service';
 import { TenantKeysService } from '../common/tenant-keys.service';
-import { AccessEvent, AccessMethod, AccessQrUse, AccessResult, AccessRule, CountryPolicy, Door, Employee, EmployeeSource, Host, Project, PushDevice, Site, Tenant, ParkingBooking } from '../entities';
+import { localDay, midnight } from '../admin/dashboard-days';
+import { AccessEvent, AccessMethod, AccessQrUse, AccessResult, AccessRule, CountryPolicy, Door, type DoorDirection, Employee, EmployeeSource, Host, Project, PushDevice, Site, Tenant, ParkingBooking } from '../entities';
 import { WebhooksService } from '../common/webhooks.service';
 
 /** Phone badge QR: DRE1:<employeeId>.<time step>.<signature>; a new code every QR_STEP_S seconds. */
@@ -28,6 +29,19 @@ export interface EmployeeInput {
   project?: string | null;
   validFrom?: string | null; validUntil?: string | null; permissions: PermissionInput[];
 }
+export interface DoorFlowInput { direction?: DoorDirection; antiPassback?: boolean }
+
+/**
+ * Direction and anti-passback of a door after a change: what is not sent stays as it is, except that
+ * leaving the way-in direction turns anti-passback off. Anti-passback on anything but a way in is refused.
+ */
+export function resolveDoorFlow(current: { direction: DoorDirection; antiPassback: boolean }, change: DoorFlowInput) {
+  const direction = change.direction ?? current.direction;
+  const antiPassback = change.antiPassback ?? (direction === 'IN' && current.antiPassback);
+  if (antiPassback && direction !== 'IN') throw new BadRequestException('ANTI_PASSBACK_IN_ONLY');
+  return { direction, antiPassback };
+}
+
 export interface ReaderContext { id: string; tenantId: string; siteId: string; doorId: string }
 
 /** NFC UIDs arrive as "04:A2:1B…", "04a21b…" or with dashes: compare them as bare upper-case hex. */
@@ -71,14 +85,17 @@ export class AccessService {
 
   // ------------------------------------------------------------ sync from the external system
 
-  async upsertDoor(tenantId: string, externalId: string, dto: { siteCode: string; name: string; active?: boolean }) {
+  /** Direction and anti-passback left out keep their stored values (a new door starts at NONE / off). */
+  async upsertDoor(tenantId: string, externalId: string, dto: { siteCode: string; name: string; active?: boolean } & DoorFlowInput) {
     const site = await this.sites.findOne({ where: { tenantId, code: dto.siteCode } });
     if (!site) throw new BadRequestException('UNKNOWN_SITE');
     const existing = await this.doors.findOne({ where: { tenantId, externalId } });
+    const before = existing ? { direction: existing.direction, antiPassback: existing.antiPassback } : null;
+    const flow = resolveDoorFlow(existing ?? { direction: 'NONE', antiPassback: false }, dto);
     const door = existing ?? this.doors.create({ tenantId, externalId });
-    Object.assign(door, { siteId: site.id, name: dto.name, active: dto.active ?? true });
+    Object.assign(door, { siteId: site.id, name: dto.name, active: dto.active ?? true, ...flow });
     const saved = await this.doors.save(door);
-    return { created: !existing, door: saved };
+    return { created: !existing, door: saved, before };
   }
 
   /** Creates or updates a job / contract by its code (from the HR system or the console). */
@@ -285,8 +302,11 @@ export class AccessService {
     const first = employee && tc.decrypt(employee.firstNameEnc, 'employee.firstName');
     const last = employee && tc.decrypt(employee.lastNameEnc, 'employee.lastName');
     const checked = reason;
+    const antiPassback = !reason && !!employee && door.direction === 'IN' && door.antiPassback;
     const result = await retryOnDeadlock(() => this.ds.transaction(async (em) => {
       reason = checked;
+      // Anti-passback, before the QR is used up (a refusal here leaves the code valid).
+      if (antiPassback && (await this.alreadyInside(em, employee!.id, site, now))) reason = 'ANTI_PASSBACK';
       // One QR code opens a door once (a screenshot passed on is refused). Only an access that would be
       // granted uses it up; the unique index decides between two readers scanning at the same instant,
       // with this transaction's connection (a second one from the pool here can deadlock under load).
@@ -301,7 +321,7 @@ export class AccessService {
       const result = reason ? AccessResult.DENIED : AccessResult.GRANTED;
       await em.save(em.create(AccessEvent, {
         tenantId: reader.tenantId, siteId: door.siteId, doorId: door.id, readerId: reader.id,
-        employeeId: employee?.id ?? null, method, result, reason: reason ?? 'OK', at: now,
+        employeeId: employee?.id ?? null, method, result, reason: reason ?? 'OK', at: now, direction: door.direction,
       }));
       if (reason) {
         const policy = await em.findOne(CountryPolicy, { where: { tenantId: reader.tenantId, countryCode: site.countryCode }, select: { tenantId: true, countryCode: true, defaultLocale: true } });
@@ -313,5 +333,27 @@ export class AccessService {
     }));
     // The reader shows who it recognised only to the person standing there: first name and initial.
     return { result, reason: reason ?? 'OK', name: first && last ? `${first} ${last.charAt(0)}.` : null, door: door.name, at: now };
+  }
+
+  /**
+   * True when the person's last granted access at this site since local midnight, through a door with a
+   * direction, was a way in. The direction is the one stored on the event (the door's at that moment), so
+   * a door changed during the day does not rewrite the day's passages; NONE and older events (NULL) do not count.
+   *
+   * The employee row is locked first (this transaction's connection): two ways in at the same instant on
+   * different doors (the QR and its screenshot) are checked one after the other, and the second sees the
+   * first one's event. The lock comes before any plain read of the transaction, so the snapshot the
+   * event query reads is taken after the wait.
+   */
+  private async alreadyInside(em: EntityManager, employeeId: string, site: Site, now: Date) {
+    await em.createQueryBuilder(Employee, 'e').setLock('pessimistic_write').select('e.id')
+      .where('e.id = :id AND e.tenantId = :t', { id: employeeId, t: site.tenantId }).getOne();
+    const last = await em.createQueryBuilder(AccessEvent, 'ev')
+      .select('ev.direction', 'direction')
+      .where('ev.tenantId = :t AND ev.employeeId = :id AND ev.at >= :since', { t: site.tenantId, id: employeeId, since: midnight(localDay(now, site.timezone), site.timezone) })
+      .andWhere('ev.siteId = :site AND ev.result = :granted AND ev.direction IN (:...dirs)', { site: site.id, granted: AccessResult.GRANTED, dirs: ['IN', 'OUT'] })
+      .orderBy('ev.at', 'DESC').limit(1)
+      .getRawOne<{ direction: DoorDirection }>();
+    return last?.direction === 'IN';
   }
 }

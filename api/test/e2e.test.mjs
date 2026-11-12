@@ -370,6 +370,180 @@ describe('end-to-end', { skip: !enabled && 'E2E_DB_HOST not set' }, () => {
     assert.equal((await verify(mainReader, { nfc: '04A21B9C' })).reason, 'UNKNOWN_CREDENTIAL');
   });
 
+  test('anti-passback: door direction and switch, a second way in refused until a way out, QR kept, yesterday and NONE doors ignored', async () => {
+    const { createHmac, createHash, randomUUID } = await import('node:crypto');
+    const api = (method, path, body) => fetch(`${BASE}/integration/v1${path}`, { method, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` }, body: body && JSON.stringify(body) }).then(async (r) => ({ status: r.status, data: await r.json().catch(() => null) }));
+    const { key } = (await admin.post('/admin/access/api-keys', { name: 'HR anti-passback' })).data;
+    const mysql = require('mysql2/promise');
+    const db = await mysql.createConnection({ host: env.DB_HOST, port: Number(env.DB_PORT), user: env.DB_USER, password: env.DB_PASSWORD, database: env.DB_NAME });
+    // A site of its own: the doors of the other tests stay out of the count.
+    const site = (await admin.post('/admin/sites', { code: 'TO', name: 'Torino', countryCode: 'IT', timezone: 'Europe/Rome' })).data;
+    const doors = async () => (await admin.get('/admin/access/doors')).data;
+    try {
+      // ---- the two fields: defaults, console, integration API, validation
+      const side = (await admin.post('/admin/access/doors', { siteId: site.id, name: 'Porta di servizio', externalId: 'TO-SIDE' })).data;
+      let d = (await doors()).find((x) => x.id === side.id);
+      assert.equal(d.direction, 'NONE'); assert.equal(d.antiPassback, false);
+      const bad = async (r) => { assert.equal(r.status, 400, JSON.stringify(r.data)); assert.equal(r.data.message, 'ANTI_PASSBACK_IN_ONLY'); };
+      await bad(await admin.patch(`/admin/access/doors/${side.id}`, { antiPassback: true }));
+      await bad(await admin.patch(`/admin/access/doors/${side.id}`, { direction: 'OUT', antiPassback: true }));
+      await bad(await admin.post('/admin/access/doors', { siteId: site.id, name: 'X', externalId: 'TO-X', direction: 'NONE', antiPassback: true }));
+      assert.equal((await admin.patch(`/admin/access/doors/${side.id}`, { direction: 'SIDEWAYS' })).status, 400);
+      assert.equal((await admin.patch(`/admin/access/doors/${side.id}`, { direction: 'IN', antiPassback: true })).status, 200);
+      d = (await doors()).find((x) => x.id === side.id);
+      assert.equal(d.direction, 'IN'); assert.equal(d.antiPassback, true);
+      assert.equal((await admin.patch(`/admin/access/doors/${side.id}`, { name: 'Porta di servizio' })).status, 200);
+      assert.equal((await doors()).find((x) => x.id === side.id).antiPassback, true, 'a change of name keeps the switch');
+      assert.equal((await admin.patch(`/admin/access/doors/${side.id}`, { direction: 'OUT' })).status, 200);
+      d = (await doors()).find((x) => x.id === side.id);
+      assert.equal(d.direction, 'OUT'); assert.equal(d.antiPassback, false, 'leaving IN turns anti-passback off');
+      const audit = (await admin.get(`/admin/audit?action=DOOR_UPDATED&entityId=${side.id}`)).data.items.map((a) => (typeof a.details === 'string' ? JSON.parse(a.details) : a.details));
+      assert.ok(audit.some((x) => x.direction === 'OUT' && x.antiPassback === false && x.before?.antiPassback === true), JSON.stringify(audit));
+      assert.equal((await admin.patch(`/admin/access/doors/${side.id}`, { direction: 'NONE' })).status, 200);
+
+      const created = await admin.post('/admin/access/doors', { siteId: site.id, name: 'Ingresso', externalId: 'TO-IN', direction: 'IN', antiPassback: true });
+      assert.equal(created.status, 201, JSON.stringify(created.data));
+      assert.equal((await api('PUT', '/doors/TO-OUT', { siteCode: 'TO', name: 'Uscita', direction: 'OUT' })).data.created, true);
+      assert.equal((await api('PUT', '/doors/TO-IN2', { siteCode: 'TO', name: 'Ingresso carraio', direction: 'IN', antiPassback: true })).status, 200);
+      assert.equal((await api('PUT', '/doors/TO-IN2', { siteCode: 'TO', name: 'Ingresso carraio' })).status, 200, 'fields left out stay as they are');
+      const all = await doors();
+      const inDoor = all.find((x) => x.externalId === 'TO-IN'), outDoor = all.find((x) => x.externalId === 'TO-OUT'), in2 = all.find((x) => x.externalId === 'TO-IN2');
+      assert.deepEqual([outDoor.direction, outDoor.antiPassback, in2.direction, in2.antiPassback], ['OUT', false, 'IN', true]);
+      const putBad = await api('PUT', '/doors/TO-IN2', { siteCode: 'TO', name: 'Ingresso carraio', direction: 'NONE', antiPassback: true });
+      assert.equal(putBad.status, 400); assert.equal(putBad.data.message, 'ANTI_PASSBACK_IN_ONLY');
+      assert.equal((await api('PUT', '/doors/TO-OUT', { siteCode: 'TO', name: 'Uscita', antiPassback: true })).data.message, 'ANTI_PASSBACK_IN_ONLY', 'the stored OUT counts');
+      assert.equal((await doors()).find((x) => x.externalId === 'TO-IN2').antiPassback, true, 'a refused PUT changes nothing');
+      // The integration log keeps the previous direction and switch when they change, as DOOR_UPDATED does.
+      assert.equal((await api('PUT', '/doors/TO-IN2', { siteCode: 'TO', name: 'Ingresso carraio', antiPassback: false })).status, 200);
+      assert.equal((await api('PUT', '/doors/TO-IN2', { siteCode: 'TO', name: 'Ingresso carraio', antiPassback: true })).status, 200);
+      const upserts = (await admin.get(`/admin/audit?action=API_DOOR_UPSERT&entityId=${in2.id}`)).data.items.map((a) => (typeof a.details === 'string' ? JSON.parse(a.details) : a.details));
+      assert.ok(upserts.some((x) => x.antiPassback === true && x.before?.antiPassback === false && x.before?.direction === 'IN'), JSON.stringify(upserts));
+      assert.ok(upserts.some((x) => x.antiPassback === false && x.before?.antiPassback === true), JSON.stringify(upserts));
+      assert.equal(upserts.filter((x) => x.before).length, 2, `no "before" when nothing changes or on creation: ${JSON.stringify(upserts)}`);
+
+      // ---- at the doors
+      const person = { firstName: 'Lia', lastName: 'Ferro', email: 'lia.ap@e2e.test', badgeUid: '04:BB:00:01', permissions: ['TO-IN', 'TO-IN2', 'TO-OUT', 'TO-SIDE'].map((door) => ({ door })) };
+      assert.equal((await api('PUT', '/employees/AP01', person)).status, 200);
+      const emp = (await admin.get('/admin/access/employees')).data.find((e) => e.externalId === 'AP01');
+      // Pairing is limited to 5 a minute per address: these four use their own, not the other tests'.
+      const pair = async (door) => {
+        const { code } = (await admin.post(`/admin/access/doors/${door.id}/reader-code`, { name: `Lettore ${door.name}` })).data;
+        const token = (await new Client('10.9.0.32').post('/reader/pair', { code })).data.readerToken;
+        assert.ok(token, 'reader paired');
+        return token;
+      };
+      const rIn = await pair(inDoor), rIn2 = await pair(in2), rOut = await pair(outDoor), rSide = await pair(side);
+      const verify = (token, body) => new Client().post('/reader/verify', body, { bearer: token }).then((r) => r.data);
+      const nfc = { nfc: '04BB0001' };
+      await db.query('UPDATE employees SET loginCodeHash = ?, loginCodeExpiresAt = DATE_ADD(UTC_TIMESTAMP(3), INTERVAL 5 MINUTE), loginCodeAttempts = 0 WHERE id = ?', [createHash('sha256').update(`${emp.id}|246802`).digest('hex'), emp.id]);
+      const badge = (await new Client('10.9.0.31').post('/badge/activate', { email: 'lia.ap@e2e.test', code: '246802' })).data;
+      assert.ok(badge.secret, JSON.stringify(badge));
+      const qr = (stepOffset = 0) => {
+        const step = Math.floor(Date.now() / 1000 / 30) + stepOffset;
+        return `DRE1:${badge.employeeId}.${step}.${createHmac('sha256', Buffer.from(badge.secret, 'base64')).update(`${badge.employeeId}.${step}`).digest('hex').slice(0, 16)}`;
+      };
+
+      // A way in yesterday, never followed by a way out, does not count today.
+      const [[{ tenantId }]] = await db.query('SELECT tenantId FROM doors WHERE id = ?', [inDoor.id]);
+      await db.query("INSERT INTO access_events (id, tenantId, siteId, doorId, readerId, employeeId, method, result, reason, at, direction) VALUES (?, ?, ?, ?, ?, ?, 'NFC', 'GRANTED', 'OK', ?, 'IN')",
+        [randomUUID(), tenantId, site.id, inDoor.id, randomUUID(), emp.id, new Date(Date.now() - 26 * 3_600_000)]);
+
+      let v = await verify(rIn, nfc);
+      assert.equal(v.result, 'GRANTED', JSON.stringify(v));
+      v = await verify(rIn, { qr: qr() });
+      assert.equal(v.result, 'DENIED'); assert.equal(v.reason, 'ANTI_PASSBACK', 'already inside: a new QR does not get in again');
+      assert.equal((await verify(rIn2, nfc)).reason, 'ANTI_PASSBACK', 'nor the card at the other way in');
+      // A door with no direction neither lets out nor blocks.
+      assert.equal((await verify(rSide, nfc)).result, 'GRANTED');
+      assert.equal((await verify(rIn, nfc)).reason, 'ANTI_PASSBACK', 'a NONE door is not a way out');
+      // The refused QR is not used up: after the way out it opens the way in.
+      const code = qr();
+      assert.equal((await verify(rIn, { qr: code })).reason, 'ANTI_PASSBACK');
+      assert.equal((await verify(rOut, nfc)).result, 'GRANTED', 'a way out never blocks');
+      assert.equal((await verify(rOut, nfc)).result, 'GRANTED', 'not even twice');
+      assert.equal((await verify(rSide, nfc)).result, 'GRANTED');
+      v = await verify(rIn, { qr: code });
+      assert.equal(v.result, 'GRANTED', `the code refused for anti-passback still works: ${JSON.stringify(v)}`);
+      assert.equal((await verify(rIn, { qr: code })).reason, 'ANTI_PASSBACK', 'inside again');
+
+      // Two ways in at the same instant on two doors (the QR and its screenshot): only one gets in.
+      assert.equal((await verify(rOut, nfc)).result, 'GRANTED');
+      // The next step's code: the current one (`code`) has already opened rIn and would be QR_USED there.
+      const burst = await Promise.all([verify(rIn, { qr: qr(1) }), verify(rIn2, { qr: qr(1) }), verify(rIn, nfc), verify(rIn2, nfc)]);
+      assert.equal(burst.filter((r) => r.result === 'GRANTED').length, 1, JSON.stringify(burst.map((r) => r.reason)));
+      assert.ok(burst.filter((r) => r.result === 'DENIED').every((r) => r.reason === 'ANTI_PASSBACK'), JSON.stringify(burst.map((r) => r.reason)));
+
+      // A door's direction changed during the day does not rewrite the passages made through it: each
+      // event keeps the direction the door had at that moment.
+      assert.equal((await verify(rOut, nfc)).result, 'GRANTED');
+      assert.equal((await admin.patch(`/admin/access/doors/${outDoor.id}`, { direction: 'NONE' })).status, 200);
+      assert.equal((await verify(rIn, nfc)).result, 'GRANTED', 'the way out made before the door became NONE still counts');
+      assert.equal((await admin.patch(`/admin/access/doors/${outDoor.id}`, { direction: 'OUT' })).status, 200);
+      assert.equal((await admin.patch(`/admin/access/doors/${inDoor.id}`, { direction: 'NONE' })).status, 200);
+      assert.equal((await verify(rIn2, nfc)).reason, 'ANTI_PASSBACK', 'the way in made before the door became NONE still counts');
+      assert.equal((await admin.patch(`/admin/access/doors/${outDoor.id}`, { direction: 'NONE' })).status, 200);
+      assert.equal((await verify(rIn2, nfc)).reason, 'ANTI_PASSBACK', 'a way out turned NONE after a way in changes nothing');
+      const [stored] = await db.query('SELECT doorId, direction FROM access_events WHERE tenantId = ? AND employeeId = ? AND result = ? AND at >= DATE_SUB(UTC_TIMESTAMP(3), INTERVAL 1 HOUR)', [tenantId, emp.id, 'GRANTED']);
+      assert.ok(stored.length && stored.every((e) => e.direction === { [inDoor.id]: 'IN', [in2.id]: 'IN', [outDoor.id]: 'OUT', [side.id]: 'NONE' }[e.doorId]), JSON.stringify(stored));
+      assert.equal((await admin.patch(`/admin/access/doors/${outDoor.id}`, { direction: 'OUT' })).status, 200);
+      assert.equal((await admin.patch(`/admin/access/doors/${inDoor.id}`, { direction: 'IN', antiPassback: true })).status, 200);
+
+      // Only the events that matter count. Each case starts outside (a way out just made), then a way in is
+      // written straight into the log, then the person tries the way in.
+      const addIn = async (at, fields = {}) => {
+        await new Promise((r) => setTimeout(r, 5)); // later than the way out just recorded
+        await db.query('INSERT INTO access_events (id, tenantId, siteId, doorId, readerId, employeeId, method, result, reason, at, direction) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          [randomUUID(), tenantId, fields.siteId ?? site.id, inDoor.id, randomUUID(), fields.employeeId ?? emp.id, 'NFC', 'GRANTED', 'OK', at ?? new Date(), 'direction' in fields ? fields.direction : 'IN']);
+      };
+      // (a) A way in at another site of the same organisation.
+      assert.equal((await verify(rOut, nfc)).result, 'GRANTED');
+      await addIn(null, { siteId: ctx.milano.id });
+      assert.equal((await verify(rIn, nfc)).result, 'GRANTED', 'a way in at another site does not count here');
+      // (b) A way in with no stored direction (recorded before doors had one), and one through a NONE door.
+      assert.equal((await verify(rOut, nfc)).result, 'GRANTED');
+      await addIn(null, { direction: null });
+      assert.equal((await verify(rIn, nfc)).result, 'GRANTED', 'an event with no direction does not count');
+      assert.equal((await verify(rOut, nfc)).result, 'GRANTED');
+      await addIn(null, { direction: 'NONE' });
+      assert.equal((await verify(rIn, nfc)).result, 'GRANTED', 'an event through a NONE door does not count');
+      // (c) "Today" starts at the site's local midnight, not at UTC midnight. Pago Pago is UTC-11 all year.
+      // A second person with no passages: an earlier way out today would come after the event written here.
+      // The event falls on different days in UTC and in local time, whatever the hour of the run:
+      // local midnight after UTC midnight -> one minute before it (today in UTC, yesterday locally: GRANTED);
+      // otherwise -> one minute after it (today locally, yesterday in UTC: ANTI_PASSBACK).
+      assert.equal((await api('PUT', '/employees/AP02', { firstName: 'Ugo', lastName: 'Riva', badgeUid: '04:BB:00:02', permissions: [{ door: 'TO-IN' }] })).status, 200);
+      const ugo = (await admin.get('/admin/access/employees')).data.find((e) => e.externalId === 'AP02');
+      assert.equal((await admin.patch(`/admin/sites/${site.id}`, { timezone: 'Pacific/Pago_Pago' })).status, 200);
+      try {
+        const now = new Date();
+        const localDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Pacific/Pago_Pago', year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
+        const localMidnight = Date.parse(`${localDate}T00:00:00-11:00`);
+        const utcMidnight = Date.parse(`${now.toISOString().slice(0, 10)}T00:00:00Z`);
+        const afterUtc = localMidnight > utcMidnight;
+        await addIn(new Date(localMidnight + (afterUtc ? -60_000 : 60_000)), { employeeId: ugo.id });
+        v = await verify(rIn, { nfc: '04BB0002' });
+        if (afterUtc) assert.equal(v.result, 'GRANTED', `yesterday in local time: ${JSON.stringify(v)}`);
+        else assert.equal(v.reason, 'ANTI_PASSBACK', `today in local time: ${JSON.stringify(v)}`);
+      } finally {
+        await admin.patch(`/admin/sites/${site.id}`, { timezone: 'Europe/Rome' });
+        await api('DELETE', '/employees/AP02');
+      }
+
+      // Anti-passback off: the same way in opens again; the refusals are in the access log.
+      assert.equal((await admin.patch(`/admin/access/doors/${inDoor.id}`, { antiPassback: false })).status, 200);
+      assert.equal((await verify(rIn, nfc)).result, 'GRANTED');
+      const from = new Date(Date.now() - 3_600_000).toISOString(), to = new Date(Date.now() + 60_000).toISOString();
+      const log = (await admin.get(`/admin/access/events?from=${from}&to=${to}&siteId=${site.id}`)).data;
+      assert.equal(log.filter((e) => e.reason === 'ANTI_PASSBACK' && e.result === 'DENIED' && e.employee === 'Ferro Lia').length, 10, JSON.stringify(log.map((e) => e.reason)));
+      assert.equal((await api('DELETE', '/employees/AP01')).status, 200);
+    } finally {
+      await db.end();
+      // The site and its doors go out of use (the tenant is deleted at the end of the run).
+      for (const d of (await doors()).filter((x) => x.siteId === site.id)) await admin.patch(`/admin/access/doors/${d.id}`, { active: false, direction: 'NONE' });
+      await admin.patch(`/admin/sites/${site.id}`, { active: false });
+    }
+  });
+
   test('employees by hand: the administrator creates, edits and deletes; a sync from the HR system takes over', async () => {
     const door = (await admin.post('/admin/access/doors', { siteId: ctx.milano.id, name: 'Ingresso manuale', externalId: 'MI-HAND' })).data;
     const base = { firstName: 'Lucia', lastName: 'Ferri', email: 'lucia@e2e.test', department: 'Acquisti', badgeUid: '0A:0B:0C:0D', permissions: [{ door: 'MI-HAND', days: [1, 2, 3, 4, 5], from: '07:00', to: '20:00' }] };

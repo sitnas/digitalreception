@@ -20,7 +20,7 @@ L'impianto regge. Ogni cliente ha chiavi di cifratura proprie (AES-256-GCM), e l
 
 Il problema più serio era di configurazione e non di codice. Le pagine della console arrivavano al browser senza nessun header di sicurezza, CSP compresa, perché nginx scarta gli header del server in ogni `location` che ne aggiunge uno suo. È corretto nella PR #70 e verificato.
 
-Sul badge del telefono resta aperta in parte una voce media: il QR non apre più due volte la stessa porta, ma uno screenshot usato prima del titolare entra ancora una volta per porta nei circa 90 secondi di validità, e manca l'anti-passback. Restano aperti anche aggiornamenti di dipendenze da pianificare e alcune mancanze tipiche da contesto enterprise: chiavi master fuori da un KMS, nessuna scansione automatica in CI, nessun invio del registro accessi a un SIEM.
+Sul badge del telefono resta aperta in parte una voce media. Il QR non apre più due volte la stessa porta e c'è l'anti-passback facoltativo per porta; uno screenshot usato prima del titolare entra però ancora una volta da ogni porta senza anti-passback, nei circa 90 secondi di validità, e l'anti-passback non va acceso finché non arriva lo sblocco manuale. Restano aperti anche aggiornamenti di dipendenze da pianificare e alcune mancanze tipiche da contesto enterprise: chiavi master fuori da un KMS, nessuna scansione automatica in CI, nessun invio del registro accessi a un SIEM.
 
 | Severità | Trovati | Corretti | Aperti |
 |---|---|---|---|
@@ -44,13 +44,15 @@ L'API non era coinvolta: ha i suoi header tramite helmet.
 
 **Correzione (PR #70).** Le due `location` ripetono gli header, in entrambe le configurazioni nginx. Con la CSP finalmente applicata è emerso un secondo difetto: Vite incorporava i font piccoli come `data:`, che `font-src 'self'` blocca. Ora i font sono sempre file separati. Verificato con nginx e Chromium su console (sette pagine e un cassetto), tablet, `/badge` e lettore: zero violazioni della CSP, font caricati.
 
-### M1. QR del badge riutilizzabile per circa 90 secondi (media, parzialmente chiusa)
+### M1. QR del badge riutilizzabile per circa 90 secondi (media, parzialmente chiusa: anti-passback fatto, sblocco manuale in arrivo)
 
 Il QR del telefono contiene l'identificativo del dipendente, il passo di tempo da 30 secondi e una firma HMAC-SHA256 troncata a 64 bit. Il lettore accetta il passo corrente, il precedente e il successivo. Al momento dell'audit nessuno segnava un codice come usato: uno screenshot mandato in chat a un'altra persona apriva la stessa porta finché il codice restava valido, cioè fino a circa 90 secondi. Lo stesso valeva per il codice trasmesso via NFC.
 
 **Raccomandazione.** Il lettore dovrebbe accettare ogni coppia dipendente e passo una sola volta per porta, per esempio con una tabella dei codici usati che scade dopo due minuti. Per le porte sensibili conviene anche l'anti-passback (non si rientra senza essere usciti). È un intervento contenuto nel servizio di verifica, `api/src/access/access.service.ts`.
 
-**Stato (novembre 2026).** Il monouso per porta è fatto. Ogni accesso QR concesso scrive la coppia dipendente e passo, con la porta, nella tabella `access_qr_uses`, e un vincolo UNIQUE fa rifiutare il secondo uso con `QR_USED`, anche quando due lettori della stessa porta o due repliche dell'API ricevono il codice nello stesso istante; il codice trasmesso via NFC dall'app Android passa dallo stesso controllo. Un tentativo negato non consuma il codice, e il job di conservazione cancella le righe più vecchie di 10 minuti. Restano aperti due punti. Uno screenshot usato prima del titolare apre ancora una volta ogni porta per cui il titolare ha il permesso, finché il codice è valido (circa 90 secondi). E l'anti-passback non c'è: arriverà a parte, facoltativo per porta.
+**Stato (novembre 2026).** Il monouso per porta è fatto. Ogni accesso QR concesso scrive la coppia dipendente e passo, con la porta, nella tabella `access_qr_uses`, e un vincolo UNIQUE fa rifiutare il secondo uso con `QR_USED`, anche quando due lettori della stessa porta o due repliche dell'API ricevono il codice nello stesso istante; il codice trasmesso via NFC dall'app Android passa dallo stesso controllo. Un tentativo negato non consuma il codice, e il job di conservazione cancella le righe più vecchie di 10 minuti. Anche l'anti-passback è fatto, facoltativo e solo sulle porte di ingresso: una porta con l'anti-passback rifiuta con `ANTI_PASSBACK` chi oggi, in quella sede, è entrato e non è ancora uscito da una porta di uscita. Il controllo legge la direzione salvata in ogni passaggio (`access_events.direction`), mette in fila le richieste contemporanee della stessa persona e non consuma il QR che rifiuta. Come funziona e come si configura una sede: [ACCESSI-DIPENDENTI.md](ACCESSI-DIPENDENTI.md#anti-passback).
+
+Resta aperto che uno screenshot usato prima del titolare apre ancora, una volta per porta e per circa 90 secondi, ogni porta senza anti-passback; sulle porte con l'anti-passback lascia almeno un diniego visibile al titolare. L'anti-passback copre solo le porte dove è acceso, si azzera a mezzanotte, ora della sede, e non va acceso finché non arriva il tasto «Segna come uscito»: oggi chi esce senza passare il badge resta bloccato fino a mezzanotte e nessuno può sbloccarlo ([ROADMAP.md](ROADMAP.md), voce 20). Dice inoltre se una persona è in sede a chi prova la sua credenziale e, con i nomi accesi, ai canali di notifica.
 
 ### M2. Dipendenze con avvisi noti (media, aperto)
 
@@ -126,7 +128,7 @@ Questo audit legge il codice e la configurazione. Prima del primo cliente in pro
 | Priorità | Intervento | Stima |
 |---|---|---|
 | Subito | Unire la PR #70 (A1) e ridistribuire nginx | fatto, manca il deploy |
-| Entro 30 giorni | QR monouso per porta e anti-passback facoltativo (M1) | monouso fatto, PR in arrivo; anti-passback da fare |
+| Entro 30 giorni | QR monouso per porta e anti-passback facoltativo (M1) | monouso fatto (PR #78); anti-passback fatto, sblocco manuale «Segna come uscito» in arrivo |
 | Entro 30 giorni | Scansioni in CI: audit, CodeQL o Semgrep, gitleaks, SBOM (M3) | 1 giorno |
 | Entro 30 giorni | Due passaggi obbligatori per Amministratore e Auditor (B1) | mezza giornata |
 | Entro 90 giorni | NestJS 12, react-router e SDK Expo aggiornati (M2) | 3-5 giorni con i test |

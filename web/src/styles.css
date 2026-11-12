@@ -108,7 +108,7 @@ select.input { appearance: none; -webkit-appearance: none; padding-right: 34px; 
 .toggle { display: flex; gap: 10px; align-items: center; font-size: 14px; }
 .toggle input { width: 18px; height: 18px; accent-color: var(--brand-strong); flex: none; }
 
-.alert { border-radius: var(--r); padding: 11px 14px; background: var(--danger-soft); color: var(--danger); font-weight: 700; font-size: 14px; border-left: 3px solid var(--danger); margin: 0 0 16px; }
+.alert { border-radius: var(--r); padding: 11px 14px; background: var(--danger-soft); color: var(--danger); font-weight: 700; font-size: 14px; border-left: 3px solid var(--danger); margin: 0 0 16px; overflow-wrap: anywhere; }
 .alert-info { background: var(--brand-soft); color: var(--ink); border-left-color: var(--brand-strong); }
 
 /* status: coloured dot + label, colour encodes meaning (never the brand) */
