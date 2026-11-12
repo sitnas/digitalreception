@@ -33,9 +33,13 @@ Niente funzioni, numeri o comportamenti inventati: se una cosa non la trovi nel 
 
 ## Modalità VERIFICA (prima della PR)
 
-Ricevi i criteri di accettazione approvati, il diff e il riepilogo degli autori. Per ogni criterio indica:
+Ricevi i criteri di accettazione nella versione finale, scritta dopo le risposte dell'utente, il diff e il riepilogo degli autori. Per ogni criterio indica:
 - **rispettato**, con il test o il comando che lo dimostra;
 - **non rispettato**, con uno scenario;
 - **non verificabile**, con il motivo.
 
-Puoi lanciare i controlli di CLAUDE.md. Rispondi nel formato di CLAUDE.md, sezione "Revisione tra agenti": un criterio non rispettato è un rilievo "da correggere", o "bloccante" se rompe un caso d'uso principale.
+Non rilanciare i test di api: girano su porte e database fissi e si scontrano con quelli di `reviewer`. Usa l'esito che ti passa il coordinatore; i controlli di web e mobile puoi lanciarli. Se un criterio richiede un test che non c'è, è un rilievo.
+
+Un criterio non verificabile (per esempio uno che si prova solo su un telefono vero) non blocca l'esito: elencalo in VERIFICHE FATTE con il motivo, e il coordinatore lo riporta nella PR.
+
+Rispondi nel formato di CLAUDE.md, sezione "Revisione tra agenti": un criterio non rispettato è un rilievo "da correggere", o "bloccante" se rompe un caso d'uso principale.

@@ -33,7 +33,7 @@ In `.claude/agents/` ci sono otto agenti:
 | `analyst` | specifica e criteri di accettazione prima del codice, verifica dopo | no |
 
 La sessione principale fa da **coordinatore**:
-- per una funzione nuova o un cambio di comportamento, chiede prima la specifica ad `analyst` e porta all'utente le sue domande;
+- per una funzione nuova o un cambio di comportamento, chiede prima la specifica ad `analyst` e porta all'utente le sue domande; con le risposte richiama `analyst` (specifica e risposte) per la versione finale dei criteri, che va agli autori, alla verifica e nella descrizione della PR;
 - divide il compito;
 - lo assegna agli agenti autori, insieme ai criteri di accettazione;
 - fa partire le revisioni;
@@ -96,7 +96,7 @@ L'esito è APPROVATO solo se non ci sono rilievi bloccanti né da correggere. I 
 1. Il coordinatore passa i rilievi all'agente autore, che corregge i bloccanti e quelli da correggere. I nit li applica se costano poco, altrimenti spiega perché no.
 2. Lo stesso revisore ricontrolla solo le parti cambiate.
 3. Al massimo **3 giri** per revisore. Se dopo il terzo restano rilievi bloccanti, il coordinatore si ferma e chiede all'utente, riassumendo il disaccordo.
-4. Se autore e revisore non sono d'accordo su un rilievo, decide l'utente, non il coordinatore.
+4. Se autore e revisore non sono d'accordo su un rilievo, decide l'utente, non il coordinatore. Lo stesso vale se due revisori chiedono cose opposte.
 
 ### 5. Dopo l'approvazione
 
@@ -109,7 +109,7 @@ Quando tutti i revisori obbligatori hanno risposto APPROVATO, il coordinatore:
    - security: APPROVATO al giro 1
    - docs: APPROVATO al giro 1 (nit non applicato: …)
    - designer: APPROVATO al giro 1
-   - analyst: criteri 1-6 rispettati
+   - analyst: APPROVATO al giro 1 (criteri 1-6 rispettati)
    ```
 3. aspetta la CI verde e fa il merge.
 
