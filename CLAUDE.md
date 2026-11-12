@@ -39,7 +39,7 @@ La sessione principale fa da **coordinatore**:
 - fa partire le revisioni;
 - fa commit, PR e merge.
 
-Per una correzione piccola (un bug, un testo, un rilievo di revisione) `analyst` non serve.
+`analyst` serve se cambia cosa vede o può fare un ruolo, o se cambia un endpoint. Non serve se il codice torna al comportamento già documentato (un bug), per un testo o per un rilievo di revisione.
 
 Gli agenti non fanno commit né push.
 
@@ -55,7 +55,7 @@ Nessuna modifica arriva a una PR senza l'approvazione di almeno un agente divers
 | `api/src/auth`, `api/src/access`, guard, cifratura, token, ruoli, migrazioni, endpoint senza login, dati di visitatori o dipendenti | `reviewer` + `security` |
 | stringhe dell'interfaccia, email, `docs/`, README | `docs` (in modalità revisione) |
 | la forma di una risposta dell'API usata da web o mobile | `reviewer`, più l'agente dell'altra parte (`web` o `mobile`) in modalità revisione, solo per il contratto |
-| schermate, componenti o stili di web o mobile che le persone vedono o toccano | `designer` |
+| layout, componenti, stili, flussi o stati delle schermate di web o mobile (per una modifica solo di testi basta `docs`) | `designer` |
 | una funzione con una specifica di `analyst` | `analyst` in modalità verifica, sui criteri di accettazione |
 
 Un agente non revisiona mai il proprio lavoro. Le revisioni indipendenti tra loro partono in parallelo.

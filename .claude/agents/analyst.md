@@ -38,7 +38,7 @@ Ricevi i criteri di accettazione nella versione finale, scritta dopo le risposte
 - **non rispettato**, con uno scenario;
 - **non verificabile**, con il motivo.
 
-Non rilanciare i test di api: girano su porte e database fissi e si scontrano con quelli di `reviewer`. Usa l'esito che ti passa il coordinatore; i controlli di web e mobile puoi lanciarli. Se un criterio richiede un test che non c'è, è un rilievo.
+Non rilanciare i test di api: girano su porte e database fissi e si scontrano con quelli di `reviewer`. Usa l'esito che ti passa il coordinatore; i controlli di web e mobile puoi lanciarli (`npm run build` in `web/` riscrive `web/tsconfig.tsbuildinfo`: rimettilo com'era con `git checkout web/tsconfig.tsbuildinfo`). Se un criterio richiede un test che non c'è, è un rilievo.
 
 Un criterio non verificabile (per esempio uno che si prova solo su un telefono vero) non blocca l'esito: elencalo in VERIFICHE FATTE con il motivo, e il coordinatore lo riporta nella PR.
 
