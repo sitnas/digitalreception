@@ -9,7 +9,7 @@ import { ErrorBox, PageHead, SiteSelect, useAsync } from '../ui';
 import type { ProjectRow } from './Projects';
 import type { SpotRow } from './Parking';
 import { CopyButton } from './Users';
-import { doorNames, formDoorUnguarded, guardedSiteIds, openDoorsFor, unguarded } from '../../lib/doors';
+import { doorNames, formDoorUnguarded, guardedSiteIds, openDoorsFor, unguarded, type DoorDirection } from '../../lib/doors';
 
 interface Permission { doorExternalId: string; door: string; site: string; days: number[] | null; from: string | null; to: string | null }
 interface EmployeeRow {
@@ -20,7 +20,6 @@ interface EmployeeRow {
 }
 type ParkingRole = 'NONE' | 'USER' | 'MANAGER';
 interface ReaderRow { id: string; name: string; lastSeenAt: string | null; createdAt: string }
-type DoorDirection = 'NONE' | 'IN' | 'OUT';
 interface DoorRow { id: string; externalId: string; name: string; active: boolean; siteId: string; siteName: string; direction: DoorDirection; antiPassback: boolean; readers: ReaderRow[] }
 interface DoorForm { id: string | null; siteId: string; name: string; externalId: string; direction: DoorDirection; antiPassback: boolean }
 interface EventRow { id: string; at: string; method: 'QR' | 'NFC'; result: 'GRANTED' | 'DENIED'; reason: string; door: string; site: string; timezone: string; employee: string | null; externalId: string | null; project: string | null }
