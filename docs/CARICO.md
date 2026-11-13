@@ -96,6 +96,8 @@ Con due repliche, bilanciatore, database e generatore di carico sui 4 core, la m
 
 **Dashboard: conteggi dei passaggi lenti.** I numeri delle porte (oggi, stesso giorno della settimana scorsa, rifiutati della settimana) leggevano tutti i passaggi della sede: 2 secondi con questi dati. Un indice su (organizzazione, sede, esito, ora) e quattro conteggi su intervalli esatti li portano a pochi millisecondi. Al picco, però, i lettori scrivono proprio nell'intervallo che la dashboard legge e il conteggio tornava a 2-5 secondi. I conteggi delle porte ora restano in memoria un minuto per organizzazione e insieme di sedi. Con due repliche lo scenario misto a 100 connessioni è passato da 194 a 429 req/s.
 
+Dopo queste misure l'indice `IDX_access_events_site_at` ha preso in coda anche `method` (migrazione `1793100000000-AccessMarkedOut`): i conteggi dei consentiti escludono le uscite segnate a mano dalla console (`method = 'MAN'`) e così rispondono ancora dal solo indice. Lo stesso indice serve l'elenco **Risultano dentro**. I numeri qui sopra non sono stati rimisurati con l'indice nuovo.
+
 **Dashboard: visite.** Le somme per giorno selezionavano tutte le colonne della visita, impedendo al database di rispondere dal solo indice. Corretto. La dashboard completa dell'organizzazione grande risponde in 27 ms a riposo.
 
 ## Limiti noti

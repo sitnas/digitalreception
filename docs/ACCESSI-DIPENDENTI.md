@@ -325,7 +325,7 @@ Cosa resta:
 - nel **Registro accessi**, una voce `ACCESS_MARKED_OUT` («Dipendente segnato come uscito») con il dipendente, la sede, chi l'ha segnata, l'IP e il motivo;
 - ogni apertura dell'elenco scrive `ACCESS_INSIDE_VIEW` («Consultata la lista Risultano dentro») con la sede e il numero di righe, senza nomi.
 
-Nessuna delle due cose genera notifiche verso Teams, Slack o altri sistemi.
+Né l'elenco né l'uscita segnata mandano notifiche a Teams, Slack o altri sistemi.
 
 **Se la persona risulta già uscita.** Se nel frattempo è passata da un'Uscita, o un collega l'ha già segnata, il server risponde `409 NOT_INSIDE` e non registra niente. La console mostra, per esempio, «Rossi Mario risulta già uscito: la lista è aggiornata.» e ricarica l'elenco, quindi non serve fare altro. Se il dipendente è stato cancellato nel frattempo, il messaggio è «Questa persona non è più tra i dipendenti: la lista è aggiornata.». Due conferme nello stesso istante per la stessa persona producono una sola uscita: la seconda riceve `NOT_INSIDE`.
 
