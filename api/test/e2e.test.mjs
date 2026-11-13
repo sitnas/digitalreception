@@ -912,8 +912,12 @@ describe('end-to-end', { skip: !enabled && 'E2E_DB_HOST not set' }, () => {
         away: { firstName: 'Altra', lastName: 'Sede', badgeUid: '04:DD:00:04', permissions: [{ door: 'MI-MAIN' }] },
         // No rules at all.
         none: { firstName: 'Senza', lastName: 'Regole', badgeUid: '04:DD:00:05', permissions: [] },
+        // Only a rule on a door of the site that is turned off.
+        off: { firstName: 'Porta', lastName: 'Spenta', badgeUid: '04:DD:00:06', permissions: [{ door: 'PD-OFF' }] },
       };
-      const ext = { sched: 'OUT01', day: 'OUT02', other: 'OUT03', away: 'OUT04', none: 'OUT05' };
+      const ext = { sched: 'OUT01', day: 'OUT02', other: 'OUT03', away: 'OUT04', none: 'OUT05', off: 'OUT06' };
+      const pdOff = await mk('Magazzino chiuso PD', 'PD-OFF', 'NONE');
+      assert.equal((await admin.patch(`/admin/access/doors/${pdOff.id}`, { active: false })).status, 200);
       for (const [k, x] of Object.entries(people)) assert.equal((await hr('PUT', `/employees/${ext[k]}`, x)).status, 200, k);
       const listed = (await admin.get('/admin/access/employees')).data;
       const id = Object.fromEntries(Object.entries(ext).map(([k, x]) => [k, listed.find((e) => e.externalId === x).id]));
@@ -938,6 +942,7 @@ describe('end-to-end', { skip: !enabled && 'E2E_DB_HOST not set' }, () => {
       assert.equal((await verify(rIn, nfc('other'))).reason, 'NO_PERMISSION', 'a way in needs a rule on that door');
       assert.equal((await verify(rOut, nfc('away'))).reason, 'NO_PERMISSION', 'rules at another site do not count');
       assert.equal((await verify(rOut, nfc('none'))).reason, 'NO_PERMISSION');
+      assert.equal((await verify(rOut, nfc('off'))).reason, 'NO_PERMISSION', 'a rule on a door turned off does not count');
 
       // Everything else is checked as before (criterion 46).
       const sched = people.sched;

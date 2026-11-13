@@ -307,9 +307,11 @@ export class AccessService {
     const last = employee && tc.decrypt(employee.lastNameEnc, 'employee.lastName');
     const checked = reason;
     const antiPassback = !reason && !!employee && door.direction === 'IN' && door.antiPassback;
+    /** The time stored on the event (now, or just after a later way out found under the lock). */
+    let at = now;
     const result = await retryOnDeadlock(() => this.ds.transaction(async (em) => {
       reason = checked;
-      let at = now;
+      at = now;
       // Anti-passback, before the QR is used up (a refusal here leaves the code valid).
       if (antiPassback) {
         const last = await this.lastInOut(em, employee!.id, site, now);
@@ -344,13 +346,13 @@ export class AccessService {
       return result;
     }));
     // The reader shows who it recognised only to the person standing there: first name and initial.
-    return { result, reason: reason ?? 'OK', name: first && last ? `${first} ${last.charAt(0)}.` : null, door: door.name, at: now };
+    return { result, reason: reason ?? 'OK', name: first && last ? `${first} ${last.charAt(0)}.` : null, door: door.name, at };
   }
 
-  /** True when the employee has a rule on at least one door of the site (any schedule). */
+  /** True when the employee has a rule on at least one active door of the site (any schedule). */
   private async hasRuleAtSite(tenantId: string, employeeId: string, siteId: string) {
     const row = await this.rules.createQueryBuilder('r').select('r.id', 'id')
-      .innerJoin(Door, 'd', 'd.id = r.doorId AND d.tenantId = r.tenantId')
+      .innerJoin(Door, 'd', 'd.id = r.doorId AND d.tenantId = r.tenantId AND d.active = 1')
       .where('r.tenantId = :t AND r.employeeId = :e AND d.siteId = :s', { t: tenantId, e: employeeId, s: siteId })
       .limit(1).getRawOne<{ id: string }>();
     return !!row;
@@ -361,10 +363,9 @@ export class AccessService {
   /**
    * Employees whose last granted passage today (local midnight of the site) at this site, through a door
    * with a direction, was a way in: the same rule as anti-passback. One query on the (tenant, site,
-   * result, time) index, named: on a small or freshly loaded table the optimiser may pick the plain time
-   * index instead, which reads every organisation's passages of the day. The window function keeps each
-   * person's last row. Ties at the same instant
-   * count as a way out, as in lastInOut.
+   * result, time, method) index, named: on a small or freshly loaded table the optimiser may pick the
+   * plain time index instead, which reads every organisation's passages of the day. The window function
+   * keeps each person's last row. Ties at the same instant count as a way out, as in lastInOut.
    */
   async insideAt(tenantId: string, site: Site, now = new Date()) {
     const since = midnight(localDay(now, site.timezone), site.timezone);
