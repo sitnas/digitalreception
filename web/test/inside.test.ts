@@ -77,10 +77,10 @@ test('any other failure stays an error shown in the dialog', () => {
 });
 
 test('door log: a MAN row names the console mark-out, never a door, a phone or a card', () => {
-  const L = { phone: 'Telefono', card: 'Tessera', manual: 'A mano', markedOut: 'Segnato come uscito da console' };
-  assert.deepEqual(eventColumns({ method: 'MAN', door: null }, L), { door: 'Segnato come uscito da console', method: 'A mano' });
+  const L = { phone: 'Telefono', card: 'Tessera', manual: 'A mano', markedOut: 'Uscita segnata dalla console' };
+  assert.deepEqual(eventColumns({ method: 'MAN', door: null }, L), { door: 'Uscita segnata dalla console', method: 'A mano' });
   // Even if a door name ever came with it, the MAN row does not show it.
-  assert.deepEqual(eventColumns({ method: 'MAN', door: 'Ingresso' }, L), { door: 'Segnato come uscito da console', method: 'A mano' });
+  assert.deepEqual(eventColumns({ method: 'MAN', door: 'Ingresso' }, L), { door: 'Uscita segnata dalla console', method: 'A mano' });
   assert.deepEqual(eventColumns({ method: 'QR', door: 'Ingresso' }, L), { door: 'Ingresso', method: 'Telefono' });
   assert.deepEqual(eventColumns({ method: 'NFC', door: 'Garage' }, L), { door: 'Garage', method: 'Tessera' });
   // A deleted door: the API sends '—'; a null outside MAN still shows a dash rather than nothing.
