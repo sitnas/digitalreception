@@ -321,7 +321,7 @@ Confermando, il server registra un'uscita con l'ora di quel momento e la persona
 
 Cosa resta:
 
-- in **Passaggi**, una riga con esito «Consentito», «Uscita segnata dalla console» al posto della porta e «A mano» come metodo. Nel database è una riga di `access_events` con `method = 'MAN'`, `reason = 'MARKED_OUT'`, `direction = 'OUT'` e `doorId` e `readerId` vuoti. Il filtro «Consentiti» la mostra, «Negati» no. Viene cancellata dopo `ACCESS_LOG_RETENTION_DAYS` giorni come gli altri passaggi, e non conta nei numeri delle porte della dashboard;
+- in **Passaggi**, una riga con esito «Consentito», «Uscita segnata dalla console» al posto della porta e «A mano» come metodo. Nel database è una riga di `access_events` con `method = 'MAN'`, `reason = 'MARKED_OUT'`, `direction = 'OUT'` e `doorId` e `readerId` vuoti. Il filtro «Consentito» la mostra, «Negato» no. Viene cancellata dopo `ACCESS_LOG_RETENTION_DAYS` giorni come gli altri passaggi, e non conta nei numeri delle porte della dashboard;
 - nel **Registro accessi**, una voce `ACCESS_MARKED_OUT` («Dipendente segnato come uscito») con il dipendente, la sede, chi l'ha segnata, l'IP e il motivo;
 - ogni apertura dell'elenco scrive `ACCESS_INSIDE_VIEW` («Consultata la lista Risultano dentro») con la sede e il numero di righe, senza nomi.
 
