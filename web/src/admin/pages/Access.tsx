@@ -10,6 +10,7 @@ import type { ProjectRow } from './Projects';
 import type { SpotRow } from './Parking';
 import { CopyButton } from './Users';
 import { doorNames, formDoorUnguarded, guardedSiteIds, openDoorsFor, unguarded, type DoorDirection } from '../../lib/doors';
+import { eventColumns, type EventMethod } from '../../lib/inside';
 
 interface Permission { doorExternalId: string; door: string; site: string; days: number[] | null; from: string | null; to: string | null }
 interface EmployeeRow {
@@ -22,7 +23,8 @@ type ParkingRole = 'NONE' | 'USER' | 'MANAGER';
 interface ReaderRow { id: string; name: string; lastSeenAt: string | null; createdAt: string }
 interface DoorRow { id: string; externalId: string; name: string; active: boolean; siteId: string; siteName: string; direction: DoorDirection; antiPassback: boolean; readers: ReaderRow[] }
 interface DoorForm { id: string | null; siteId: string; name: string; externalId: string; direction: DoorDirection; antiPassback: boolean }
-interface EventRow { id: string; at: string; method: 'QR' | 'NFC'; result: 'GRANTED' | 'DENIED'; reason: string; door: string; site: string; timezone: string; employee: string | null; externalId: string | null; project: string | null }
+// method MAN, door null: the mark-out done from the console (Inside today), with no door and no credential.
+interface EventRow { id: string; at: string; method: EventMethod; result: 'GRANTED' | 'DENIED'; reason: string; door: string | null; site: string; timezone: string; employee: string | null; externalId: string | null; project: string | null }
 interface KeyRow { id: string; name: string; prefix: string; createdAt: string; lastUsedAt: string | null; revokedAt: string | null }
 
 const origin = () => window.location.origin;
@@ -448,6 +450,7 @@ export function AccessLogPage() {
   const projects = useAsync(() => api.get<ProjectRow[]>('/admin/access/projects'), []);
   const events = useAsync(() => api.get<EventRow[]>(`/admin/access/events?from=${encodeURIComponent(dayStart(day))}&to=${encodeURIComponent(dayEnd(day))}${siteId ? `&siteId=${siteId}` : ''}${result ? `&result=${result}` : ''}${projectId ? `&projectId=${projectId}` : ''}`), [day, siteId, result, projectId]);
   const reasons = t.access.reasons as Record<string, string>;
+  const labels = { phone: t.access.phone, card: t.access.card, manual: t.access.manualMethod, markedOut: t.access.markedOutDoor };
 
   return (
     <>
@@ -475,15 +478,15 @@ export function AccessLogPage() {
           <table>
             <thead><tr><th>{t.access.time}</th><th>{t.access.person}</th><th>{t.access.door}</th><th>{t.access.result}</th><th>{t.access.method}</th></tr></thead>
             <tbody>
-              {(events.data ?? []).map((e) => (
+              {(events.data ?? []).map((e) => { const col = eventColumns(e, labels); return (
                 <tr key={e.id}>
                   <td className="num">{fmtDateTime(e.at, intl, e.timezone)}</td>
                   <td>{e.employee ? <strong>{e.employee}</strong> : <span className="muted">{t.access.unknown}</span>}{e.externalId && <span className="muted"> · {e.externalId}</span>}{e.project && <span className="tag" style={{ marginLeft: 6 }}>{e.project}</span>}</td>
-                  <td>{e.door} <span className="muted">· {e.site}</span></td>
+                  <td>{col.door} <span className="muted">· {e.site}</span></td>
                   <td><span className={`pill ${e.result === 'GRANTED' ? 'OPEN' : 'ERASED'}`}>{t.access.results[e.result]}</span>{e.result === 'DENIED' && <><br /><span className="muted">{reasons[e.reason] ?? e.reason}</span></>}</td>
-                  <td>{e.method === 'QR' ? t.access.phone : t.access.card}</td>
+                  <td>{col.method}</td>
                 </tr>
-              ))}
+              ); })}
             </tbody>
           </table>
         )}

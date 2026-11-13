@@ -24,6 +24,7 @@ L'app è progettata per ridurre i dati al minimo:
 - il registro dei passaggi viene cancellato dopo **90 giorni** (variabile `ACCESS_LOG_RETENTION_DAYS`);
 - il lettore mostra solo nome e iniziale;
 - il registro lo vedono solo Amministratore, Responsabile di sede (per le sue sedi) e Auditor;
+- la reception non vede il registro, ma in **Risultano dentro** vede chi è dentro adesso nelle sue sedi, con reparto, ora e porta dell'ultimo ingresso di oggi (vedi *Segnare un'uscita dalla console*);
 - ogni consultazione finisce nel registro accessi della console.
 
 ## Come si configura
@@ -206,9 +207,11 @@ Motivi di rifiuto mostrati dal lettore e in console (`reason`):
 | `NOT_YET_VALID` | Periodo di validità non ancora iniziato |
 | `EXPIRED` | Periodo di validità terminato |
 | `DOOR_INACTIVE` | Porta disattivata |
-| `NO_PERMISSION` | Nessun permesso per quella porta |
-| `OUTSIDE_SCHEDULE` | Fuori dai giorni o dagli orari consentiti |
-| `ANTI_PASSBACK` | Risulta già dentro: oggi è entrato in questa sede e non è ancora passato da una porta di uscita. Solo sulle porte di ingresso con l'anti-passback; il lettore dice di chiedere alla reception |
+| `NO_PERMISSION` | Nessun permesso per quella porta. Su una porta di Uscita: nessun permesso su nessuna porta attiva della sede |
+| `OUTSIDE_SCHEDULE` | Fuori dai giorni o dagli orari consentiti. Mai sulle porte di Uscita |
+| `ANTI_PASSBACK` | Risulta già dentro: oggi è entrato in questa sede e non è ancora passato da una porta di uscita, né la reception l'ha segnato come uscito. Solo sulle porte di ingresso con l'anti-passback; il lettore dice di chiedere alla reception |
+
+Un passaggio concesso ha `reason` uguale a `OK`, con un'eccezione: l'uscita segnata dalla console ha `MARKED_OUT` (vedi *Segnare un'uscita dalla console*). Il lettore non la riceve mai, perché non passa da una porta.
 
 ## Dipendenti a mano
 
@@ -248,17 +251,18 @@ Lo stesso pulsante c'è sulla pagina web `/badge`: dopo Microsoft o Google il br
 
 L'anti-passback rifiuta l'ingresso a chi risulta già dentro, cioè a chi oggi è entrato e non è ancora passato da una porta di uscita. Serve contro il badge, o lo screenshot del QR, passato a un collega che aspetta fuori. È spento di default e si accende porta per porta.
 
-> **Non accenderlo ancora in produzione.** Chi esce senza passare il badge resta bloccato fuori fino a mezzanotte, e per ora né la reception né l'amministratore possono sbloccarlo. Il tasto «Segna come uscito» in console arriva nella prossima versione ([ROADMAP.md](ROADMAP.md), voce 20).
+> **Prima di accenderlo** imposta le porte di Uscita, ognuna con il suo lettore, e mostra alla reception dove si trova **Porte → Risultano dentro**: chi esce senza passare il badge resta bloccato fuori finché qualcuno non lo segna come uscito da lì (vedi *Segnare un'uscita dalla console*).
 
 ### Come decide il lettore
 
 Ogni porta ha una **direzione**: *Nessuna* (il valore predefinito), *Ingresso* o *Uscita*. L'interruttore **Anti-passback** c'è solo sulle porte di Ingresso.
 
-Quando qualcuno passa la credenziale su un Ingresso con l'anti-passback, il server cerca il suo ultimo passaggio **concesso** di oggi nella stessa sede, su una porta di Ingresso o di Uscita; "oggi" parte dalla mezzanotte nel fuso orario della sede. Se quel passaggio è un ingresso, rifiuta con `ANTI_PASSBACK` e il lettore mostra «Risulti già dentro: se sei uscito senza passare il badge, chiedi alla reception». Se è un'uscita, o se oggi non c'è niente, la persona entra.
+Quando qualcuno passa la credenziale su un Ingresso con l'anti-passback, il server cerca il suo ultimo passaggio **concesso** di oggi nella stessa sede, su una porta di Ingresso o di Uscita; "oggi" parte dalla mezzanotte nel fuso orario della sede. Se quel passaggio è un ingresso, rifiuta con `ANTI_PASSBACK` e il lettore mostra «Risulti già dentro: se sei uscito senza passare il badge, chiedi alla reception». Se è un'uscita, anche quella segnata dalla console, o se oggi non c'è niente, la persona entra.
 
 - Il controllo arriva dopo credenziale, validità, permesso e orario, e prima del controllo del QR già usato (`QR_USED`). Chi non ha il permesso riceve `NO_PERMISSION` come prima.
 - Le porte con direzione *Nessuna* non contano: passarci non fa risultare né dentro né fuori.
-- Un'Uscita non rifiuta mai per anti-passback, ma permessi e orari valgono anche lì. Un'uscita negata non conta come uscita: con un permesso fino alle 19:00, chi esce alle 19:30 riceve `OUTSIDE_SCHEDULE` e resta "dentro" fino a mezzanotte.
+- Un'Uscita non rifiuta mai per anti-passback e non guarda giorni e orari, così nessuno resta chiuso dentro dopo l'orario: con un permesso 08:00-19:00, chi esce alle 19:30 passa. Non serve nemmeno un permesso su quella porta: basta una regola su una porta **attiva** qualsiasi della stessa sede, e chi non ne ha nessuna riceve `NO_PERMISSION`. Una regola su una porta disattivata non conta. Tutti gli altri controlli restano: credenziale, dipendente attivo e nel periodo di validità, app Porte accesa per la persona, porta attiva, QR scaduto o già usato su quella porta.
+- Un'uscita negata non conta come uscita: la persona resta "dentro" finché non passa da un'Uscita o la reception non la segna come uscita.
 - Ogni passaggio salva la direzione che la porta aveva in quel momento, nella colonna `access_events.direction`. Se cambi la direzione di una porta a metà giornata, i passaggi già registrati non cambiano significato. I passaggi di prima di questa versione hanno la colonna vuota (`NULL`) e non contano.
 - Un QR rifiutato per anti-passback non viene consumato.
 - Se la stessa persona si presenta a due ingressi con l'anti-passback nello stesso istante (il titolare con il QR, un altro con lo screenshot), il server mette in fila le due richieste e ne passa una sola.
@@ -267,8 +271,8 @@ Quando qualcuno passa la credenziale su un Ingresso con l'anti-passback, il serv
 
 Direzione e anti-passback li cambiano l'Amministratore (SUPER_ADMIN) e il Responsabile di sede (SITE_MANAGER), quest'ultimo solo per le sue sedi, da **Porte e lettori → Modifica**. Il sistema esterno può fare lo stesso con l'API (`PUT /doors/{id}`, sopra).
 
-1. Imposta *Uscita* su ogni porta da cui si esce passando il badge. Una porta di uscita registra chi esce solo se ha un lettore.
-2. Dai a chi entra il permesso anche sulle porte di uscita, senza limiti di orario, per evitare il caso delle 19:30 descritto sopra.
+1. Imposta *Uscita* su ogni porta da cui si esce passando il badge, e solo su lettori montati dal lato interno: un lettore di Uscita dà verde a qualsiasi ora a chiunque abbia un permesso su una porta attiva della sede, quindi se lo raggiunge chi sta fuori diventa un ingresso senza orari. Una porta di uscita registra chi esce solo se ha un lettore.
+2. Sulle Uscite non servono permessi a parte: esce chiunque abbia un permesso su una porta attiva della sede, a qualsiasi ora. Una regola che c'è già sulla porta di Uscita conta come permesso nella sede, ma i suoi giorni e orari no; se la porta torna *Ingresso* o *Nessuna*, ricominciano a valere.
 3. Imposta *Ingresso* su ogni porta con lettore da cui si entra e accendi l'anti-passback su tutte, nessuna esclusa: una sola porta scoperta basta per entrare con il badge di un altro (vedi *Limiti*).
 4. In **Porte e lettori** controlla che nessuna porta della sede abbia l'etichetta **Senza anti-passback**.
 
@@ -284,7 +288,7 @@ Ogni modifica finisce nel **Registro accessi**: `DOOR_CREATED` con direzione e a
 
 **Copertura.** L'anti-passback protegge una sede solo se tutti gli ingressi con lettore lo hanno acceso. Chi è già dentro può passare il badge o il QR a un altro, che entra da una porta scoperta.
 
-**Uscita senza badge.** Chi esce senza passare il badge (dietro a un collega, da un'uscita senza lettore, con un'uscita negata) resta bloccato fino a mezzanotte. Lo sblocco della singola persona, con il tasto «Segna come uscito», arriva nella prossima versione: fino ad allora l'anti-passback non va acceso in produzione.
+**Uscita senza badge.** Chi esce senza passare il badge (dietro a un collega, da un'uscita senza lettore, con un'uscita negata) resta "dentro" fino a mezzanotte, e il lettore lo rimanda alla reception. La reception lo sblocca con «Segna come uscito», una persona alla volta: vedi *Segnare un'uscita dalla console*, qui sotto.
 
 **Turni di notte.** A mezzanotte, ora della sede, lo stato si azzera per tutti. Chi è dentro dopo mezzanotte risulta fuori e può prestare il badge.
 
@@ -293,6 +297,39 @@ Ogni modifica finisce nel **Registro accessi**: `DOOR_CREATED` con direzione e a
 **Presenza del titolare.** Chi ha la credenziale di un collega e riceve `ANTI_PASSBACK` capisce che il titolare è in sede. Il tentativo resta nei Passaggi con l'id del titolare, quindi si può risalire a quando è successo.
 
 **Notifiche.** Se un canale di *Notifiche* riceve l'evento «Una porta rifiuta un badge» (`access.denied`) e ha acceso *Includi i nomi di ospiti e dipendenti*, il messaggio dice chi è stato rifiutato e perché: con `ANTI_PASSBACK`, dice a Slack o Teams che quella persona risulta in sede.
+
+### Segnare un'uscita dalla console
+
+In **Porte → Risultano dentro** c'è l'elenco di chi oggi risulta dentro in una sede, con la stessa regola dell'anti-passback: l'ultimo passaggio concesso di oggi, su un Ingresso o un'Uscita, è un ingresso. Le porte con direzione *Nessuna* non contano. Per ogni persona ci sono nome, reparto, ora dell'ultimo ingresso nel fuso della sede e porta da cui è entrata. La voce la vedono Amministratore, Responsabile di sede e Receptionist, questi ultimi due solo per le proprie sedi; l'Auditor no, e con l'app Porte spenta non c'è per nessuno.
+
+- La ricerca per nome o cognome filtra l'elenco già caricato, senza mandare niente al server.
+- Chi ha più sedi le sceglie dal selettore in alto, una alla volta; con una sola sede il selettore non c'è.
+- L'elenco non si aggiorna da solo: si ricarica quando apri la pagina, dopo ogni uscita segnata e con il tasto **Aggiorna**.
+
+Non è l'appello di **Evacuazione**, che conta chiunque sia passato da una porta oggi, anche se poi è uscito.
+
+**Segna come uscito.** Il tasto su ogni riga apre una finestra in cui scegli il motivo; il tasto di conferma resta spento finché non ne scegli uno, e non c'è un campo di testo libero, perché finirebbe per contenere note sulla persona. I motivi sono quattro:
+
+| Codice | In console |
+|---|---|
+| `NO_BADGE_EXIT` | Uscita senza passare il badge |
+| `NO_READER_EXIT` | Uscita da una porta senza lettore |
+| `EXIT_DENIED` | Uscita negata dal lettore |
+| `OTHER` | Altro |
+
+Confermando, il server registra un'uscita con l'ora di quel momento e la persona sparisce dall'elenco. Al passaggio successivo da un Ingresso con l'anti-passback entra. L'uscita vale solo per quella sede: se la persona risulta dentro anche in un'altra, lì resta dentro. Non cambia permessi né validità, quindi si può segnare anche per un dipendente disattivato o scaduto.
+
+Cosa resta:
+
+- in **Passaggi**, una riga con esito «Consentito», «Uscita segnata dalla console» al posto della porta e «A mano» come metodo. Nel database è una riga di `access_events` con `method = 'MAN'`, `reason = 'MARKED_OUT'`, `direction = 'OUT'` e `doorId` e `readerId` vuoti. Il filtro «Consentito» la mostra, «Negato» no. Viene cancellata dopo `ACCESS_LOG_RETENTION_DAYS` giorni come gli altri passaggi, e non conta nei numeri delle porte della dashboard;
+- nel **Registro accessi**, una voce `ACCESS_MARKED_OUT` («Dipendente segnato come uscito») con il dipendente, la sede, chi l'ha segnata, l'IP e il motivo;
+- ogni apertura dell'elenco scrive `ACCESS_INSIDE_VIEW` («Consultata la lista Risultano dentro») con la sede e il numero di righe, senza nomi.
+
+Né l'elenco né l'uscita segnata mandano notifiche a Teams, Slack o altri sistemi.
+
+**Se la persona risulta già uscita.** Se nel frattempo è passata da un'Uscita, o un collega l'ha già segnata, il server risponde `409 NOT_INSIDE` e non registra niente. La console mostra, per esempio, «Rossi Mario risulta già uscito: la lista è aggiornata.» e ricarica l'elenco, quindi non serve fare altro. Se il dipendente è stato cancellato nel frattempo, il messaggio è «Questa persona non è più tra i dipendenti: la lista è aggiornata.». Due conferme nello stesso istante per la stessa persona producono una sola uscita: la seconda riceve `NOT_INSIDE`.
+
+Per chi integra la console, gli endpoint sono `GET /api/admin/access/inside?siteId=<uuid>` e `POST /api/admin/access/employees/{id}/mark-out` con corpo `{"siteId":"<uuid>","reason":"NO_BADGE_EXIT"}`. Una sede fuori dalle proprie dà 403, una sede o un dipendente che l'organizzazione non ha danno 404 (`SITE_NOT_FOUND`, `EMPLOYEE_NOT_FOUND`), un motivo fuori elenco dà 400.
 
 ### Il QR monouso resta per porta
 

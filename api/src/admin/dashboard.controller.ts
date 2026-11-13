@@ -93,7 +93,8 @@ export class DashboardController {
       const access = { today: 0, sameDayLastWeek: 0, deniedWeek: 0, deniedPreviousWeek: 0 };
       for (const { ids: sids, b } of zones) {
         const inSites = sids.map(() => '?').join(',');
-        const part = (key: string) => `SELECT '${key}' AS k, COUNT(*) AS n FROM access_events WHERE tenantId = ? AND siteId IN (${inSites}) AND result = ? AND at >= ? AND at < ?`;
+        // Ways out marked by hand at the console (method MAN) are not passages at a door: they do not count.
+        const part = (key: string) => `SELECT '${key}' AS k, COUNT(*) AS n FROM access_events WHERE tenantId = ? AND siteId IN (${inSites}) AND result = ? AND at >= ? AND at < ?${key.startsWith('denied') ? '' : " AND method <> 'MAN'"}`;
         const key = `${user.tenantId}|${sids.join(',')}|${b(0).toISOString()}`;
         const hit = accessCache.get(key);
         const rows = hit && Date.now() - hit.at < ACCESS_TTL_MS ? hit.rows : await this.ds.query(

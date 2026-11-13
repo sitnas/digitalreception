@@ -108,9 +108,9 @@ export function useDialog(ref: React.RefObject<HTMLElement>, onClose: () => void
 }
 
 /** The visible X of a drawer or window, with its accessible name. */
-export function CloseButton({ label, onClick }: { label: string; onClick: () => void }) {
+export function CloseButton({ label, onClick, disabled }: { label: string; onClick: () => void; disabled?: boolean }) {
   return (
-    <button type="button" className="icon-btn" onClick={onClick} aria-label={label}>
+    <button type="button" className="icon-btn" onClick={onClick} aria-label={label} disabled={disabled}>
       <svg viewBox="-8 -8 16 16" width="16" height="16" aria-hidden><path d="M-6 -6L6 6M6 -6L-6 6" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" /></svg>
     </button>
   );
